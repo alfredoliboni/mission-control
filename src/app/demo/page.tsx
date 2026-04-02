@@ -1,12 +1,7 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 export default async function DemoPage() {
-  const cookieStore = await cookies();
-  cookieStore.set("companion-demo", "true", {
-    path: "/",
-    maxAge: 60 * 60 * 24, // 24 hours
-    sameSite: "lax",
-  });
-  redirect("/dashboard");
+  // In Next.js 16, cookies can't be set in pages — use a route handler instead
+  redirect("/api/demo");
 }
