@@ -37,6 +37,7 @@ export function Sidebar() {
     label: string
   ) => (
     <Link
+      key={route}
       href={route}
       onClick={() => setSidebarOpen(false)}
       className={cn(
