@@ -6,6 +6,7 @@ import {
   Circle,
   Loader2,
   RefreshCw,
+  HelpCircle,
 } from "lucide-react";
 import type { BenefitStatus, BenefitStatusRow } from "@/types/workspace";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,11 @@ const statusConfig: Record<BenefitStatus, { icon: typeof CheckCircle; color: str
     icon: RefreshCw,
     color: "text-teal-600",
     label: "Renewed",
+  },
+  unknown: {
+    icon: HelpCircle,
+    color: "text-warm-400",
+    label: "Unknown",
   },
   not_started: {
     icon: Circle,

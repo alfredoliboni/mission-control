@@ -15,12 +15,19 @@ import {
   splitByHeading,
 } from "./common";
 
+const PLACEHOLDER_PATTERNS = /^(to be assessed|to be confirmed|to be provided|family intake in progress)$/i;
+
+function isPlaceholderValue(text: string): boolean {
+  return PLACEHOLDER_PATTERNS.test(text.trim());
+}
+
 function parseBulletList(content: string): string[] {
   return content
     .split("\n")
     .filter((l) => l.match(/^-\s/))
     .map((l) => l.replace(/^-\s*/, "").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((l) => !isPlaceholderValue(l));
 }
 
 function parseBasicInfo(content: string): ProfileBasicInfo {
@@ -32,6 +39,8 @@ function parseBasicInfo(content: string): ProfileBasicInfo {
     diagnosis: pairs.diagnosis || "",
     currentStage: pairs.current_stage || "",
     postalCode: pairs.postal_code || "",
+    location: pairs.location || "",
+    familyLanguage: pairs.family_language || "",
     ...pairs,
   };
 }
@@ -87,9 +96,16 @@ function parsePersonalProfile(content: string): ProfilePersonal {
   };
 }
 
+const MEDICATION_PLACEHOLDER = /^\(none confirmed\)$|^\(to be added\)$|^\(no medications\)$/i;
+
+function isMedicationPlaceholder(name: string): boolean {
+  return !name || MEDICATION_PLACEHOLDER.test(name.trim());
+}
+
 function parseMedical(content: string): ProfileMedical {
   const result: ProfileMedical = {
     medications: [],
+    unconfirmedMedications: [],
     supplements: [],
     comorbidConditions: [],
     doctors: [],
@@ -101,19 +117,23 @@ function parseMedical(content: string): ProfileMedical {
   for (const section of h3Sections) {
     const heading = section.heading.toLowerCase();
 
-    if (heading.includes("medication")) {
+    if (heading.includes("unconfirmed") && heading.includes("medication")) {
+      result.unconfirmedMedications = parseBulletList(section.content);
+    } else if (heading.includes("medication")) {
       const rows = extractTable(section.content);
-      result.medications = rows.map(
-        (row): Medication => ({
-          medication: row.medication || "",
-          dose: row.dose || "",
-          frequency: row.frequency || "",
-          prescriber: row.prescriber || "",
-          startDate: row.start_date || "",
-          status: row.status || "",
-          notes: row.notes || "",
-        })
-      );
+      result.medications = rows
+        .filter((row) => !isMedicationPlaceholder(row.medication || ""))
+        .map(
+          (row): Medication => ({
+            medication: row.medication || "",
+            dose: row.dose || "",
+            frequency: row.frequency || "",
+            prescriber: row.prescriber || "",
+            startDate: row.start_date || "",
+            status: row.status || "",
+            notes: row.notes || "",
+          })
+        );
     }
 
     if (heading.includes("supplement")) {
@@ -194,6 +214,8 @@ export function parseProfile(markdown: string): ParsedProfile {
       diagnosis: "",
       currentStage: "",
       postalCode: "",
+      location: "",
+      familyLanguage: "",
     };
     let personalProfile: ProfilePersonal = {
       communication: "",
@@ -212,6 +234,7 @@ export function parseProfile(markdown: string): ParsedProfile {
     };
     let medical: ProfileMedical = {
       medications: [],
+      unconfirmedMedications: [],
       supplements: [],
       comorbidConditions: [],
       doctors: [],
@@ -245,6 +268,8 @@ export function parseProfile(markdown: string): ParsedProfile {
         diagnosis: "",
         currentStage: "",
         postalCode: "",
+        location: "",
+        familyLanguage: "",
       },
       personalProfile: {
         communication: "",
@@ -261,7 +286,7 @@ export function parseProfile(markdown: string): ParsedProfile {
         challengesList: [],
         extraInfo: "",
       },
-      medical: { medications: [], supplements: [], comorbidConditions: [], doctors: [], appointments: [] },
+      medical: { medications: [], unconfirmedMedications: [], supplements: [], comorbidConditions: [], doctors: [], appointments: [] },
       journeyPartners: [],
     };
   }

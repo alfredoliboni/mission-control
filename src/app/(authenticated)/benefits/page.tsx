@@ -21,6 +21,7 @@ import {
   DollarSign,
   CalendarDays,
   Shield,
+  HelpCircle,
 } from "lucide-react";
 
 /* ── status config ─────────────────────────────────────────────── */
@@ -69,6 +70,13 @@ const statusConfig: Record<
     bg: "bg-teal-50",
     border: "border-teal-300",
     label: "Renewed",
+  },
+  unknown: {
+    icon: HelpCircle,
+    color: "text-warm-400",
+    bg: "bg-warm-50",
+    border: "border-warm-200",
+    label: "Unknown",
   },
   not_started: {
     icon: Circle,

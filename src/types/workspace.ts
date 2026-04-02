@@ -76,6 +76,8 @@ export interface ProfileBasicInfo {
   diagnosis: string;
   currentStage: string;
   postalCode: string;
+  location: string;
+  familyLanguage: string;
   [key: string]: string;
 }
 
@@ -127,6 +129,7 @@ export interface Supplement {
 
 export interface ProfileMedical {
   medications: Medication[];
+  unconfirmedMedications: string[];
   supplements: Supplement[];
   comorbidConditions: string[];
   doctors: Doctor[];
@@ -190,7 +193,8 @@ export type BenefitStatus =
   | "not_started"
   | "approved"
   | "active"
-  | "renewed";
+  | "renewed"
+  | "unknown";
 
 export interface BenefitStatusRow {
   benefit: string;
@@ -271,6 +275,37 @@ export interface DocumentSummary {
 export interface ParsedDocuments {
   documents: DocumentEntry[];
   summaries: DocumentSummary[];
+}
+
+// ── Parsed Ontario System ────────────────────────────────────────────────
+
+export interface OntarioWaitTimeEntry {
+  service: string;
+  wait: string;
+  months: number;
+}
+
+export interface OntarioBenefitEntry {
+  name: string;
+  amount: string;
+  eligibility: string;
+}
+
+export interface ParsedOntarioSystem {
+  journeyOverview: string;
+  oap: {
+    entryPoints: string[];
+    childhoodBudget: string[];
+    foundationalServices: string[];
+    waitTimes: OntarioWaitTimeEntry[];
+  };
+  school: {
+    iepPoints: string[];
+    boards: { name: string; type: string }[];
+  };
+  financialSupports: OntarioBenefitEntry[];
+  lastUpdated: string;
+  sources: string;
 }
 
 // ── Chat types ───────────────────────────────────────────────────────────

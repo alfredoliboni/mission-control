@@ -20,6 +20,8 @@ function parseBenefitStatus(statusText: string): BenefitStatus {
   if (lower.includes("waiting")) return "waiting";
   if (lower.includes("approved")) return "approved";
   if (lower.includes("active")) return "active";
+  if (statusText.includes("❓") || lower.includes("check") || lower.includes("unknown"))
+    return "unknown";
   return "not_started";
 }
 

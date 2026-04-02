@@ -18,15 +18,20 @@ export function parseDocuments(markdown: string): ParsedDocuments {
 
       if (heading.includes("all documents")) {
         const rows = extractTable(section.content);
-        result.documents = rows.map(
-          (row): DocumentEntry => ({
-            date: row.date || "",
-            title: row.title || "",
-            from: row.from || "",
-            type: row.type || "",
-            storageLink: row.storage_link || "",
+        result.documents = rows
+          .filter((row) => {
+            const firstVal = (row.date || row.title || Object.values(row)[0] || "").trim();
+            return firstVal !== "" && !/^\(no documents/i.test(firstVal);
           })
-        );
+          .map(
+            (row): DocumentEntry => ({
+              date: row.date || "",
+              title: row.title || "",
+              from: row.from || "",
+              type: row.type || "",
+              storageLink: row.storage_link || "",
+            })
+          );
       }
 
       if (heading.includes("summaries")) {

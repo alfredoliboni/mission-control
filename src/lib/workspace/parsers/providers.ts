@@ -56,7 +56,7 @@ export function parseProviders(markdown: string): ParsedProviders {
         currentPriority = "highest";
         continue;
       }
-      if (heading.includes("relevant")) {
+      if (heading.includes("relevant") || heading.includes("community") || section.heading.includes("🔸")) {
         currentPriority = "relevant";
         continue;
       }
@@ -113,7 +113,7 @@ export function parseProviders(markdown: string): ParsedProviders {
           const heading = h3.heading.toLowerCase();
           if (heading.includes("highest priority")) {
             currentPriority = "highest";
-          } else if (heading.includes("relevant")) {
+          } else if (heading.includes("relevant") || heading.includes("community") || h3.heading.includes("🔸")) {
             currentPriority = "relevant";
           }
 
