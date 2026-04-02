@@ -377,107 +377,41 @@ export default function ProfilePage() {
           </TabsList>
 
           {/* ── TAB 1: OVERVIEW ─────────────────────────────────────── */}
-          <TabsContent value="overview" className="mt-4 space-y-6">
-            {/* Hero Section */}
-            <SectionEditWrapper
-              sectionKey="hero"
-              editingSection={editingSection}
-              onEdit={() => startEditing("hero")}
-              onSave={saveEditing}
-              onCancel={cancelEditing}
-            >
-              <Card className="overflow-hidden">
-                <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-8">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-                    {/* Avatar circle */}
-                    <div className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary/15 text-3xl font-bold text-primary ring-4 ring-white">
-                      {data.basicInfo.name
-                        ? data.basicInfo.name.charAt(0).toUpperCase()
-                        : "?"}
+          <TabsContent value="overview" className="mt-4">
+            <Card className="overflow-hidden">
+              {/* ── Hero ── */}
+              <SectionEditWrapper
+                sectionKey="hero"
+                editingSection={editingSection}
+                onEdit={() => startEditing("hero")}
+                onSave={saveEditing}
+                onCancel={cancelEditing}
+              >
+                <div className="px-6 pt-6 pb-4">
+                  <div className="flex items-center gap-5">
+                    <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-warm-100 text-2xl font-bold text-foreground">
+                      {data.basicInfo.name?.charAt(0).toUpperCase() || "?"}
                     </div>
-                    <div className="flex-1 space-y-2">
+                    <div className="space-y-1.5">
                       {editingSection === "hero" ? (
-                        <Input
-                          value={data.basicInfo.name}
-                          onChange={(e) =>
-                            updateBasicInfo("name", (e.target as HTMLInputElement).value)
-                          }
-                          className="text-2xl font-bold h-10"
-                        />
+                        <Input value={data.basicInfo.name} onChange={(e) => updateBasicInfo("name", (e.target as HTMLInputElement).value)} className="text-xl font-bold h-9" />
                       ) : (
-                        <h2 className="text-2xl font-bold text-foreground font-heading">
-                          {data.basicInfo.name}
-                        </h2>
+                        <h2 className="text-xl font-bold text-foreground font-heading">{data.basicInfo.name}</h2>
                       )}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {data.basicInfo.age && (
-                          <Badge variant="outline" className="gap-1">
-                            <Cake className="size-3" />
-                            {editingSection === "hero" ? (
-                              <Input
-                                value={data.basicInfo.age}
-                                onChange={(e) =>
-                                  updateBasicInfo(
-                                    "age",
-                                    (e.target as HTMLInputElement).value
-                                  )
-                                }
-                                className="h-5 w-16 border-0 p-0 text-xs"
-                              />
-                            ) : (
-                              data.basicInfo.age
-                            )}
-                          </Badge>
-                        )}
-                        {data.basicInfo.diagnosis && (
-                          <Badge className="bg-primary/10 text-primary border-primary/20">
-                            {editingSection === "hero" ? (
-                              <Input
-                                value={data.basicInfo.diagnosis}
-                                onChange={(e) =>
-                                  updateBasicInfo(
-                                    "diagnosis",
-                                    (e.target as HTMLInputElement).value
-                                  )
-                                }
-                                className="h-5 w-32 border-0 bg-transparent p-0 text-xs"
-                              />
-                            ) : (
-                              data.basicInfo.diagnosis
-                            )}
-                          </Badge>
-                        )}
-                        {data.basicInfo.currentStage && (
-                          <Badge
-                            className={getStageBadgeClasses(data.basicInfo.currentStage)}
-                          >
-                            <Activity className="size-3 mr-0.5" />
-                            {editingSection === "hero" ? (
-                              <Input
-                                value={data.basicInfo.currentStage}
-                                onChange={(e) =>
-                                  updateBasicInfo(
-                                    "currentStage",
-                                    (e.target as HTMLInputElement).value
-                                  )
-                                }
-                                className="h-5 w-28 border-0 bg-transparent p-0 text-xs"
-                              />
-                            ) : (
-                              data.basicInfo.currentStage
-                            )}
-                          </Badge>
-                        )}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        {data.basicInfo.age && <span>Age {data.basicInfo.age}</span>}
+                        {data.basicInfo.diagnosis && <span>{data.basicInfo.diagnosis}</span>}
+                        {data.basicInfo.currentStage && <span className="capitalize">{data.basicInfo.currentStage.replace(/-/g, " ")}</span>}
+                        {data.basicInfo.postalCode && <span>{data.basicInfo.postalCode}</span>}
                       </div>
                     </div>
                   </div>
                 </div>
-              </Card>
-            </SectionEditWrapper>
+              </SectionEditWrapper>
 
-            {/* Info Cards Grid */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Communication Card */}
+              <Separator />
+
+              {/* ── Communication ── */}
               <SectionEditWrapper
                 sectionKey="communication"
                 editingSection={editingSection}
@@ -485,76 +419,34 @@ export default function ProfilePage() {
                 onSave={saveEditing}
                 onCancel={cancelEditing}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-blue-100">
-                        <MessageCircle className="size-4 text-blue-600" />
-                      </div>
-                      Communication
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {editingSection === "communication" ? (
-                      <div className="space-y-3">
-                        <Textarea
-                          value={data.personalProfile.communication}
-                          onChange={(e) =>
-                            updatePersonal("communication", e.target.value)
-                          }
-                          className="text-sm"
-                          rows={2}
-                        />
-                        <Separator />
-                        <p className="text-xs font-medium text-muted-foreground mb-1">
-                          Communication Styles
-                        </p>
-                        <EditableTagList
-                          items={data.personalProfile.communicationStyles}
-                          onChange={(items) =>
-                            updatePersonal("communicationStyles", items)
-                          }
-                          isEditing={true}
-                          tagClassName="bg-blue-50 text-blue-700"
-                          placeholder="Add communication style..."
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          {data.personalProfile.communication}
-                        </p>
-                        {data.personalProfile.communicationStyles.length > 0 && (
-                          <>
-                            <Separator />
-                            <div className="flex flex-wrap gap-1.5">
-                              {data.personalProfile.communicationStyles.map(
-                                (style, i) => {
-                                  const [emoji, text] = splitEmoji(style);
-                                  return (
-                                    <Badge
-                                      key={i}
-                                      variant="secondary"
-                                      className="bg-blue-50 text-blue-700"
-                                    >
-                                      {emoji && (
-                                        <span className="mr-0.5">{emoji}</span>
-                                      )}
-                                      {text}
-                                    </Badge>
-                                  );
-                                }
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="px-6 py-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                    <MessageCircle className="size-4 text-muted-foreground" />
+                    Communication
+                  </h3>
+                  {editingSection === "communication" ? (
+                    <div className="space-y-3">
+                      <Textarea value={data.personalProfile.communication} onChange={(e) => updatePersonal("communication", e.target.value)} className="text-sm" rows={2} />
+                      <EditableTagList items={data.personalProfile.communicationStyles} onChange={(items) => updatePersonal("communicationStyles", items)} isEditing={true} tagClassName="bg-warm-100 text-foreground" placeholder="Add style..." />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground leading-relaxed">{data.personalProfile.communication}</p>
+                      {data.personalProfile.communicationStyles.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {data.personalProfile.communicationStyles.map((style, i) => (
+                            <Badge key={i} variant="secondary" className="bg-warm-100 text-foreground font-normal">{style}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </SectionEditWrapper>
 
-              {/* Sensory Profile Card */}
+              <Separator />
+
+              {/* ── Sensory ── */}
               <SectionEditWrapper
                 sectionKey="sensory"
                 editingSection={editingSection}
@@ -562,170 +454,45 @@ export default function ProfilePage() {
                 onSave={saveEditing}
                 onCancel={cancelEditing}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-purple-100">
-                        <Eye className="size-4 text-purple-600" />
-                      </div>
-                      Sensory Profile
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {editingSection === "sensory" ? (
-                      <div className="space-y-4">
-                        <Textarea
-                          value={data.personalProfile.sensory}
-                          onChange={(e) => updatePersonal("sensory", e.target.value)}
-                          className="text-sm"
-                          rows={2}
-                        />
-                        <div>
-                          <p className="text-xs font-medium text-green-700 mb-1.5">
-                            Seeks
-                          </p>
-                          <EditableTagList
-                            items={data.personalProfile.sensoryProfile.seeks}
-                            onChange={(items) =>
-                              updatePersonal("sensoryProfile", {
-                                ...data.personalProfile.sensoryProfile,
-                                seeks: items,
-                              })
-                            }
-                            isEditing={true}
-                            tagClassName="bg-green-50 text-green-700"
-                            placeholder="Add seeking behavior..."
-                          />
+                <div className="px-6 py-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Eye className="size-4 text-muted-foreground" />
+                    Sensory Profile
+                  </h3>
+                  {editingSection === "sensory" ? (
+                    <div className="space-y-4">
+                      <Textarea value={data.personalProfile.sensory} onChange={(e) => updatePersonal("sensory", e.target.value)} className="text-sm" rows={2} />
+                      {(["seeks", "avoids", "calming"] as const).map((key) => (
+                        <div key={key}>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5 capitalize">{key}</p>
+                          <EditableTagList items={data.personalProfile.sensoryProfile[key]} onChange={(items) => updatePersonal("sensoryProfile", { ...data.personalProfile.sensoryProfile, [key]: items })} isEditing={true} tagClassName="bg-warm-100 text-foreground" placeholder={`Add ${key}...`} />
                         </div>
-                        <div>
-                          <p className="text-xs font-medium text-amber-700 mb-1.5">
-                            Avoids
-                          </p>
-                          <EditableTagList
-                            items={data.personalProfile.sensoryProfile.avoids}
-                            onChange={(items) =>
-                              updatePersonal("sensoryProfile", {
-                                ...data.personalProfile.sensoryProfile,
-                                avoids: items,
-                              })
-                            }
-                            isEditing={true}
-                            tagClassName="bg-red-50 text-red-700"
-                            placeholder="Add avoidance..."
-                          />
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-blue-700 mb-1.5">
-                            Calming
-                          </p>
-                          <EditableTagList
-                            items={data.personalProfile.sensoryProfile.calming}
-                            onChange={(items) =>
-                              updatePersonal("sensoryProfile", {
-                                ...data.personalProfile.sensoryProfile,
-                                calming: items,
-                              })
-                            }
-                            isEditing={true}
-                            tagClassName="bg-sky-50 text-sky-700"
-                            placeholder="Add calming strategy..."
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {data.personalProfile.sensoryProfile.seeks.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-green-700 mb-1.5">
-                              Seeks
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {data.personalProfile.sensoryProfile.seeks.map(
-                                (item, i) => {
-                                  const [emoji, text] = splitEmoji(item);
-                                  return (
-                                    <Badge
-                                      key={i}
-                                      variant="secondary"
-                                      className="bg-green-50 text-green-700"
-                                    >
-                                      {emoji && (
-                                        <span className="mr-0.5">{emoji}</span>
-                                      )}
-                                      {text}
-                                    </Badge>
-                                  );
-                                }
-                              )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {(["seeks", "avoids", "calming"] as const).map((key) => {
+                        const items = data.personalProfile.sensoryProfile[key];
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={key}>
+                            <p className="text-xs font-medium text-muted-foreground mb-1.5 capitalize">{key}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {items.map((item, i) => (
+                                <Badge key={i} variant="secondary" className="bg-warm-100 text-foreground font-normal text-xs">{item}</Badge>
+                              ))}
                             </div>
                           </div>
-                        )}
-                        {data.personalProfile.sensoryProfile.avoids.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-amber-700 mb-1.5">
-                              Avoids
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {data.personalProfile.sensoryProfile.avoids.map(
-                                (item, i) => {
-                                  const [emoji, text] = splitEmoji(item);
-                                  return (
-                                    <Badge
-                                      key={i}
-                                      variant="secondary"
-                                      className="bg-red-50 text-red-700"
-                                    >
-                                      {emoji && (
-                                        <span className="mr-0.5">{emoji}</span>
-                                      )}
-                                      {text}
-                                    </Badge>
-                                  );
-                                }
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {data.personalProfile.sensoryProfile.calming.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-blue-700 mb-1.5">
-                              Calming
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {data.personalProfile.sensoryProfile.calming.map(
-                                (item, i) => {
-                                  const [emoji, text] = splitEmoji(item);
-                                  return (
-                                    <Badge
-                                      key={i}
-                                      variant="secondary"
-                                      className="bg-sky-50 text-sky-700"
-                                    >
-                                      {emoji && (
-                                        <span className="mr-0.5">{emoji}</span>
-                                      )}
-                                      {text}
-                                    </Badge>
-                                  );
-                                }
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {data.personalProfile.sensoryProfile.seeks.length === 0 &&
-                          data.personalProfile.sensoryProfile.avoids.length === 0 &&
-                          data.personalProfile.sensoryProfile.calming.length === 0 && (
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                              {data.personalProfile.sensory}
-                            </p>
-                          )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </SectionEditWrapper>
 
-              {/* Personality Card */}
+              <Separator />
+
+              {/* ── Personality ── */}
               <SectionEditWrapper
                 sectionKey="personality"
                 editingSection={editingSection}
@@ -733,60 +500,35 @@ export default function ProfilePage() {
                 onSave={saveEditing}
                 onCancel={cancelEditing}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-rose-100">
-                        <Heart className="size-4 text-rose-600" />
-                      </div>
-                      Personality
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {editingSection === "personality" ? (
-                      <EditableTagList
-                        items={data.personalProfile.personalityTraits}
-                        onChange={(items) =>
-                          updatePersonal("personalityTraits", items)
-                        }
-                        isEditing={true}
-                        tagClassName="bg-rose-50 text-rose-700"
-                        placeholder="Add personality trait..."
-                      />
-                    ) : (
-                      <div className="space-y-2">
-                        {data.personalProfile.personalityTraits.map((trait, i) => {
-                          const { label, description } = extractBadgeLabel(trait);
-                          const [emoji, badgeText] = splitEmoji(label);
-                          return (
-                            <div key={i} className="flex items-start gap-2">
-                              <Badge
-                                variant="secondary"
-                                className="bg-rose-50 text-rose-700 shrink-0 mt-0.5"
-                              >
-                                {emoji && <span className="mr-0.5">{emoji}</span>}
-                                {badgeText}
-                              </Badge>
-                              {description && (
-                                <span className="text-xs text-muted-foreground leading-relaxed">
-                                  {description}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {data.personalProfile.personalityTraits.length === 0 && (
-                          <span className="text-sm text-muted-foreground italic">
-                            No personality traits listed
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="px-6 py-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                    <Heart className="size-4 text-muted-foreground" />
+                    Personality
+                  </h3>
+                  {editingSection === "personality" ? (
+                    <EditableTagList items={data.personalProfile.personalityTraits} onChange={(items) => updatePersonal("personalityTraits", items)} isEditing={true} tagClassName="bg-warm-100 text-foreground" placeholder="Add trait..." />
+                  ) : (
+                    <div className="space-y-1.5">
+                      {data.personalProfile.personalityTraits.map((trait, i) => {
+                        const { label, description } = extractBadgeLabel(trait);
+                        return (
+                          <div key={i} className="flex items-baseline gap-2 text-sm">
+                            <span className="font-medium text-foreground">{label}</span>
+                            {description && <span className="text-muted-foreground">{description}</span>}
+                          </div>
+                        );
+                      })}
+                      {data.personalProfile.personalityTraits.length === 0 && (
+                        <span className="text-sm text-muted-foreground italic">None listed</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </SectionEditWrapper>
 
-              {/* Quick Facts Card */}
+              <Separator />
+
+              {/* ── Quick Facts ── */}
               <SectionEditWrapper
                 sectionKey="quickfacts"
                 editingSection={editingSection}
@@ -794,44 +536,19 @@ export default function ProfilePage() {
                 onSave={saveEditing}
                 onCancel={cancelEditing}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-warm-200">
-                        <Sparkles className="size-4 text-warm-500" />
-                      </div>
-                      Quick Facts
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <QuickFactRow
-                        icon={<MapPin className="size-4 text-muted-foreground" />}
-                        label="Postal Code"
-                        value={data.basicInfo.postalCode}
-                        isEditing={editingSection === "quickfacts"}
-                        onChange={(val) => updateBasicInfo("postalCode", val)}
-                      />
-                      <QuickFactRow
-                        icon={<Cake className="size-4 text-muted-foreground" />}
-                        label="Date of Birth"
-                        value={data.basicInfo.dateOfBirth}
-                        isEditing={editingSection === "quickfacts"}
-                        onChange={(val) => updateBasicInfo("dateOfBirth", val)}
-                        inputType="date"
-                      />
-                      <QuickFactRow
-                        icon={<Activity className="size-4 text-muted-foreground" />}
-                        label="Current Stage"
-                        value={data.basicInfo.currentStage}
-                        isEditing={editingSection === "quickfacts"}
-                        onChange={(val) => updateBasicInfo("currentStage", val)}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="px-6 py-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Sparkles className="size-4 text-muted-foreground" />
+                    Details
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <QuickFactRow icon={<MapPin className="size-4 text-muted-foreground" />} label="Postal Code" value={data.basicInfo.postalCode} isEditing={editingSection === "quickfacts"} onChange={(val) => updateBasicInfo("postalCode", val)} />
+                    <QuickFactRow icon={<Cake className="size-4 text-muted-foreground" />} label="Date of Birth" value={data.basicInfo.dateOfBirth} isEditing={editingSection === "quickfacts"} onChange={(val) => updateBasicInfo("dateOfBirth", val)} inputType="date" />
+                    <QuickFactRow icon={<Activity className="size-4 text-muted-foreground" />} label="Current Stage" value={data.basicInfo.currentStage} isEditing={editingSection === "quickfacts"} onChange={(val) => updateBasicInfo("currentStage", val)} />
+                  </div>
+                </div>
               </SectionEditWrapper>
-            </div>
+            </Card>
           </TabsContent>
 
           {/* ── TAB 2: INTERESTS & PERSONALITY ──────────────────────── */}
