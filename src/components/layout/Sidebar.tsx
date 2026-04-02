@@ -126,7 +126,8 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-border space-y-0.5">
+        {navLink("/settings", "⚙️", "Settings")}
         {isDemo ? (
           <Link
             href="/login"
