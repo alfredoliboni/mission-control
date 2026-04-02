@@ -104,6 +104,18 @@ export default function LoginPage() {
                 — sample data, no login required
               </span>
             </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-primary hover:text-primary/80"
+              onClick={() => router.push("/onboarding")}
+            >
+              Get Started
+              <span className="ml-2 text-warm-400 text-xs">
+                — set up your child&apos;s profile
+              </span>
+            </Button>
           </CardContent>
         </Card>
       </div>

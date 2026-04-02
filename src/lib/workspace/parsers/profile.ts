@@ -3,6 +3,7 @@ import type {
   Doctor,
   JourneyPartner,
   Medication,
+  Supplement,
   ParsedProfile,
   ProfileBasicInfo,
   ProfileMedical,
@@ -13,6 +14,14 @@ import {
   extractTable,
   splitByHeading,
 } from "./common";
+
+function parseBulletList(content: string): string[] {
+  return content
+    .split("\n")
+    .filter((l) => l.match(/^-\s/))
+    .map((l) => l.replace(/^-\s*/, "").trim())
+    .filter(Boolean);
+}
 
 function parseBasicInfo(content: string): ProfileBasicInfo {
   const pairs = extractKeyValuePairs(content);
@@ -29,19 +38,59 @@ function parseBasicInfo(content: string): ProfileBasicInfo {
 
 function parsePersonalProfile(content: string): ProfilePersonal {
   const pairs = extractKeyValuePairs(content);
+  const h3Sections = splitByHeading(content, 3);
+
+  let interestsList: string[] = [];
+  const sensoryProfile = { seeks: [] as string[], avoids: [] as string[], calming: [] as string[] };
+  let communicationStyles: string[] = [];
+  let personalityTraits: string[] = [];
+  let triggers: string[] = [];
+  let strengthsList: string[] = [];
+  let challengesList: string[] = [];
+
+  for (const section of h3Sections) {
+    const heading = section.heading.toLowerCase();
+    if (heading.includes("interest")) {
+      interestsList = parseBulletList(section.content);
+    } else if (heading.includes("sensory")) {
+      const kvp = extractKeyValuePairs(section.content);
+      sensoryProfile.seeks = (kvp.seeks || "").split(",").map((s) => s.trim()).filter(Boolean);
+      sensoryProfile.avoids = (kvp.avoids || "").split(",").map((s) => s.trim()).filter(Boolean);
+      sensoryProfile.calming = (kvp.calming || "").split(",").map((s) => s.trim()).filter(Boolean);
+    } else if (heading.includes("communication")) {
+      communicationStyles = parseBulletList(section.content);
+    } else if (heading.includes("personality")) {
+      personalityTraits = parseBulletList(section.content);
+    } else if (heading.includes("trigger")) {
+      triggers = parseBulletList(section.content);
+    } else if (heading.includes("strength")) {
+      strengthsList = parseBulletList(section.content);
+    } else if (heading.includes("challenge")) {
+      challengesList = parseBulletList(section.content);
+    }
+  }
+
   return {
     communication: pairs.communication || "",
     sensory: pairs.sensory || "",
     interests: pairs.interests || "",
     strengths: pairs.strengths || "",
     challenges: pairs.challenges || "",
-    ...pairs,
+    interestsList,
+    sensoryProfile,
+    communicationStyles,
+    personalityTraits,
+    triggers,
+    strengthsList,
+    challengesList,
   };
 }
 
 function parseMedical(content: string): ProfileMedical {
   const result: ProfileMedical = {
     medications: [],
+    supplements: [],
+    comorbidConditions: [],
     doctors: [],
     appointments: [],
   };
@@ -49,9 +98,9 @@ function parseMedical(content: string): ProfileMedical {
   const h3Sections = splitByHeading(content, 3);
 
   for (const section of h3Sections) {
-    if (
-      section.heading.toLowerCase().includes("medication")
-    ) {
+    const heading = section.heading.toLowerCase();
+
+    if (heading.includes("medication")) {
       const rows = extractTable(section.content);
       result.medications = rows.map(
         (row): Medication => ({
@@ -66,7 +115,23 @@ function parseMedical(content: string): ProfileMedical {
       );
     }
 
-    if (section.heading.toLowerCase().includes("doctor")) {
+    if (heading.includes("supplement")) {
+      const rows = extractTable(section.content);
+      result.supplements = rows.map(
+        (row): Supplement => ({
+          supplement: row.supplement || "",
+          dose: row.dose || "",
+          frequency: row.frequency || "",
+          notes: row.notes || "",
+        })
+      );
+    }
+
+    if (heading.includes("comorbid")) {
+      result.comorbidConditions = parseBulletList(section.content);
+    }
+
+    if (heading.includes("doctor")) {
       const lines = section.content.split("\n").filter((l) => l.startsWith("-"));
       result.doctors = lines.map((line): Doctor => {
         const match = line.match(
@@ -84,9 +149,7 @@ function parseMedical(content: string): ProfileMedical {
       });
     }
 
-    if (
-      section.heading.toLowerCase().includes("appointment")
-    ) {
+    if (heading.includes("appointment")) {
       const lines = section.content
         .split("\n")
         .filter((l) => l.startsWith("-"));
@@ -137,9 +200,18 @@ export function parseProfile(markdown: string): ParsedProfile {
       interests: "",
       strengths: "",
       challenges: "",
+      interestsList: [],
+      sensoryProfile: { seeks: [], avoids: [], calming: [] },
+      communicationStyles: [],
+      personalityTraits: [],
+      triggers: [],
+      strengthsList: [],
+      challengesList: [],
     };
     let medical: ProfileMedical = {
       medications: [],
+      supplements: [],
+      comorbidConditions: [],
       doctors: [],
       appointments: [],
     };
@@ -176,8 +248,15 @@ export function parseProfile(markdown: string): ParsedProfile {
         interests: "",
         strengths: "",
         challenges: "",
+        interestsList: [],
+        sensoryProfile: { seeks: [], avoids: [], calming: [] },
+        communicationStyles: [],
+        personalityTraits: [],
+        triggers: [],
+        strengthsList: [],
+        challengesList: [],
       },
-      medical: { medications: [], doctors: [], appointments: [] },
+      medical: { medications: [], supplements: [], comorbidConditions: [], doctors: [], appointments: [] },
       journeyPartners: [],
     };
   }

@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Eye, Download, ImageIcon, FileIcon } from "lucide-react";
+import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
 import type { DocumentEntry } from "@/types/workspace";
 
 function getDocIcon(type: string) {
@@ -144,19 +145,11 @@ export default function DocumentsPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ul className="space-y-1">
-                        {summary.findings.map((finding, j) => (
-                          <li
-                            key={j}
-                            className="text-sm text-foreground flex items-start gap-2"
-                          >
-                            <span className="text-warm-300 mt-1 shrink-0">
-                              •
-                            </span>
-                            {finding}
-                          </li>
-                        ))}
-                      </ul>
+                      <MarkdownRenderer
+                        content={summary.findings
+                          .map((f) => `- ${f}`)
+                          .join("\n")}
+                      />
                     </CardContent>
                   </Card>
                 ))}
@@ -208,19 +201,13 @@ export default function DocumentsPage() {
                 <p className="text-xs font-medium text-foreground mb-2">
                   Agent Summary
                 </p>
-                <ul className="space-y-1">
-                  {matchingSummary.findings.map((finding, j) => (
-                    <li
-                      key={j}
-                      className="text-xs text-warm-400 flex items-start gap-1.5"
-                    >
-                      <span className="text-warm-300 mt-0.5 shrink-0">
-                        •
-                      </span>
-                      {finding}
-                    </li>
-                  ))}
-                </ul>
+                <div className="text-xs">
+                  <MarkdownRenderer
+                    content={matchingSummary.findings
+                      .map((f) => `- ${f}`)
+                      .join("\n")}
+                  />
+                </div>
               </div>
             )}
           </div>

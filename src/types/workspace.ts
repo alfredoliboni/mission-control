@@ -85,7 +85,14 @@ export interface ProfilePersonal {
   interests: string;
   strengths: string;
   challenges: string;
-  [key: string]: string;
+  interestsList: string[];
+  sensoryProfile: { seeks: string[]; avoids: string[]; calming: string[] };
+  communicationStyles: string[];
+  personalityTraits: string[];
+  triggers: string[];
+  strengthsList: string[];
+  challengesList: string[];
+  [key: string]: string | string[] | { seeks: string[]; avoids: string[]; calming: string[] };
 }
 
 export interface Medication {
@@ -110,8 +117,17 @@ export interface Appointment {
   description: string;
 }
 
+export interface Supplement {
+  supplement: string;
+  dose: string;
+  frequency: string;
+  notes: string;
+}
+
 export interface ProfileMedical {
   medications: Medication[];
+  supplements: Supplement[];
+  comorbidConditions: string[];
   doctors: Doctor[];
   appointments: Appointment[];
 }
