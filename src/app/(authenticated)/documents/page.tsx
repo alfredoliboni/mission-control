@@ -22,9 +22,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Download, ImageIcon, FileIcon } from "lucide-react";
+import { FileText, Eye, Download, ImageIcon, FileIcon, Users } from "lucide-react";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
 import { DocumentUpload } from "@/components/sections/DocumentUpload";
+import {
+  DocumentPermissions,
+  PermissionBadge,
+  getDemoSharedCount,
+  DEMO_STAKEHOLDER_TOTAL,
+} from "@/components/sections/DocumentPermissions";
+import { useAppStore } from "@/store/appStore";
 import type { DocumentEntry } from "@/types/workspace";
 
 function getDocIcon(type: string) {
@@ -42,6 +49,7 @@ function isImageType(title: string) {
 
 export default function DocumentsPage() {
   const { data: documents, isLoading } = useParsedDocuments();
+  const { isDemo } = useAppStore();
   const [selectedDoc, setSelectedDoc] = useState<DocumentEntry | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"date_desc" | "date_asc" | "name_az" | "name_za">("date_desc");
@@ -142,9 +150,22 @@ export default function DocumentsPage() {
                         </TableCell>
                         <TableCell className="text-sm">{doc.from}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-[10px]">
-                            {doc.type}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="text-[10px] w-fit">
+                              {doc.type}
+                            </Badge>
+                            {isDemo ? (
+                              <PermissionBadge
+                                shared={getDemoSharedCount(doc.title)}
+                                total={DEMO_STAKEHOLDER_TOTAL}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-warm-300 flex items-center gap-0.5">
+                                <Users className="h-2.5 w-2.5" />
+                                Only you
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -256,6 +277,19 @@ export default function DocumentsPage() {
               </div>
             )}
           </div>
+
+          {/* Permissions panel */}
+          {selectedDoc && (
+            <div className="border border-border rounded-lg p-3">
+              <DocumentPermissions
+                documentId={isDemo ? "demo" : "none"}
+                familyId="default"
+                demoSharedCount={
+                  isDemo ? getDemoSharedCount(selectedDoc.title) : 0
+                }
+              />
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" size="sm">

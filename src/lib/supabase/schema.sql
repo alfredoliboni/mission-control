@@ -41,6 +41,16 @@ CREATE TABLE stakeholder_links (
   linked_by UUID REFERENCES auth.users(id)
 );
 
+CREATE TABLE document_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  stakeholder_id UUID NOT NULL REFERENCES auth.users(id),
+  can_view BOOLEAN NOT NULL DEFAULT false,
+  granted_by UUID REFERENCES auth.users(id),
+  granted_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(document_id, stakeholder_id)
+);
+
 -- ============================================================
 -- Row Level Security
 -- ============================================================
@@ -48,6 +58,7 @@ CREATE TABLE stakeholder_links (
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stakeholder_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_permissions ENABLE ROW LEVEL SECURITY;
 
 -- Helper: check if a user is linked to a given family
 CREATE OR REPLACE FUNCTION is_family_member(fid UUID)
@@ -77,10 +88,17 @@ CREATE POLICY "Parents can view family documents"
   ON documents FOR SELECT
   USING (is_parent(family_id));
 
--- Linked stakeholders can view documents for families they are linked to
-CREATE POLICY "Stakeholders can view linked family documents"
+-- Stakeholders can only see documents where document_permissions.can_view = true
+CREATE POLICY "Stakeholders can view permitted documents"
   ON documents FOR SELECT
-  USING (is_family_member(family_id));
+  USING (
+    EXISTS (
+      SELECT 1 FROM document_permissions
+      WHERE document_permissions.document_id = documents.id
+        AND document_permissions.stakeholder_id = auth.uid()
+        AND document_permissions.can_view = true
+    )
+  );
 
 -- Authenticated users can upload documents
 CREATE POLICY "Authenticated users can insert documents"
@@ -124,6 +142,31 @@ CREATE POLICY "Stakeholders can view own links"
 CREATE POLICY "Parents can create family links"
   ON stakeholder_links FOR INSERT
   WITH CHECK (is_parent(family_id) AND linked_by = auth.uid());
+
+-- ----- Document Permissions -----
+
+-- Parents can manage permissions for their family's documents
+CREATE POLICY "Parents can manage document permissions"
+  ON document_permissions FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM documents
+      WHERE documents.id = document_permissions.document_id
+        AND is_parent(documents.family_id)
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM documents
+      WHERE documents.id = document_permissions.document_id
+        AND is_parent(documents.family_id)
+    )
+  );
+
+-- Stakeholders can view their own permission rows
+CREATE POLICY "Stakeholders can view own document permissions"
+  ON document_permissions FOR SELECT
+  USING (stakeholder_id = auth.uid());
 
 -- ============================================================
 -- Storage: documents bucket

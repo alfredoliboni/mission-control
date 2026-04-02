@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Upload, Loader2, CheckCircle2 } from "lucide-react";
+import { DocumentPermissions } from "@/components/sections/DocumentPermissions";
 
 const DOC_TYPES = [
   "Diagnosis Report",
@@ -48,7 +49,19 @@ export function DocumentUpload({
   const [docType, setDocType] = useState(DOC_TYPES[0]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<"form" | "permissions">("form");
+  const [uploadedDocId, setUploadedDocId] = useState<string | null>(null);
+
+  const handleClose = () => {
+    setOpen(false);
+    setFile(null);
+    setTitle("");
+    setDocType(DOC_TYPES[0]);
+    setStep("form");
+    setUploadedDocId(null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   // Only show for authenticated users, not demo mode
   if (isDemo || !user) return null;
@@ -79,35 +92,30 @@ export function DocumentUpload({
       if (storageError) throw storageError;
 
       // Save metadata to documents table
-      const { error: dbError } = await supabase.from("documents").insert({
-        family_id: familyId,
-        child_nickname: childNickname ?? null,
-        uploaded_by: user.id,
-        uploader_role: role ?? "parent",
-        title,
-        doc_type: docType,
-        file_path: filePath,
-        metadata: {
-          original_name: file.name,
-          size: file.size,
-          mime_type: file.type,
-        },
-      });
+      const { data: docData, error: dbError } = await supabase
+        .from("documents")
+        .insert({
+          family_id: familyId,
+          child_nickname: childNickname ?? null,
+          uploaded_by: user.id,
+          uploader_role: role ?? "parent",
+          title,
+          doc_type: docType,
+          file_path: filePath,
+          metadata: {
+            original_name: file.name,
+            size: file.size,
+            mime_type: file.type,
+          },
+        })
+        .select("id")
+        .single();
 
       if (dbError) throw dbError;
 
-      setSuccess(true);
+      setUploadedDocId(docData.id);
+      setStep("permissions");
       onUploadComplete?.();
-
-      // Reset after a moment
-      setTimeout(() => {
-        setOpen(false);
-        setFile(null);
-        setTitle("");
-        setDocType(DOC_TYPES[0]);
-        setSuccess(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -131,12 +139,23 @@ export function DocumentUpload({
             </DialogDescription>
           </DialogHeader>
 
-          {success ? (
-            <div className="text-center py-6 space-y-2">
-              <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
-              <p className="text-sm font-medium text-foreground">
-                Document uploaded successfully
-              </p>
+          {step === "permissions" && uploadedDocId ? (
+            <div className="space-y-4">
+              <div className="text-center py-2 space-y-1">
+                <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
+                <p className="text-sm font-medium text-foreground">
+                  Document uploaded successfully
+                </p>
+                <p className="text-xs text-warm-400">
+                  Choose who can see this document
+                </p>
+              </div>
+              <div className="border border-border rounded-lg p-3">
+                <DocumentPermissions
+                  documentId={uploadedDocId}
+                  familyId={familyId}
+                />
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -188,20 +207,24 @@ export function DocumentUpload({
             </div>
           )}
 
-          {!success && (
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleUpload}
-                disabled={!file || !title || uploading}
-              >
-                {uploading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Upload
-              </Button>
-            </DialogFooter>
-          )}
+          <DialogFooter>
+            {step === "permissions" ? (
+              <Button onClick={handleClose}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpload}
+                  disabled={!file || !title || uploading}
+                >
+                  {uploading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Upload
+                </Button>
+              </>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
