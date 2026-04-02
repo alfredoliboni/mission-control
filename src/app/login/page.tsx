@@ -6,22 +6,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { Mail, Loader2 } from "lucide-react";
+
+type Mode = "password" | "magic-link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn, signInWithOtp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<Mode>("password");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   const handleDemo = () => {
     document.cookie = "companion-demo=true; path=/; max-age=86400; samesite=lax";
     router.push("/dashboard");
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Supabase auth would go here
-    // For now, redirect to demo
-    handleDemo();
+    setError(null);
+    setLoading(true);
+
+    if (mode === "magic-link") {
+      const { error } = await signInWithOtp(email);
+      setLoading(false);
+      if (error) {
+        setError(error);
+      } else {
+        setMagicLinkSent(true);
+      }
+      return;
+    }
+
+    const { error } = await signIn(email, password);
+    setLoading(false);
+    if (error) {
+      setError(error);
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   return (
@@ -50,41 +77,93 @@ export default function LoginPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="text-sm font-medium text-foreground block mb-1.5"
+            {magicLinkSent ? (
+              <div className="text-center space-y-3 py-4">
+                <Mail className="h-10 w-10 text-primary mx-auto" />
+                <p className="text-sm font-medium text-foreground">
+                  Check your email
+                </p>
+                <p className="text-xs text-warm-400">
+                  We sent a sign-in link to <strong>{email}</strong>.
+                  <br />
+                  Click the link in the email to sign in.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setMagicLinkSent(false);
+                    setMode("password");
+                  }}
                 >
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                  Back to sign in
+                </Button>
               </div>
-              <div>
-                <label
-                  htmlFor="password"
-                  className="text-sm font-medium text-foreground block mb-1.5"
+            ) : (
+              <>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="text-sm font-medium text-foreground block mb-1.5"
+                    >
+                      Email
+                    </label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  {mode === "password" && (
+                    <div>
+                      <label
+                        htmlFor="password"
+                        className="text-sm font-medium text-foreground block mb-1.5"
+                      >
+                        Password
+                      </label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {error && (
+                    <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {mode === "magic-link" ? "Send Magic Link" : "Sign In"}
+                  </Button>
+                </form>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === "password" ? "magic-link" : "password");
+                    setError(null);
+                  }}
+                  className="w-full text-xs text-primary hover:text-primary/80 text-center"
                 >
-                  Password
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="w-full">
-                Sign In
-              </Button>
-            </form>
+                  {mode === "password"
+                    ? "Sign in with magic link instead"
+                    : "Sign in with password instead"}
+                </button>
+              </>
+            )}
 
             <div className="relative">
               <Separator />
@@ -109,11 +188,11 @@ export default function LoginPage() {
               type="button"
               variant="ghost"
               className="w-full text-primary hover:text-primary/80"
-              onClick={() => router.push("/onboarding")}
+              onClick={() => router.push("/signup")}
             >
-              Get Started
+              Create Account
               <span className="ml-2 text-warm-400 text-xs">
-                — set up your child&apos;s profile
+                — parents, providers, schools
               </span>
             </Button>
           </CardContent>

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   X,
-  LogOut,
 } from "lucide-react";
 import { useWorkspaceSections } from "@/hooks/useWorkspace";
 import { getSectionGroups } from "@/lib/workspace/sections";
@@ -13,6 +12,7 @@ import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { UserMenu } from "@/components/layout/UserMenu";
 
 const GROUP_LABELS: Record<string, string> = {
   overview: "Overview",
@@ -24,7 +24,7 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sidebarOpen, setSidebarOpen, isDemo } = useAppStore();
+  const { sidebarOpen, setSidebarOpen } = useAppStore();
   const { data: sections, isLoading } = useWorkspaceSections();
 
   const groups = sections ? getSectionGroups(sections) : null;
@@ -128,20 +128,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-3 border-t border-border space-y-0.5">
         {navLink("/settings", "⚙️", "Settings")}
-        {isDemo ? (
-          <Link
-            href="/login"
-            onClick={() => {
-              document.cookie =
-                "companion-demo=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-              setSidebarOpen(false);
-            }}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-warm-400 hover:bg-warm-100 transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Exit Demo
-          </Link>
-        ) : null}
+        <UserMenu />
       </div>
     </>
   );

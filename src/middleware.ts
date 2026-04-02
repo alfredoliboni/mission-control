@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/demo", "/onboarding", "/api/"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths
@@ -20,17 +21,29 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for demo mode cookie
+  // Check for demo mode cookie — demo users bypass auth entirely
   const isDemo = request.cookies.get("companion-demo")?.value === "true";
   if (isDemo) {
     return NextResponse.next();
   }
 
-  // For production, check Supabase auth session
-  // For now, redirect unauthenticated users to login
-  const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  return NextResponse.redirect(url);
+  // Refresh Supabase auth session (rewrites cookies if token refreshed)
+  const response = await updateSession(request);
+
+  // Check if user has a valid session after refresh
+  // We look for the Supabase auth cookie presence as a fast check.
+  // The actual session validation happens in updateSession via getUser().
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"));
+
+  if (!hasAuthCookie) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  return response;
 }
 
 export const config = {

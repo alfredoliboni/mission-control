@@ -10,6 +10,7 @@ interface WorkspaceSectionProps {
   lastUpdated?: string;
   agentMonitoring?: string[];
   isLoading?: boolean;
+  headerRight?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -19,6 +20,7 @@ export function WorkspaceSection({
   lastUpdated,
   agentMonitoring,
   isLoading,
+  headerRight,
   children,
 }: WorkspaceSectionProps) {
   if (isLoading) {
@@ -52,6 +54,7 @@ export function WorkspaceSection({
               Updated {lastUpdated}
             </Badge>
           )}
+          {headerRight}
         </div>
       </div>
 

@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Eye, Download, ImageIcon, FileIcon } from "lucide-react";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
+import { DocumentUpload } from "@/components/sections/DocumentUpload";
 import type { DocumentEntry } from "@/types/workspace";
 
 function getDocIcon(type: string) {
@@ -73,6 +74,7 @@ export default function DocumentsPage() {
       title="Documents"
       icon="📄"
       isLoading={isLoading}
+      headerRight={<DocumentUpload familyId="default" />}
     >
       {documents && (
         <div className="space-y-6">
