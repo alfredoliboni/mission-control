@@ -32,11 +32,44 @@ async function proxyViaOrgo(apiPath: string): Promise<{ status: number; body: st
   });
 
   if (!response.ok) {
-    return { status: 502, body: JSON.stringify({ error: "Orgo API unreachable" }) };
+    const errorText = await response.text().catch(() => "");
+    return { 
+      status: 502, 
+      body: JSON.stringify({ 
+        error: "Orgo API unreachable", 
+        httpStatus: response.status,
+        detail: errorText.slice(0, 200)
+      }) 
+    };
   }
 
   const result = await response.json();
-  return { status: 200, body: result.output || "{}" };
+  
+  // Check for Orgo-level errors
+  if (result.success === false || result.error) {
+    return {
+      status: 502,
+      body: JSON.stringify({
+        error: "Orgo command failed",
+        orgoError: result.error || result.error_type || "unknown",
+        exitCode: result.exit_code,
+      }),
+    };
+  }
+
+  const output = result.output;
+  if (!output || output.trim() === "") {
+    return {
+      status: 502,
+      body: JSON.stringify({
+        error: "Empty response from VM API",
+        orgoSuccess: result.success,
+        exitCode: result.exit_code,
+      }),
+    };
+  }
+
+  return { status: 200, body: output };
 }
 
 async function proxyDirect(apiPath: string): Promise<{ status: number; body: string }> {
@@ -73,7 +106,10 @@ export async function GET(
         return new NextResponse(result.body, { status: result.status });
       }
     }
-    return NextResponse.json({ error: "Companion API not configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Companion API not configured", hasComputerId: !!ORGO_COMPUTER_ID, hasApiKey: !!ORGO_API_KEY },
+      { status: 503 }
+    );
   }
 
   try {
@@ -81,7 +117,11 @@ export async function GET(
     try {
       return NextResponse.json(JSON.parse(result.body), { status: result.status });
     } catch {
-      return new NextResponse(result.body, { status: result.status });
+      // If output isn't JSON, return as text
+      return new NextResponse(result.body, { 
+        status: result.status,
+        headers: { "Content-Type": "text/plain" },
+      });
     }
   } catch (err) {
     return NextResponse.json(
