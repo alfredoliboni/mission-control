@@ -42,12 +42,14 @@ export default function ProgramsPage() {
 
           {showGapFillers && programs.gapFillers.length > 0 && (
             <section>
-              <h2 className="font-heading text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-                <span aria-hidden="true">🏷️</span> Gap Fillers
-                <span className="text-xs font-normal text-warm-400">
-                  Use while waiting for services
-                </span>
-              </h2>
+              <div className="mb-4">
+                <h2 className="font-heading text-lg font-semibold text-foreground flex items-center gap-2">
+                  <span aria-hidden="true">🏷️</span> Gap Fillers
+                </h2>
+                <p className="text-sm text-warm-400 mt-1 ml-7">
+                  Use while waiting for funded services, or when services are not covered
+                </p>
+              </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {programs.gapFillers.map((p, i) => (
                   <ProgramCard key={i} program={p} />

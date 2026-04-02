@@ -41,7 +41,7 @@ function parseProgramBlock(
     status: pairs.status || "",
     url: pairs.url || "",
     phone: pairs.phone || "",
-    email: pairs.email || pairs.contact || "",
+    email: pairs.email || (pairs.contact && pairs.contact.includes("@") ? pairs.contact : "") || "",
     details: pairs,
     isGapFiller,
   };
