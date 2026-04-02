@@ -42,6 +42,7 @@ import {
   Cake,
   Activity,
   Plus,
+  FileText,
 } from "lucide-react";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -546,6 +547,40 @@ export default function ProfilePage() {
                     <QuickFactRow icon={<Cake className="size-4 text-muted-foreground" />} label="Date of Birth" value={data.basicInfo.dateOfBirth} isEditing={editingSection === "quickfacts"} onChange={(val) => updateBasicInfo("dateOfBirth", val)} inputType="date" />
                     <QuickFactRow icon={<Activity className="size-4 text-muted-foreground" />} label="Current Stage" value={data.basicInfo.currentStage} isEditing={editingSection === "quickfacts"} onChange={(val) => updateBasicInfo("currentStage", val)} />
                   </div>
+                </div>
+              </SectionEditWrapper>
+
+              <Separator />
+
+              {/* ── Extra Information ── */}
+              <SectionEditWrapper
+                sectionKey="extrainfo"
+                editingSection={editingSection}
+                onEdit={() => startEditing("extrainfo")}
+                onSave={saveEditing}
+                onCancel={cancelEditing}
+              >
+                <div className="px-6 py-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                    <FileText className="size-4 text-muted-foreground" />
+                    Extra Information
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Anything else important about your child — daily routine, what works at home, things the navigator should know.
+                  </p>
+                  {editingSection === "extrainfo" ? (
+                    <Textarea
+                      value={data.personalProfile.extraInfo || ""}
+                      onChange={(e) => updatePersonal("extraInfo", e.target.value)}
+                      className="text-sm"
+                      rows={4}
+                      placeholder="e.g. Alex does well with visual schedules. He needs extra time for transitions..."
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {data.personalProfile.extraInfo || <span className="italic">No extra information added yet. Click ✏️ to add notes.</span>}
+                    </p>
+                  )}
                 </div>
               </SectionEditWrapper>
             </Card>

@@ -116,6 +116,7 @@ interface FormData {
     canUploadRecords: boolean;
   }[];
   // Step 8
+  extraInfo: string;
   uploadedFiles: string[];
 }
 
@@ -138,6 +139,7 @@ const initialFormData: FormData = {
   medications: [],
   supplements: [],
   partners: [],
+  extraInfo: "",
   uploadedFiles: [],
 };
 
@@ -1450,11 +1452,32 @@ export default function OnboardingPage() {
       <>
         <StepIcon icon={Upload} bgClass="bg-sky-50 text-sky-600" />
         <h2 className="font-heading text-2xl font-bold text-center text-foreground">
-          Upload Your First Document
+          Anything Else?
         </h2>
         <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
-          Got a diagnosis report, school IEP, or therapy assessment? Drop it here
-          to get started.
+          Tell us anything else about your child that you think is important.
+          Their daily routine, what works at home, what they struggle with — anything helps our navigator build a better plan.
+        </p>
+
+        {/* Free-form extra info */}
+        <Textarea
+          placeholder="e.g. Alex does really well with visual schedules. He needs extra time for transitions. He loves going to the park but gets overwhelmed if it's too crowded. We've been on the OAP waitlist since 2024..."
+          value={formData.extraInfo}
+          onChange={(e) =>
+            setFormData((p) => ({ ...p, extraInfo: e.target.value }))
+          }
+          rows={5}
+          className="mb-6"
+        />
+
+        <Separator className="my-6" />
+
+        <h3 className="font-heading text-lg font-semibold text-center text-foreground mb-2">
+          Upload Documents
+        </h3>
+        <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto text-sm">
+          Got a diagnosis report, school IEP, or therapy assessment? Drop it here.
+          Our navigator will analyze them to build your child&apos;s profile.
         </p>
 
         {/* Drop zone */}

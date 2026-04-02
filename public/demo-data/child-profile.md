@@ -106,3 +106,12 @@
 | OT | — | Waitlisted at Pathways | — | Est. wait: 8 months |
 | SLP | Jessica Park | TVCC | jpark@tvcc.on.ca | Bi-weekly sessions |
 | Case Worker | — | Not yet assigned | — | Apply after OAP enrollment |
+
+## Extra Information
+Alex does really well with visual schedules — we use a picture board at home for his morning routine and it's made a huge difference. He needs extra time for transitions, especially leaving the park or ending screen time. Countdown timers help a lot.
+
+He loves going to the park but gets overwhelmed if it's too crowded or too loud. Early morning visits work best. He has a special bond with our dog and is very gentle with animals.
+
+We've been on the OAP waitlist since January 2025. His teacher says he's made great progress with the EA support at school but we're worried about next year's transition to a new class.
+
+He eats a very limited diet — mostly beige foods (crackers, pasta, bread). We're hoping OT can help with food exploration when we get off the waitlist.

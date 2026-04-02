@@ -83,6 +83,7 @@ function parsePersonalProfile(content: string): ProfilePersonal {
     triggers,
     strengthsList,
     challengesList,
+    extraInfo: "",
   };
 }
 
@@ -207,6 +208,7 @@ export function parseProfile(markdown: string): ParsedProfile {
       triggers: [],
       strengthsList: [],
       challengesList: [],
+      extraInfo: "",
     };
     let medical: ProfileMedical = {
       medications: [],
@@ -227,6 +229,8 @@ export function parseProfile(markdown: string): ParsedProfile {
         medical = parseMedical(section.content);
       } else if (heading.includes("journey partner")) {
         journeyPartners = parseJourneyPartners(section.content);
+      } else if (heading.includes("extra information") || heading.includes("additional")) {
+        personalProfile.extraInfo = section.content.trim();
       }
     }
 
@@ -255,6 +259,7 @@ export function parseProfile(markdown: string): ParsedProfile {
         triggers: [],
         strengthsList: [],
         challengesList: [],
+        extraInfo: "",
       },
       medical: { medications: [], supplements: [], comorbidConditions: [], doctors: [], appointments: [] },
       journeyPartners: [],
