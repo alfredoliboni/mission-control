@@ -42,6 +42,22 @@ function isImageType(title: string) {
 export default function DocumentsPage() {
   const { data: documents, isLoading } = useParsedDocuments();
   const [selectedDoc, setSelectedDoc] = useState<DocumentEntry | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"date_desc" | "date_asc" | "name_az" | "name_za">("date_desc");
+
+  const allDocs = documents?.documents || [];
+  const uniqueTypes = [...new Set(allDocs.map((d) => d.type))].sort();
+  const filteredDocs = allDocs
+    .filter((d) => typeFilter === "all" || d.type === typeFilter)
+    .sort((a, b) => {
+      switch (sortOrder) {
+        case "date_desc": return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case "date_asc": return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case "name_az": return a.title.localeCompare(b.title);
+        case "name_za": return b.title.localeCompare(a.title);
+        default: return 0;
+      }
+    });
 
   // Find matching summary for the selected document
   const matchingSummary = selectedDoc
@@ -60,6 +76,33 @@ export default function DocumentsPage() {
     >
       {documents && (
         <div className="space-y-6">
+          {/* Filter and sort controls */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All types</option>
+              {uniqueTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="date_desc">Date (newest)</option>
+              <option value="date_asc">Date (oldest)</option>
+              <option value="name_az">Name A-Z</option>
+              <option value="name_za">Name Z-A</option>
+            </select>
+            <span className="text-xs text-warm-400 sm:ml-auto">
+              Showing {filteredDocs.length} of {allDocs.length} documents
+            </span>
+          </div>
+
           {/* Documents table */}
           <Card>
             <CardHeader className="pb-2">
@@ -68,19 +111,19 @@ export default function DocumentsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-xl border border-border overflow-hidden">
+              <div className="rounded-xl border border-border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
+                      <TableHead className="whitespace-nowrap">Date</TableHead>
                       <TableHead>Title</TableHead>
-                      <TableHead>From</TableHead>
+                      <TableHead className="whitespace-nowrap">From</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead className="w-24">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documents.documents.map((doc, i) => (
+                    {filteredDocs.map((doc, i) => (
                       <TableRow
                         key={i}
                         className="cursor-pointer hover:bg-muted/50 transition-colors"

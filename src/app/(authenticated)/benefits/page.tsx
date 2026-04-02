@@ -148,23 +148,31 @@ function BenefitCard({
   const [localStatus, setLocalStatus] = useState<string | null>(null);
   const cfg = statusConfig[row.status];
   const Icon = cfg.icon;
+  const isUnconfirmed = row.status === "unknown";
 
   return (
-    <Card className={cn("border-l-4 transition-shadow hover:shadow-md", cfg.border)}>
+    <Card className={cn("border-l-4 transition-shadow hover:shadow-md", cfg.border, isUnconfirmed && "bg-amber-50/50")}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Icon className={cn("h-5 w-5 shrink-0", cfg.color)} />
-            <CardTitle className="text-base font-heading truncate">
+            <CardTitle className={cn("text-base font-heading truncate", isUnconfirmed && "text-gray-500")}>
               {row.benefit}
             </CardTitle>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("text-[10px] font-medium shrink-0", cfg.bg, cfg.color)}
-          >
-            {localStatus || cfg.label}
-          </Badge>
+          <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+            {isUnconfirmed && (
+              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300">
+                Needs confirmation
+              </Badge>
+            )}
+            <Badge
+              variant="outline"
+              className={cn("text-[10px] font-medium", cfg.bg, cfg.color)}
+            >
+              {localStatus || cfg.label}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
 
@@ -313,6 +321,24 @@ function DetailRow({
 /* ── Page ──────────────────────────────────────────────────────── */
 export default function BenefitsPage() {
   const { data: benefits, isLoading } = useParsedBenefits();
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "approved" | "pending" | "unknown" | "not_started">("all");
+  const [sortOrder, setSortOrder] = useState<"az" | "za">("az");
+
+  const allRows = benefits?.statusTable || [];
+  const filteredRows = allRows
+    .filter((row) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "active") return row.status === "active" || row.status === "renewed";
+      if (statusFilter === "approved") return row.status === "approved";
+      if (statusFilter === "pending") return row.status === "registered" || row.status === "pending" || row.status === "waiting";
+      if (statusFilter === "unknown") return row.status === "unknown";
+      if (statusFilter === "not_started") return row.status === "not_started";
+      return true;
+    })
+    .sort((a, b) => {
+      const cmp = a.benefit.localeCompare(b.benefit);
+      return sortOrder === "az" ? cmp : -cmp;
+    });
 
   // Match detail entries to status rows by name similarity
   function findDetail(benefitName: string): BenefitDetail | undefined {
@@ -334,14 +360,41 @@ export default function BenefitsPage() {
       isLoading={isLoading}
     >
       {benefits && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {benefits.statusTable.map((row, i) => (
-            <BenefitCard
-              key={i}
-              row={row}
-              detail={findDetail(row.benefit)}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="unknown">Unknown</option>
+              <option value="not_started">Not Started</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="az">Name A-Z</option>
+              <option value="za">Name Z-A</option>
+            </select>
+            <span className="text-xs text-warm-400 sm:ml-auto">
+              Showing {filteredRows.length} of {allRows.length} benefits
+            </span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {filteredRows.map((row, i) => (
+              <BenefitCard
+                key={i}
+                row={row}
+                detail={findDetail(row.benefit)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </WorkspaceSection>

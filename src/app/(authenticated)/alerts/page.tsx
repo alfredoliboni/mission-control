@@ -60,6 +60,8 @@ function usePersistedAlertState() {
 export default function AlertsPage() {
   const { data: alerts, isLoading } = useParsedAlerts();
   const [filter, setFilter] = useState<StatusFilter>("active");
+  const [severityFilter, setSeverityFilter] = useState<"ALL" | "HIGH" | "MEDIUM" | "INFO">("ALL");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   const [persisted, setPersisted] = usePersistedAlertState();
   const completedIds = new Set(persisted.completedIds);
@@ -128,6 +130,14 @@ export default function AlertsPage() {
     }
   });
 
+  const finalFiltered = filtered
+    .filter((a) => severityFilter === "ALL" || a.severity === severityFilter)
+    .sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+
   const filterOptions: { key: StatusFilter; label: string }[] = [
     { key: "active", label: "Active" },
     { key: "completed", label: "Completed" },
@@ -166,9 +176,33 @@ export default function AlertsPage() {
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <select
+          value={severityFilter}
+          onChange={(e) => setSeverityFilter(e.target.value as typeof severityFilter)}
+          className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="ALL">All priorities</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="INFO">Info</option>
+        </select>
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+          className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+        <span className="text-xs text-warm-400 sm:ml-auto">
+          Showing {finalFiltered.length} of {allAlerts.length} alerts
+        </span>
+      </div>
+
       <div className="space-y-3">
-        {filtered.length > 0 ? (
-          filtered.map((alert) => {
+        {finalFiltered.length > 0 ? (
+          finalFiltered.map((alert) => {
             const key = alertKey(alert.date, alert.title);
             const isCompleted = completedIds.has(key);
             const isDismissed = dismissedIds.has(key) || alert.status === "dismissed";

@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ParsedProvider } from "@/types/workspace";
 
 interface ProviderCardProps {
@@ -9,14 +11,22 @@ interface ProviderCardProps {
 }
 
 export function ProviderCard({ provider }: ProviderCardProps) {
+  const needsConfirmation = !provider.contact || provider.contact === "—" || provider.waitlist?.toLowerCase().includes("unknown");
+
   return (
-    <Card>
+    <Card className={cn(needsConfirmation && "bg-amber-50/50 border-amber-200/60")}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base font-heading">
+          <CardTitle className={cn("text-base font-heading", needsConfirmation && "text-gray-500")}>
             {provider.name}
           </CardTitle>
-          <div className="flex gap-1 shrink-0">
+          <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+            {needsConfirmation && (
+              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300">
+                <AlertTriangle className="h-3 w-3 mr-0.5" />
+                Needs confirmation
+              </Badge>
+            )}
             {provider.isGapFiller && (
               <Badge className="bg-status-gap-filler/10 text-status-gap-filler border-status-gap-filler/20 text-[10px]">
                 Gap Filler
