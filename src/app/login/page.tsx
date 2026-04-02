@@ -47,7 +47,8 @@ export default function LoginPage() {
     if (error) {
       setError(error);
     } else {
-      router.push("/dashboard");
+      // Full page reload so middleware picks up the new auth cookies
+      window.location.href = "/dashboard";
     }
   };
 
