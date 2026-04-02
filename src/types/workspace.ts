@@ -188,13 +188,17 @@ export type BenefitStatus =
   | "waiting"
   | "not_started"
   | "approved"
-  | "active";
+  | "active"
+  | "renewed";
 
 export interface BenefitStatusRow {
   benefit: string;
   status: BenefitStatus;
   statusDisplay: string;
   applied: string;
+  approved: string;
+  renewal: string;
+  amount: string;
   notes: string;
 }
 
@@ -207,6 +211,8 @@ export interface BenefitDetail {
   expectedResponse: string;
   action: string;
   documentsNeeded: string;
+  renewal: string;
+  status: string;
   details: Record<string, string>;
 }
 

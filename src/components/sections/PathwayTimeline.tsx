@@ -2,6 +2,7 @@
 
 import type { ParsedPathwayStage } from "@/types/workspace";
 import { PathwayNode } from "./PathwayNode";
+import { cn } from "@/lib/utils";
 
 interface PathwayTimelineProps {
   stages: ParsedPathwayStage[];
@@ -15,7 +16,12 @@ export function PathwayTimeline({ stages }: PathwayTimelineProps) {
           {/* Connector line */}
           {i < stages.length - 1 && (
             <div
-              className="absolute left-[19px] top-12 bottom-0 w-0.5 bg-border"
+              className={cn(
+                "absolute left-[19px] top-12 bottom-0 w-0.5",
+                stage.status === "completed"
+                  ? "bg-status-success/40"
+                  : "bg-border"
+              )}
               aria-hidden="true"
             />
           )}

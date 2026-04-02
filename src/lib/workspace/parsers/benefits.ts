@@ -13,6 +13,7 @@ import {
 
 function parseBenefitStatus(statusText: string): BenefitStatus {
   const lower = statusText.toLowerCase();
+  if (lower.includes("renewed")) return "renewed";
   if (lower.includes("registered") || lower.includes("✅"))
     return "registered";
   if (lower.includes("pending") || lower.includes("⏳")) return "pending";
@@ -44,6 +45,9 @@ export function parseBenefits(markdown: string): ParsedBenefits {
             status: parseBenefitStatus(row.status || ""),
             statusDisplay: row.status || "",
             applied: row.applied || "",
+            approved: row.approved || "",
+            renewal: row.renewal || "",
+            amount: row.amount || "",
             notes: row.notes || "",
           })
         );
@@ -72,6 +76,8 @@ export function parseBenefits(markdown: string): ParsedBenefits {
             expectedResponse: pairs.expected_response || "",
             action,
             documentsNeeded: pairs.documents_needed || "",
+            renewal: pairs.renewal || "",
+            status: pairs.status || "",
             details: pairs,
           });
         }

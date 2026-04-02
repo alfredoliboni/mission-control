@@ -5,11 +5,12 @@ import {
   Clock,
   Circle,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
-import type { BenefitStatusRow } from "@/types/workspace";
+import type { BenefitStatus, BenefitStatusRow } from "@/types/workspace";
 import { cn } from "@/lib/utils";
 
-const statusConfig = {
+const statusConfig: Record<BenefitStatus, { icon: typeof CheckCircle; color: string; label: string }> = {
   registered: {
     icon: CheckCircle,
     color: "text-status-success",
@@ -34,6 +35,11 @@ const statusConfig = {
     icon: Loader2,
     color: "text-status-caution",
     label: "Waiting",
+  },
+  renewed: {
+    icon: RefreshCw,
+    color: "text-teal-600",
+    label: "Renewed",
   },
   not_started: {
     icon: Circle,
