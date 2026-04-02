@@ -636,10 +636,16 @@ export default function OnboardingPage() {
         <h2 className="font-heading text-2xl font-bold text-center text-foreground">
           What support does your child need?
         </h2>
-        <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
+        <p className="text-center text-warm-400 mt-1 mb-4 leading-relaxed max-w-md mx-auto">
           Select all that apply. We will use this to find relevant programs and
           services.
         </p>
+        <div className="mx-auto max-w-md mb-6 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-700 text-center">
+          💡 Not sure? Don&apos;t worry — once you upload your child&apos;s documents
+          (diagnosis reports, assessments, IEPs), our navigator will analyze them
+          and identify the right support areas automatically. You can always
+          update this later.
+        </div>
 
         <div className="flex flex-wrap gap-2 justify-center">
           {SUPPORT_NEEDS.map((need) => {
