@@ -115,6 +115,8 @@ interface FormData {
     canViewRecords: boolean;
     canUploadRecords: boolean;
   }[];
+  // Step 8
+  uploadedFiles: string[];
 }
 
 const initialFormData: FormData = {
@@ -136,6 +138,7 @@ const initialFormData: FormData = {
   medications: [],
   supplements: [],
   partners: [],
+  uploadedFiles: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -1454,8 +1457,21 @@ export default function OnboardingPage() {
           to get started.
         </p>
 
-        {/* Drop zone (visual only) */}
-        <div className="rounded-2xl border-2 border-dashed border-warm-300 bg-warm-50 p-10 text-center transition-colors hover:border-primary/40 hover:bg-primary/5 cursor-pointer">
+        {/* Drop zone */}
+        <label
+          htmlFor="file-upload"
+          className="rounded-2xl border-2 border-dashed border-warm-300 bg-warm-50 p-10 text-center transition-colors hover:border-primary/40 hover:bg-primary/5 cursor-pointer block"
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-primary", "bg-primary/5"); }}
+          onDragLeave={(e) => { e.currentTarget.classList.remove("border-primary", "bg-primary/5"); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("border-primary", "bg-primary/5");
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length > 0) {
+              setFormData((p) => ({ ...p, uploadedFiles: [...p.uploadedFiles, ...files.map((f) => f.name)] }));
+            }
+          }}
+        >
           <CloudUpload className="mx-auto h-12 w-12 text-warm-300 mb-4" />
           <p className="text-sm font-medium text-foreground mb-1">
             Drag and drop files here
@@ -1463,6 +1479,20 @@ export default function OnboardingPage() {
           <p className="text-xs text-warm-400">
             or click to browse your files
           </p>
+          <input
+            id="file-upload"
+            type="file"
+            multiple
+            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              if (files.length > 0) {
+                setFormData((p) => ({ ...p, uploadedFiles: [...p.uploadedFiles, ...files.map((f) => f.name)] }));
+              }
+              e.target.value = "";
+            }}
+          />
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {["Diagnosis Report", "School IEP", "Therapy Assessment"].map(
               (type) => (
@@ -1476,11 +1506,44 @@ export default function OnboardingPage() {
               )
             )}
           </div>
-        </div>
+        </label>
 
         <p className="text-center text-xs text-warm-400 mt-3">
           Supported formats: PDF, JPG, PNG, DOCX (max 10 MB)
         </p>
+
+        {/* Show uploaded files */}
+        {formData.uploadedFiles.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              {formData.uploadedFiles.length} file{formData.uploadedFiles.length > 1 ? "s" : ""} selected:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {formData.uploadedFiles.map((name, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                >
+                  <FileText className="h-3 w-3" />
+                  {name}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        uploadedFiles: p.uploadedFiles.filter((_, i) => i !== idx),
+                      }))
+                    }
+                    className="hover:text-destructive transition-colors"
+                    aria-label={`Remove ${name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </>
     );
   }
