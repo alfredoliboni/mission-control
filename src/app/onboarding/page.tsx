@@ -26,6 +26,59 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
 // ---------------------------------------------------------------------------
+// Add Custom Tag Input
+// ---------------------------------------------------------------------------
+
+function AddCustomTag({ onAdd, placeholder }: { onAdd: (value: string) => void; placeholder: string }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-full px-3 py-1.5 text-sm font-medium border-2 border-dashed border-warm-200 text-warm-400 hover:border-primary hover:text-primary transition-all flex items-center gap-1"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add your own
+      </button>
+    );
+  }
+
+  return (
+    <form
+      className="flex items-center gap-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const trimmed = value.trim();
+        if (trimmed) {
+          onAdd(trimmed);
+          setValue("");
+          setOpen(false);
+        }
+      }}
+    >
+      <input
+        autoFocus
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        className="rounded-full px-3 py-1.5 text-sm border border-primary bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 w-40"
+        onBlur={() => { if (!value.trim()) setOpen(false); }}
+        onKeyDown={(e) => { if (e.key === "Escape") { setValue(""); setOpen(false); } }}
+      />
+      <button type="submit" className="rounded-full p-1.5 bg-primary text-white hover:bg-primary/90">
+        <Check className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" onClick={() => { setValue(""); setOpen(false); }} className="rounded-full p-1.5 text-warm-400 hover:text-red-500">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -665,6 +718,26 @@ export default function OnboardingPage() {
               </button>
             );
           })}
+          {formData.supportNeeds
+            .filter((n) => !SUPPORT_NEEDS.includes(n))
+            .map((custom) => (
+              <button
+                key={custom}
+                type="button"
+                onClick={() => toggleMulti("supportNeeds", custom)}
+                className="rounded-full px-4 py-2 text-sm font-medium bg-primary text-white shadow-sm transition-all"
+              >
+                {custom}
+              </button>
+            ))}
+          <AddCustomTag
+            placeholder="e.g. Music therapy"
+            onAdd={(val) => {
+              if (!formData.supportNeeds.includes(val)) {
+                setFormData((p) => ({ ...p, supportNeeds: [...p.supportNeeds, val] }));
+              }
+            }}
+          />
         </div>
 
         {formData.supportNeeds.length > 0 && (
@@ -712,6 +785,27 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {/* Custom interests added by user */}
+            {formData.interests
+              .filter((i) => !INTEREST_PRESETS.some((p) => p.label === i))
+              .map((custom) => (
+                <button
+                  key={custom}
+                  type="button"
+                  onClick={() => toggleMulti("interests", custom)}
+                  className="rounded-full px-3 py-1.5 text-sm font-medium bg-primary text-white shadow-sm transition-all"
+                >
+                  ✨ {custom}
+                </button>
+              ))}
+            <AddCustomTag
+              placeholder="e.g. Dinosaurs"
+              onAdd={(val) => {
+                if (!formData.interests.includes(val)) {
+                  setFormData((p) => ({ ...p, interests: [...p.interests, val] }));
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -773,6 +867,26 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {formData.sensoryPreferences
+              .filter((s) => !SENSORY_PREFERENCES.includes(s))
+              .map((custom) => (
+                <button
+                  key={custom}
+                  type="button"
+                  onClick={() => toggleMulti("sensoryPreferences", custom)}
+                  className="rounded-full px-3 py-1.5 text-sm font-medium bg-status-gap-filler text-white shadow-sm transition-all"
+                >
+                  {custom}
+                </button>
+              ))}
+            <AddCustomTag
+              placeholder="e.g. Avoids sand"
+              onAdd={(val) => {
+                if (!formData.sensoryPreferences.includes(val)) {
+                  setFormData((p) => ({ ...p, sensoryPreferences: [...p.sensoryPreferences, val] }));
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -801,6 +915,26 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {formData.personalityTraits
+              .filter((t) => !PERSONALITY_TRAITS.includes(t))
+              .map((custom) => (
+                <button
+                  key={custom}
+                  type="button"
+                  onClick={() => toggleMulti("personalityTraits", custom)}
+                  className="rounded-full px-3 py-1.5 text-sm font-medium bg-status-success text-white shadow-sm transition-all"
+                >
+                  {custom}
+                </button>
+              ))}
+            <AddCustomTag
+              placeholder="e.g. Empathetic"
+              onAdd={(val) => {
+                if (!formData.personalityTraits.includes(val)) {
+                  setFormData((p) => ({ ...p, personalityTraits: [...p.personalityTraits, val] }));
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -829,6 +963,26 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {formData.triggers
+              .filter((t) => !TRIGGERS.includes(t))
+              .map((custom) => (
+                <button
+                  key={custom}
+                  type="button"
+                  onClick={() => toggleMulti("triggers", custom)}
+                  className="rounded-full px-3 py-1.5 text-sm font-medium bg-status-caution text-warm-500 shadow-sm transition-all"
+                >
+                  {custom}
+                </button>
+              ))}
+            <AddCustomTag
+              placeholder="e.g. Hunger"
+              onAdd={(val) => {
+                if (!formData.triggers.includes(val)) {
+                  setFormData((p) => ({ ...p, triggers: [...p.triggers, val] }));
+                }
+              }}
+            />
           </div>
         </div>
 
