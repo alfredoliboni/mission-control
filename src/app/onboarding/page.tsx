@@ -839,6 +839,21 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {formData.communicationStyle && !COMMUNICATION_STYLES.includes(formData.communicationStyle) && (
+              <button
+                type="button"
+                onClick={() => setFormData((p) => ({ ...p, communicationStyle: "" }))}
+                className="rounded-full px-3 py-1.5 text-sm font-medium bg-primary text-white shadow-sm transition-all"
+              >
+                {formData.communicationStyle}
+              </button>
+            )}
+            <AddCustomTag
+              placeholder="e.g. Sign language"
+              onAdd={(val) => {
+                setFormData((p) => ({ ...p, communicationStyle: val }));
+              }}
+            />
           </div>
         </div>
 
@@ -1058,6 +1073,26 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
+            {formData.comorbidDiagnoses
+              .filter((d) => !COMORBID_DIAGNOSES.includes(d))
+              .map((custom) => (
+                <button
+                  key={custom}
+                  type="button"
+                  onClick={() => toggleMulti("comorbidDiagnoses", custom)}
+                  className="rounded-full px-4 py-2 text-sm font-medium bg-primary text-white shadow-sm transition-all"
+                >
+                  {custom}
+                </button>
+              ))}
+            <AddCustomTag
+              placeholder="e.g. OCD"
+              onAdd={(val) => {
+                if (!formData.comorbidDiagnoses.includes(val)) {
+                  setFormData((p) => ({ ...p, comorbidDiagnoses: [...p.comorbidDiagnoses, val] }));
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -1299,6 +1334,10 @@ export default function OnboardingPage() {
                 <option value="Clinician">Clinician</option>
                 <option value="Clinic">Clinic</option>
                 <option value="Provider">Provider</option>
+                <option value="Therapist">Therapist</option>
+                <option value="Family Member">Family Member</option>
+                <option value="Support Worker">Support Worker</option>
+                <option value="Other">Other</option>
               </select>
             </div>
             <div>
