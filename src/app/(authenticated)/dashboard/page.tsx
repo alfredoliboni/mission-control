@@ -89,24 +89,28 @@ export default function DashboardPage() {
           label="Active Alerts"
           value={activeAlerts.length}
           color={highAlerts.length > 0 ? "text-status-blocked" : "text-status-caution"}
+          href="/alerts"
         />
         <DashboardStatCard
           icon={Users}
           label="Providers Found"
           value={providerCount}
           color="text-primary"
+          href="/providers"
         />
         <DashboardStatCard
           icon={BookOpen}
           label="Programs Available"
           value={programCount}
           color="text-status-success"
+          href="/programs"
         />
         <DashboardStatCard
           icon={DollarSign}
           label="Benefits Pending"
           value={benefitsPending}
           color="text-status-caution"
+          href="/benefits"
         />
       </div>
 

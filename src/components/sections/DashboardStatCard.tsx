@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
 
@@ -8,6 +9,7 @@ interface DashboardStatCardProps {
   label: string;
   value: string | number;
   color?: string;
+  href?: string;
 }
 
 export function DashboardStatCard({
@@ -15,9 +17,10 @@ export function DashboardStatCard({
   label,
   value,
   color = "text-primary",
+  href,
 }: DashboardStatCardProps) {
-  return (
-    <Card className="py-4">
+  const content = (
+    <Card className="py-4 transition-shadow hover:shadow-md group">
       <CardContent className="px-4">
         <div className="flex items-center gap-3">
           <div
@@ -29,10 +32,25 @@ export function DashboardStatCard({
             <p className="text-2xl font-bold font-heading text-foreground">
               {value}
             </p>
-            <p className="text-xs text-warm-400">{label}</p>
+            <p className="text-xs text-warm-400 group-hover:text-foreground transition-colors">
+              {label}
+            </p>
           </div>
         </div>
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }

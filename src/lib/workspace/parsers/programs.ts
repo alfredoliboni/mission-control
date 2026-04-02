@@ -39,6 +39,9 @@ function parseProgramBlock(
     whyGapFiller: pairs.why_gap_filler || "",
     register: pairs.register || pairs.contact || pairs.portal || "",
     status: pairs.status || "",
+    url: pairs.url || "",
+    phone: pairs.phone || "",
+    email: pairs.email || pairs.contact || "",
     details: pairs,
     isGapFiller,
   };

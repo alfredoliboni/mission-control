@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalLink, Phone, Mail } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ParsedProgram } from "@/types/workspace";
@@ -70,6 +71,37 @@ export function ProgramCard({ program }: ProgramCardProps) {
         {program.register && (
           <p className="text-xs text-primary">Register: {program.register}</p>
         )}
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {program.url ? (
+            <a
+              href={program.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Visit Website
+            </a>
+          ) : program.phone ? (
+            <a
+              href={`tel:${program.phone}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Phone className="h-3 w-3" />
+              Contact for details
+            </a>
+          ) : program.email ? (
+            <a
+              href={`mailto:${program.email}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Mail className="h-3 w-3" />
+              Contact for details
+            </a>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

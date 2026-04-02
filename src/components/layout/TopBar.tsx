@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Menu, Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useParsedAlerts, useParsedProfile } from "@/hooks/useWorkspace";
@@ -45,8 +46,9 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          className="relative p-2 rounded-md hover:bg-warm-100 transition-colors"
+        <Link
+          href="/alerts"
+          className="relative p-2 rounded-md hover:bg-warm-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
           aria-label={`${activeAlertCount} active alerts`}
         >
           <Bell className="h-5 w-5 text-warm-400" />
@@ -55,7 +57,7 @@ export function TopBar() {
               {activeAlertCount}
             </span>
           )}
-        </button>
+        </Link>
       </div>
     </header>
   );

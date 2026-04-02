@@ -216,6 +216,9 @@ export interface ParsedProgram {
   whyGapFiller: string;
   register: string;
   status: string;
+  url: string;
+  phone: string;
+  email: string;
   details: Record<string, string>;
   isGapFiller: boolean;
 }
