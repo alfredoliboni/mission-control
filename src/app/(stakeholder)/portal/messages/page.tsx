@@ -4,81 +4,85 @@ import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useStakeholders } from "@/hooks/useStakeholders";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  useThreads,
+  useThread,
+  useSendMessage,
+  useCreateThread,
+  type MessageThread,
+  type ThreadMessage,
+} from "@/hooks/useMessages";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   MessageSquare,
   Send,
   Loader2,
-  Users,
+  Plus,
+  ArrowLeft,
+  Inbox,
 } from "lucide-react";
 
-interface Message {
-  id: string;
-  family_id: string;
-  sender_id: string;
-  sender_role: string;
-  content: string;
-  created_at: string;
+function roleLabel(role: string) {
+  switch (role) {
+    case "parent":
+      return "Parent";
+    case "provider":
+      return "Provider";
+    case "school":
+      return "School";
+    case "therapist":
+      return "Therapist";
+    case "admin":
+      return "Admin";
+    default:
+      return role;
+  }
 }
 
-function useMessages(familyId: string) {
-  return useQuery({
-    queryKey: ["messages", familyId],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      return (data ?? []) as Message[];
-    },
-    enabled: !!familyId,
-    refetchInterval: 10_000,
-  });
+function roleBadgeVariant(role: string) {
+  switch (role) {
+    case "parent":
+      return "default" as const;
+    case "school":
+      return "secondary" as const;
+    case "therapist":
+      return "outline" as const;
+    default:
+      return "secondary" as const;
+  }
 }
 
-function useSendMessage() {
-  const queryClient = useQueryClient();
+function relativeTime(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
 
-  return useMutation({
-    mutationFn: async ({
-      familyId,
-      content,
-      senderRole,
-    }: {
-      familyId: string;
-      content: string;
-      senderRole: string;
-    }) => {
-      const supabase = createClient();
-      const { error } = await supabase.from("messages").insert({
-        family_id: familyId,
-        content,
-        sender_role: senderRole,
-      });
-      if (error) throw error;
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["messages", variables.familyId],
-      });
-    },
-  });
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }
 
 function MessageBubble({
   message,
   isOwn,
 }: {
-  message: Message;
+  message: ThreadMessage;
   isOwn: boolean;
 }) {
   return (
@@ -91,11 +95,19 @@ function MessageBubble({
         }`}
       >
         {!isOwn && (
-          <p className="text-[10px] font-medium mb-0.5 opacity-70">
-            {message.sender_role}
-          </p>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[10px] font-semibold">
+              {message.sender_name ?? roleLabel(message.sender_role)}
+            </span>
+            <Badge
+              variant={roleBadgeVariant(message.sender_role)}
+              className="text-[8px] px-1 py-0 h-3.5"
+            >
+              {roleLabel(message.sender_role)}
+            </Badge>
+          </div>
         )}
-        <p className="text-sm">{message.content}</p>
+        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         <p
           className={`text-[10px] mt-1 ${
             isOwn ? "text-primary-foreground/60" : "text-muted-foreground"
@@ -111,33 +123,270 @@ function MessageBubble({
   );
 }
 
-export default function PortalMessagesPage() {
-  const searchParams = useSearchParams();
-  const preselectedFamily = searchParams.get("family") ?? "";
-  const { user, role, loading: authLoading } = useAuth();
-  const { data: stakeholders } = useStakeholders();
-  const [familyId, setFamilyId] = useState(preselectedFamily);
+function ThreadListItem({
+  thread,
+  isActive,
+  onClick,
+}: {
+  thread: MessageThread;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 border-b border-border transition-colors hover:bg-muted/50 ${
+        isActive ? "bg-muted" : ""
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-medium truncate flex-1">
+          {thread.thread_subject}
+        </h3>
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+          {relativeTime(thread.last_message_at)}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+        {thread.last_message}
+      </p>
+      <div className="flex items-center gap-1.5 mt-1">
+        <Badge
+          variant={roleBadgeVariant(thread.last_sender_role)}
+          className="text-[8px] px-1 py-0 h-3.5"
+        >
+          {roleLabel(thread.last_sender_role)}
+        </Badge>
+        <span className="text-[10px] text-muted-foreground">
+          {thread.message_count} message{thread.message_count !== 1 ? "s" : ""}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function ThreadView({
+  threadId,
+  subject,
+  userId,
+  familyId,
+  onBack,
+}: {
+  threadId: string;
+  subject: string;
+  userId: string;
+  familyId: string;
+  onBack: () => void;
+}) {
+  const { data: messages, isLoading } = useThread(threadId);
+  const sendMessage = useSendMessage();
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { data: messages, isLoading: messagesLoading } = useMessages(familyId);
-  const sendMessage = useSendMessage();
-
-  const families = stakeholders?.filter((s) => s.status === "active") ?? [];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !familyId) return;
+    if (!newMessage.trim()) return;
     await sendMessage.mutateAsync({
-      familyId,
+      threadId,
       content: newMessage.trim(),
-      senderRole: role ?? "provider",
+      familyId,
     });
     setNewMessage("");
   };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onBack}
+          className="md:hidden"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+        <h2 className="text-sm font-medium font-heading truncate">{subject}</h2>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : messages && messages.length > 0 ? (
+          <>
+            {messages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                isOwn={msg.sender_id === userId}
+              />
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            No messages yet. Start the conversation!
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border px-4 py-3">
+        <div className="flex gap-2">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message…"
+            className="flex-1"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <Button
+            onClick={handleSend}
+            disabled={!newMessage.trim() || sendMessage.isPending}
+            size="sm"
+            className="h-9 px-3"
+          >
+            {sendMessage.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewThreadDialog({
+  families,
+  onCreated,
+}: {
+  families: { id: string; family_id: string }[];
+  onCreated: (threadId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [familyId, setFamilyId] = useState(families[0]?.family_id ?? "");
+  const createThread = useCreateThread();
+
+  const handleCreate = async () => {
+    if (!subject.trim() || !message.trim() || !familyId) return;
+    const result = await createThread.mutateAsync({
+      subject: subject.trim(),
+      content: message.trim(),
+      familyId,
+    });
+    setSubject("");
+    setMessage("");
+    setOpen(false);
+    if (result?.message?.thread_id) {
+      onCreated(result.message.thread_id);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">New Thread</span>
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Conversation</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {families.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Family
+              </label>
+              <select
+                value={familyId}
+                onChange={(e) => setFamilyId(e.target.value)}
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {families.map((f) => (
+                  <option key={f.id} value={f.family_id}>
+                    Family {f.family_id.slice(0, 8)}…
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              Subject
+            </label>
+            <Input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="e.g. Progress Update"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              Message
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Type your first message…"
+              rows={3}
+              className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={handleCreate}
+            disabled={
+              !subject.trim() || !message.trim() || !familyId || createThread.isPending
+            }
+            size="sm"
+          >
+            {createThread.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Send
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function PortalMessagesPage() {
+  const searchParams = useSearchParams();
+  const preselectedFamily = searchParams.get("family") ?? "";
+  const { user, loading: authLoading } = useAuth();
+  const { data: stakeholders } = useStakeholders();
+  const { data: threads, isLoading: threadsLoading } = useThreads();
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+
+  const families = stakeholders?.filter((s) => s.status === "active") ?? [];
+  const activeThread = threads?.find((t) => t.thread_id === activeThreadId);
+
+  // If preselected family, filter threads to that family
+  const filteredThreads = preselectedFamily
+    ? threads?.filter((t) => t.family_id === preselectedFamily)
+    : threads;
 
   if (authLoading) {
     return (
@@ -150,115 +399,99 @@ export default function PortalMessagesPage() {
   if (!user) {
     return (
       <div className="text-center py-20">
-        <p className="text-muted-foreground">Please sign in to view messages.</p>
+        <p className="text-muted-foreground">
+          Please sign in to view messages.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold font-heading text-foreground">
-          Messages
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Communicate with linked families securely.
-        </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-heading text-foreground">
+            Messages
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Communicate with linked families securely.
+          </p>
+        </div>
+        {families.length > 0 && (
+          <NewThreadDialog families={families} onCreated={setActiveThreadId} />
+        )}
       </div>
 
-      {/* Family selector */}
-      {!preselectedFamily && (
-        <div className="max-w-xs">
-          <select
-            value={familyId}
-            onChange={(e) => setFamilyId(e.target.value)}
-            className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Select a family…</option>
-            {families.map((f) => (
-              <option key={f.id} value={f.family_id}>
-                Family {f.family_id.slice(0, 8)}…
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {!familyId ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Select a family to view messages
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="max-w-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              Conversation
-              <Badge variant="secondary" className="text-xs ml-auto">
-                Family {familyId.slice(0, 8)}…
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Messages area */}
-            <div className="border border-border rounded-lg bg-muted/20 p-4 h-80 overflow-y-auto space-y-3 mb-4">
-              {messagesLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : messages && messages.length > 0 ? (
-                <>
-                  {messages.map((msg) => (
-                    <MessageBubble
-                      key={msg.id}
-                      message={msg}
-                      isOwn={msg.sender_id === user.id}
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className="flex h-[calc(100vh-16rem)] min-h-[400px]">
+            {/* Thread list */}
+            <div
+              className={`w-full md:w-80 md:border-r border-border flex flex-col shrink-0 ${
+                activeThreadId ? "hidden md:flex" : "flex"
+              }`}
+            >
+              <div className="px-4 py-3 border-b border-border">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Conversations
+                </h2>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {threadsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredThreads && filteredThreads.length > 0 ? (
+                  filteredThreads.map((thread) => (
+                    <ThreadListItem
+                      key={thread.thread_id}
+                      thread={thread}
+                      isActive={thread.thread_id === activeThreadId}
+                      onClick={() => setActiveThreadId(thread.thread_id)}
                     />
-                  ))}
-                  <div ref={messagesEndRef} />
-                </>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                    <Inbox className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No conversations yet.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Start a new thread to message a family.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Thread view */}
+            <div
+              className={`flex-1 flex flex-col ${
+                activeThreadId ? "flex" : "hidden md:flex"
+              }`}
+            >
+              {activeThreadId && activeThread ? (
+                <ThreadView
+                  threadId={activeThreadId}
+                  subject={activeThread.thread_subject}
+                  userId={user.id}
+                  familyId={activeThread.family_id}
+                  onBack={() => setActiveThreadId(null)}
+                />
               ) : (
-                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                  No messages yet. Start the conversation!
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Select a conversation to view messages
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Send message */}
-            <div className="flex gap-2">
-              <Input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message…"
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-              />
-              <Button
-                onClick={handleSend}
-                disabled={!newMessage.trim() || sendMessage.isPending}
-                size="sm"
-                className="h-9 px-3"
-              >
-                {sendMessage.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
