@@ -23,17 +23,18 @@ test.describe("E — Document Features (Demo Mode)", () => {
     expect(rowCount).toBeGreaterThan(0);
   });
 
-  test("Upload button is hidden in demo mode (requires auth)", async ({
+  test("Upload button is visible but disabled in demo mode", async ({
     page,
   }) => {
     await page.goto("/documents");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    // DocumentUpload component returns null in demo mode (isDemo || !user)
-    // This is correct behavior — upload requires authentication
-    const uploadButton = page.locator("text=Upload Document");
-    await expect(uploadButton).not.toBeVisible();
+    // Upload button shows in demo mode but disabled with "sign in to upload" hint
+    const uploadButton = page.locator("button:has-text('Upload Document')");
+    await expect(uploadButton).toBeVisible();
+    await expect(uploadButton).toBeDisabled();
+    await expect(page.locator("text=sign in to upload")).toBeVisible();
   });
 
   test("Document type filter works", async ({ page }) => {
