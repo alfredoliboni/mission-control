@@ -80,7 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithOtp = useCallback(async (email: string) => {
     const supabase = getSupabase();
     if (!supabase) return { error: "Supabase not configured" };
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
     return { error: error?.message ?? null };
   }, []);
 
@@ -95,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: metadata },
+        options: {
+          data: metadata,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
       return { error: error?.message ?? null };
     },
