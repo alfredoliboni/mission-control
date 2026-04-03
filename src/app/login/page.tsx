@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,14 @@ type Mode = "password" | "magic-link";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, signInWithOtp } = useAuth();
+  const { signIn, signInWithOtp, user, loading: authLoading } = useAuth();
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!authLoading && user) {
+      window.location.href = "/dashboard";
+    }
+  }, [authLoading, user]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("password");
@@ -43,13 +50,28 @@ export default function LoginPage() {
     }
 
     const { error } = await signIn(email, password);
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error);
-    } else {
-      // Full page reload so middleware picks up the new auth cookies
-      window.location.href = "/dashboard";
+      return;
     }
+
+    // Verify session was actually created before redirecting
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setLoading(false);
+        setError("Login succeeded but session was not created. Please try again.");
+        return;
+      }
+    } catch {
+      // If we can't verify, still try the redirect
+    }
+
+    // Full page reload so middleware picks up the new auth cookies
+    window.location.href = "/dashboard";
   };
 
   return (

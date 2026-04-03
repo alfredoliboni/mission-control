@@ -63,8 +63,18 @@ export function DocumentUpload({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Only show for authenticated users, not demo mode
-  if (isDemo || !user) return null;
+  // In demo mode, show a disabled button with hint
+  if (isDemo || !user) {
+    return (
+      <Button variant="outline" disabled className="opacity-60">
+        <Upload className="h-4 w-4 mr-2" />
+        Upload Document
+        <span className="ml-2 text-xs text-muted-foreground">
+          — sign in to upload
+        </span>
+      </Button>
+    );
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;

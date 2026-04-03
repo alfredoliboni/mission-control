@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/supabase/api-auth";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+  const { supabase, user } = auth;
 
   const role = user.user_metadata?.role;
 
@@ -42,15 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+  const { supabase, user } = auth;
 
   const role = user.user_metadata?.role;
   if (role !== "parent" && role !== "admin") {
