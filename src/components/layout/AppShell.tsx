@@ -5,8 +5,11 @@ import { TopBar } from "./TopBar";
 import { DemoBanner } from "./DemoBanner";
 import { ApiOfflineBanner } from "./ApiOfflineBanner";
 import { ChatBubble } from "@/components/chat/ChatBubble";
+import { useAlertNotifications } from "@/hooks/useWorkspace";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useAlertNotifications();
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />

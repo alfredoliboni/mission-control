@@ -28,18 +28,24 @@ function getDemoResponse(message: string): string {
   return DEMO_RESPONSES.default;
 }
 
+interface ChatRequestBody {
+  message: string;
+  history?: Array<{ role: string; content: string }>;
+  context?: { page?: string };
+}
+
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
-  const isDemo = cookieStore.get("companion-demo")?.value === "true";
+  const isDemoMode = cookieStore.get("companion-demo")?.value === "true";
 
-  const body = await request.json();
-  const { message } = body as { message: string };
+  const body = (await request.json()) as ChatRequestBody;
+  const { message, history, context } = body;
 
   if (!message) {
     return NextResponse.json({ error: "Message required" }, { status: 400 });
   }
 
-  if (isDemo) {
+  if (isDemoMode) {
     // Simulate a slight delay for realism
     await new Promise((resolve) => setTimeout(resolve, 800));
     return NextResponse.json({
@@ -47,8 +53,63 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Production: proxy to OpenClaw Gateway
-  // For now, return demo response as fallback
+  // Production: proxy to OpenClaw Gateway via Orgo API
+  const orgoComputerId = process.env.ORGO_COMPUTER_ID;
+  const orgoApiKey = process.env.ORGO_API_KEY;
+  const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || "31494b4eb742aa2bf051e227bac2d42cca1182b954bb9de4";
+  const gatewayPort = process.env.OPENCLAW_GATEWAY_PORT || "18789";
+
+  if (orgoComputerId && orgoApiKey) {
+    try {
+      // Build the chat payload for OpenClaw
+      const chatPayload = JSON.stringify({
+        message,
+        history: history || [],
+        context: context || {},
+      });
+
+      // Escape single quotes for shell
+      const escapedPayload = chatPayload.replace(/'/g, "'\\''");
+
+      const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${gatewayToken}" -H "Content-Type: application/json" -d '${escapedPayload}' http://localhost:${gatewayPort}/api/v1/chat`;
+
+      const orgoRes = await fetch(
+        `https://www.orgo.ai/api/computers/${orgoComputerId}/bash`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${orgoApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ command: curlCmd }),
+        }
+      );
+
+      if (orgoRes.ok) {
+        const orgoData = await orgoRes.json();
+        const output = orgoData.output || orgoData.stdout || "";
+
+        // Try to parse the gateway response
+        try {
+          const parsed = JSON.parse(output.trim());
+          if (parsed.response || parsed.message || parsed.content) {
+            return NextResponse.json({
+              response: parsed.response || parsed.message || parsed.content,
+            });
+          }
+        } catch {
+          // If output isn't JSON, use it as plain text if non-empty
+          if (output.trim().length > 0) {
+            return NextResponse.json({ response: output.trim() });
+          }
+        }
+      }
+    } catch {
+      // Fall through to demo response as fallback
+    }
+  }
+
+  // Fallback: return demo-style response
   return NextResponse.json({
     response: getDemoResponse(message),
   });

@@ -5,6 +5,7 @@ import { Menu, Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useParsedAlerts, useParsedProfile } from "@/hooks/useWorkspace";
 import { useAppStore } from "@/store/appStore";
+import { LastUpdated } from "./LastUpdated";
 
 export function TopBar() {
   const { toggleSidebar } = useAppStore();
@@ -45,7 +46,8 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <LastUpdated />
         <Link
           href="/alerts"
           className="relative p-2 rounded-md hover:bg-warm-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
