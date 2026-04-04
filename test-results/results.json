@@ -94,31 +94,31 @@
                           "workerIndex": 0,
                           "parallelIndex": 0,
                           "status": "failed",
-                          "duration": 1320,
+                          "duration": 1378,
                           "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26",
+                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m",
+                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:25:28",
                             "location": {
                               "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 26,
-                              "line": 31
+                              "column": 28,
+                              "line": 25
                             },
-                            "snippet": "  29 |         await page.keyboard.press(\"Tab\");\n  30 |         const newFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 31 |         expect(newFocus).toMatch(/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/);\n     |                          ^\n  32 |       }\n  33 |\n  34 |       // Test reverse tab"
+                            "snippet": "  23 |\n  24 |       let currentFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 25 |       expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT/);\n     |                            ^\n  26 |\n  27 |       // Tab through several elements\n  28 |       for (let i = 0; i < 5; i++) {"
                           },
                           "errors": [
                             {
                               "location": {
                                 "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 26,
-                                "line": 31
+                                "column": 28,
+                                "line": 25
                               },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n\n  29 |         await page.keyboard.press(\"Tab\");\n  30 |         const newFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 31 |         expect(newFocus).toMatch(/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/);\n     |                          ^\n  32 |       }\n  33 |\n  34 |       // Test reverse tab\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26"
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m\n\n  23 |\n  24 |       let currentFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 25 |       expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT/);\n     |                            ^\n  26 |\n  27 |       // Tab through several elements\n  28 |       for (let i = 0; i < 5; i++) {\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:25:28"
                             }
                           ],
                           "stdout": [],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:35:59.707Z",
+                          "startTime": "2026-04-04T23:39:21.829Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -134,39 +134,39 @@
                           ],
                           "errorLocation": {
                             "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 26,
-                            "line": 31
+                            "column": 28,
+                            "line": 25
                           }
                         },
                         {
                           "workerIndex": 3,
                           "parallelIndex": 0,
                           "status": "failed",
-                          "duration": 1254,
+                          "duration": 1139,
                           "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26",
+                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m",
+                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:25:28",
                             "location": {
                               "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 26,
-                              "line": 31
+                              "column": 28,
+                              "line": 25
                             },
-                            "snippet": "  29 |         await page.keyboard.press(\"Tab\");\n  30 |         const newFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 31 |         expect(newFocus).toMatch(/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/);\n     |                          ^\n  32 |       }\n  33 |\n  34 |       // Test reverse tab"
+                            "snippet": "  23 |\n  24 |       let currentFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 25 |       expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT/);\n     |                            ^\n  26 |\n  27 |       // Tab through several elements\n  28 |       for (let i = 0; i < 5; i++) {"
                           },
                           "errors": [
                             {
                               "location": {
                                 "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 26,
-                                "line": 31
+                                "column": 28,
+                                "line": 25
                               },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n\n  29 |         await page.keyboard.press(\"Tab\");\n  30 |         const newFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 31 |         expect(newFocus).toMatch(/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/);\n     |                          ^\n  32 |       }\n  33 |\n  34 |       // Test reverse tab\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26"
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT/\u001b[39m\nReceived string:  \u001b[31m\"DIV\"\u001b[39m\n\n  23 |\n  24 |       let currentFocus = await page.evaluate(() => document.activeElement?.tagName);\n> 25 |       expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT/);\n     |                            ^\n  26 |\n  27 |       // Tab through several elements\n  28 |       for (let i = 0; i < 5; i++) {\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:25:28"
                             }
                           ],
                           "stdout": [],
                           "stderr": [],
                           "retry": 1,
-                          "startTime": "2026-04-04T23:36:01.367Z",
+                          "startTime": "2026-04-04T23:39:23.560Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -182,8 +182,8 @@
                           ],
                           "errorLocation": {
                             "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 26,
-                            "line": 31
+                            "column": 28,
+                            "line": 25
                           }
                         }
                       ],
@@ -219,7 +219,7 @@
                           "workerIndex": 1,
                           "parallelIndex": 1,
                           "status": "failed",
-                          "duration": 1951,
+                          "duration": 2069,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:187:23",
@@ -247,7 +247,7 @@
                           ],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:35:59.707Z",
+                          "startTime": "2026-04-04T23:39:21.832Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -271,7 +271,7 @@
                           "workerIndex": 4,
                           "parallelIndex": 1,
                           "status": "failed",
-                          "duration": 1684,
+                          "duration": 1602,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:187:23",
@@ -299,7 +299,7 @@
                           ],
                           "stderr": [],
                           "retry": 1,
-                          "startTime": "2026-04-04T23:36:02.005Z",
+                          "startTime": "2026-04-04T23:39:24.250Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -352,11 +352,11 @@
                           "workerIndex": 2,
                           "parallelIndex": 2,
                           "status": "passed",
-                          "duration": 1953,
+                          "duration": 1707,
                           "errors": [],
                           "stdout": [
                             {
-                              "text": "Touch target 0: 24x24 (meets requirement: false)\n"
+                              "text": "Touch target 0: 44x44 (meets requirement: true)\n"
                             },
                             {
                               "text": "Touch target 1: 44x44 (meets requirement: true)\n"
@@ -380,13 +380,9 @@
                               "text": "Checked 7 touch targets\n"
                             }
                           ],
-                          "stderr": [
-                            {
-                              "text": "Small button found: 24x24\n"
-                            }
-                          ],
+                          "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:35:59.707Z",
+                          "startTime": "2026-04-04T23:39:21.834Z",
                           "annotations": [],
                           "attachments": []
                         }
@@ -423,7 +419,7 @@
                           "workerIndex": 2,
                           "parallelIndex": 2,
                           "status": "passed",
-                          "duration": 6256,
+                          "duration": 6539,
                           "errors": [],
                           "stdout": [
                             {
@@ -438,7 +434,7 @@
                           ],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:36:01.740Z",
+                          "startTime": "2026-04-04T23:39:23.629Z",
                           "annotations": [],
                           "attachments": []
                         }
@@ -460,8 +456,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-04-04T23:35:59.431Z",
-    "duration": 8597.507,
+    "startTime": "2026-04-04T23:39:21.549Z",
+    "duration": 8660.906,
     "expected": 2,
     "skipped": 0,
     "unexpected": 2,

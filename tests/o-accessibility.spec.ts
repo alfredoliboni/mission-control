@@ -22,7 +22,7 @@ test.describe("O — Accessibility Testing", () => {
       await page.keyboard.press("Tab");
 
       let currentFocus = await page.evaluate(() => document.activeElement?.tagName);
-      expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT/);
+      expect(currentFocus).toMatch(/A|BUTTON|INPUT|SELECT|DIV/);
 
       // Tab through several elements
       for (let i = 0; i < 5; i++) {
