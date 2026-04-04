@@ -21,7 +21,7 @@ export function DemoBanner() {
       </p>
       <button
         onClick={() => setDismissed(true)}
-        className="p-1 rounded hover:bg-status-caution/20 transition-colors"
+        className="min-h-[44px] min-w-[44px] rounded hover:bg-status-caution/20 transition-colors flex items-center justify-center"
         aria-label="Dismiss demo banner"
       >
         <X className="h-4 w-4 text-warm-400" />

@@ -25,7 +25,8 @@ export function TopBar() {
 
   return (
     <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card">
-      <div className="flex items-center gap-3">
+      <nav aria-label="Top navigation" className="flex items-center justify-between w-full gap-3">
+        <div className="flex items-center gap-3">
         <button
           className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 transition-colors"
           onClick={toggleSidebar}
@@ -44,9 +45,9 @@ export function TopBar() {
             </Badge>
           )}
         </div>
-      </div>
+        </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
         <LastUpdated />
         <Link
           href="/alerts"
@@ -60,7 +61,8 @@ export function TopBar() {
             </span>
           )}
         </Link>
-      </div>
+        </div>
+      </nav>
     </header>
   );
 }

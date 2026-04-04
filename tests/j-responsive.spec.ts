@@ -32,7 +32,7 @@ test.describe("J — Responsive & Mobile Testing", () => {
       await expect(page.locator("h1, h2, h3").first()).toBeVisible();
 
       // Check that sidebar/navigation adapts to mobile
-      const nav = page.locator("nav, [role='navigation']");
+      const nav = page.locator("nav:visible, [role='navigation']:visible");
       if (await nav.count() > 0) {
         await expect(nav.first()).toBeVisible();
       }

@@ -94,7 +94,7 @@
                           "workerIndex": 0,
                           "parallelIndex": 0,
                           "status": "failed",
-                          "duration": 1144,
+                          "duration": 1320,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26",
@@ -118,7 +118,7 @@
                           "stdout": [],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:33:03.892Z",
+                          "startTime": "2026-04-04T23:35:59.707Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -142,7 +142,7 @@
                           "workerIndex": 3,
                           "parallelIndex": 0,
                           "status": "failed",
-                          "duration": 1117,
+                          "duration": 1254,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/A|BUTTON|INPUT|SELECT|TEXTAREA|DIV/\u001b[39m\nReceived string:  \u001b[31m\"BODY\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:31:26",
@@ -166,7 +166,7 @@
                           "stdout": [],
                           "stderr": [],
                           "retry": 1,
-                          "startTime": "2026-04-04T23:33:05.424Z",
+                          "startTime": "2026-04-04T23:36:01.367Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -219,7 +219,7 @@
                           "workerIndex": 1,
                           "parallelIndex": 1,
                           "status": "failed",
-                          "duration": 1803,
+                          "duration": 1951,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:187:23",
@@ -247,7 +247,7 @@
                           ],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:33:03.894Z",
+                          "startTime": "2026-04-04T23:35:59.707Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -268,10 +268,10 @@
                           }
                         },
                         {
-                          "workerIndex": 5,
+                          "workerIndex": 4,
                           "parallelIndex": 1,
                           "status": "failed",
-                          "duration": 1666,
+                          "duration": 1684,
                           "error": {
                             "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m",
                             "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/login|sign in/i\u001b[39m\nReceived string:  \u001b[31m\"Mission Control — The Companion\"\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:187:23",
@@ -299,7 +299,7 @@
                           ],
                           "stderr": [],
                           "retry": 1,
-                          "startTime": "2026-04-04T23:33:06.061Z",
+                          "startTime": "2026-04-04T23:36:02.005Z",
                           "annotations": [],
                           "attachments": [
                             {
@@ -338,7 +338,7 @@
               "specs": [
                 {
                   "title": "Mobile accessibility and touch targets",
-                  "ok": false,
+                  "ok": true,
                   "tags": [],
                   "tests": [
                     {
@@ -351,101 +351,47 @@
                         {
                           "workerIndex": 2,
                           "parallelIndex": 2,
-                          "status": "failed",
-                          "duration": 1377,
-                          "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:512:33",
-                            "location": {
-                              "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 33,
-                              "line": 512
-                            },
-                            "snippet": "  510 |       }\n  511 |\n> 512 |       expect(touchTargetChecks).toBeGreaterThan(0);\n      |                                 ^\n  513 |       console.log(`Checked ${touchTargetChecks} touch targets`);\n  514 |     });\n  515 |   });"
-                          },
-                          "errors": [
+                          "status": "passed",
+                          "duration": 1953,
+                          "errors": [],
+                          "stdout": [
                             {
-                              "location": {
-                                "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 33,
-                                "line": 512
-                              },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  510 |       }\n  511 |\n> 512 |       expect(touchTargetChecks).toBeGreaterThan(0);\n      |                                 ^\n  513 |       console.log(`Checked ${touchTargetChecks} touch targets`);\n  514 |     });\n  515 |   });\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:512:33"
+                              "text": "Touch target 0: 24x24 (meets requirement: false)\n"
+                            },
+                            {
+                              "text": "Touch target 1: 44x44 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Touch target 2: 44x44 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Touch target 3: 163.5x96 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Touch target 4: 163.5x96 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Touch target 5: 163.5x96 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Touch target 6: 163.5x96 (meets requirement: true)\n"
+                            },
+                            {
+                              "text": "Checked 7 touch targets\n"
                             }
                           ],
-                          "stdout": [],
-                          "stderr": [],
+                          "stderr": [
+                            {
+                              "text": "Small button found: 24x24\n"
+                            }
+                          ],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:33:03.890Z",
+                          "startTime": "2026-04-04T23:35:59.707Z",
                           "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-560ed-ssibility-and-touch-targets-chromium/test-failed-1.png"
-                            },
-                            {
-                              "name": "error-context",
-                              "contentType": "text/markdown",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-560ed-ssibility-and-touch-targets-chromium/error-context.md"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 33,
-                            "line": 512
-                          }
-                        },
-                        {
-                          "workerIndex": 4,
-                          "parallelIndex": 2,
-                          "status": "failed",
-                          "duration": 1240,
-                          "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:512:33",
-                            "location": {
-                              "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 33,
-                              "line": 512
-                            },
-                            "snippet": "  510 |       }\n  511 |\n> 512 |       expect(touchTargetChecks).toBeGreaterThan(0);\n      |                                 ^\n  513 |       console.log(`Checked ${touchTargetChecks} touch targets`);\n  514 |     });\n  515 |   });"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 33,
-                                "line": 512
-                              },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  510 |       }\n  511 |\n> 512 |       expect(touchTargetChecks).toBeGreaterThan(0);\n      |                                 ^\n  513 |       console.log(`Checked ${touchTargetChecks} touch targets`);\n  514 |     });\n  515 |   });\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:512:33"
-                            }
-                          ],
-                          "stdout": [],
-                          "stderr": [],
-                          "retry": 1,
-                          "startTime": "2026-04-04T23:33:05.668Z",
-                          "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-560ed-ssibility-and-touch-targets-chromium-retry1/test-failed-1.png"
-                            },
-                            {
-                              "name": "error-context",
-                              "contentType": "text/markdown",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-560ed-ssibility-and-touch-targets-chromium-retry1/error-context.md"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 33,
-                            "line": 512
-                          }
+                          "attachments": []
                         }
                       ],
-                      "status": "unexpected"
+                      "status": "expected"
                     }
                   ],
                   "id": "0e318a85e177d36d8e13-f62490f45953fcbf8b5c",
@@ -463,7 +409,7 @@
               "specs": [
                 {
                   "title": "Dialog and modal accessibility",
-                  "ok": false,
+                  "ok": true,
                   "tags": [],
                   "tests": [
                     {
@@ -474,117 +420,30 @@
                       "projectName": "chromium",
                       "results": [
                         {
-                          "workerIndex": 6,
-                          "parallelIndex": 0,
-                          "status": "failed",
-                          "duration": 5914,
-                          "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n    at forEach (/private/tmp/mc-check/tests/o-accessibility.spec.ts:624:40)\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:619:26",
-                            "location": {
-                              "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 40,
-                              "line": 624
-                            },
-                            "snippet": "  622 |             // Modal dialogs should have proper attributes\n  623 |             if (dialog.role === \"dialog\") {\n> 624 |               expect(dialog.ariaModal).toBeTruthy();\n      |                                        ^\n  625 |             }\n  626 |           });\n  627 |"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 40,
-                                "line": 624
-                              },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n\n  622 |             // Modal dialogs should have proper attributes\n  623 |             if (dialog.role === \"dialog\") {\n> 624 |               expect(dialog.ariaModal).toBeTruthy();\n      |                                        ^\n  625 |             }\n  626 |           });\n  627 |\n    at forEach (/private/tmp/mc-check/tests/o-accessibility.spec.ts:624:40)\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:619:26"
-                            }
-                          ],
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 6256,
+                          "errors": [],
                           "stdout": [
                             {
                               "text": "Found 1 accessible dialogs\n"
                             },
                             {
-                              "text": "Dialog: role=dialog, modal=null, label=\"null\"\n"
+                              "text": "Dialog: role=dialog, modal=true, label=\"null\"\n"
+                            },
+                            {
+                              "text": "Dialogs remaining after Escape: 0\n"
                             }
                           ],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-04-04T23:33:06.863Z",
+                          "startTime": "2026-04-04T23:36:01.740Z",
                           "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-3f5be-log-and-modal-accessibility-chromium/test-failed-1.png"
-                            },
-                            {
-                              "name": "error-context",
-                              "contentType": "text/markdown",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-3f5be-log-and-modal-accessibility-chromium/error-context.md"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 40,
-                            "line": 624
-                          }
-                        },
-                        {
-                          "workerIndex": 7,
-                          "parallelIndex": 0,
-                          "status": "failed",
-                          "duration": 7090,
-                          "error": {
-                            "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m",
-                            "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n    at forEach (/private/tmp/mc-check/tests/o-accessibility.spec.ts:624:40)\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:619:26",
-                            "location": {
-                              "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                              "column": 40,
-                              "line": 624
-                            },
-                            "snippet": "  622 |             // Modal dialogs should have proper attributes\n  623 |             if (dialog.role === \"dialog\") {\n> 624 |               expect(dialog.ariaModal).toBeTruthy();\n      |                                        ^\n  625 |             }\n  626 |           });\n  627 |"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                                "column": 40,
-                                "line": 624
-                              },
-                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n\n  622 |             // Modal dialogs should have proper attributes\n  623 |             if (dialog.role === \"dialog\") {\n> 624 |               expect(dialog.ariaModal).toBeTruthy();\n      |                                        ^\n  625 |             }\n  626 |           });\n  627 |\n    at forEach (/private/tmp/mc-check/tests/o-accessibility.spec.ts:624:40)\n    at /private/tmp/mc-check/tests/o-accessibility.spec.ts:619:26"
-                            }
-                          ],
-                          "stdout": [
-                            {
-                              "text": "Found 1 accessible dialogs\n"
-                            },
-                            {
-                              "text": "Dialog: role=dialog, modal=null, label=\"null\"\n"
-                            }
-                          ],
-                          "stderr": [],
-                          "retry": 1,
-                          "startTime": "2026-04-04T23:33:13.789Z",
-                          "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-3f5be-log-and-modal-accessibility-chromium-retry1/test-failed-1.png"
-                            },
-                            {
-                              "name": "error-context",
-                              "contentType": "text/markdown",
-                              "path": "/private/tmp/mc-check/test-results/o-accessibility-O-—-Access-3f5be-log-and-modal-accessibility-chromium-retry1/error-context.md"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/private/tmp/mc-check/tests/o-accessibility.spec.ts",
-                            "column": 40,
-                            "line": 624
-                          }
+                          "attachments": []
                         }
                       ],
-                      "status": "unexpected"
+                      "status": "expected"
                     }
                   ],
                   "id": "0e318a85e177d36d8e13-06d3143cafad23499847",
@@ -601,11 +460,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-04-04T23:33:03.608Z",
-    "duration": 18119.448,
-    "expected": 0,
+    "startTime": "2026-04-04T23:35:59.431Z",
+    "duration": 8597.507,
+    "expected": 2,
     "skipped": 0,
-    "unexpected": 4,
+    "unexpected": 2,
     "flaky": 0
   }
 }
