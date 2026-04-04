@@ -18,10 +18,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <ApiOfflineBanner />
         <TopBar />
         <main
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto overflow-x-hidden"
           id="main-content"
         >
-          <div className="mx-auto max-w-[1280px] p-4 sm:p-6">
+          <div className="mx-auto max-w-[1280px] p-4 sm:p-6 min-w-0">
             {children}
           </div>
         </main>

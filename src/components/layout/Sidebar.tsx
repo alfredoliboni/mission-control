@@ -41,7 +41,7 @@ export function Sidebar() {
       href={route}
       onClick={() => setSidebarOpen(false)}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 min-h-[44px] text-sm transition-colors",
         "hover:bg-warm-100",
         isActive(route)
           ? "bg-primary/10 text-primary font-medium"

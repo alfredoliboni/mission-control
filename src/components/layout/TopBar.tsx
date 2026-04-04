@@ -27,7 +27,7 @@ export function TopBar() {
     <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card">
       <div className="flex items-center gap-3">
         <button
-          className="lg:hidden p-2 rounded-md hover:bg-warm-100 transition-colors"
+          className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 transition-colors"
           onClick={toggleSidebar}
           aria-label="Open navigation menu"
         >
@@ -50,7 +50,7 @@ export function TopBar() {
         <LastUpdated />
         <Link
           href="/alerts"
-          className="relative p-2 rounded-md hover:bg-warm-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+          className="relative p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
           aria-label={`${activeAlertCount} active alerts`}
         >
           <Bell className="h-5 w-5 text-warm-400" />

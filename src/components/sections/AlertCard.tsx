@@ -193,7 +193,7 @@ export function AlertCard({
                 <a
                   key={i}
                   href={cta.href}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-md transition-colors"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 px-3 py-2 min-h-[44px] rounded-md transition-colors"
                 >
                   <CtaIcon className="h-3.5 w-3.5" />
                   {cta.label}
@@ -201,7 +201,7 @@ export function AlertCard({
               ) : (
                 <button
                   key={i}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-md transition-colors"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 px-3 py-2 min-h-[44px] rounded-md transition-colors"
                 >
                   <CtaIcon className="h-3.5 w-3.5" />
                   {cta.label}
@@ -224,7 +224,7 @@ export function AlertCard({
             {onComplete && (
               <button
                 onClick={onComplete}
-                className="inline-flex items-center gap-1 text-xs font-medium text-status-success hover:bg-status-success/10 px-2 py-1 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex items-center gap-1 text-xs font-medium text-status-success hover:bg-status-success/10 px-3 py-2 min-h-[44px] rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Mark alert as complete"
               >
                 <Check className="h-3.5 w-3.5" />
@@ -234,7 +234,7 @@ export function AlertCard({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center gap-1 text-xs font-medium text-warm-400 hover:text-foreground hover:bg-warm-100 px-2 py-1 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex items-center gap-1 text-xs font-medium text-warm-400 hover:text-foreground hover:bg-warm-100 px-3 py-2 min-h-[44px] rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Dismiss alert"
               >
                 <X className="h-3.5 w-3.5" />
@@ -244,7 +244,7 @@ export function AlertCard({
             {onAddNote && (
               <button
                 onClick={() => setNoteOpen(!noteOpen)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-warm-400 hover:text-foreground hover:bg-warm-100 px-2 py-1 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex items-center gap-1 text-xs font-medium text-warm-400 hover:text-foreground hover:bg-warm-100 px-3 py-2 min-h-[44px] rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Add a note"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
