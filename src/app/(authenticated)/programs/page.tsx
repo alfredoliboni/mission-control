@@ -50,17 +50,17 @@ export default function ProgramsPage() {
               onValueChange={(v) => setFilter(v as CategoryFilter)}
               className="w-full sm:w-auto"
             >
-              <TabsList className="w-full sm:w-auto">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="gap_filler">Gap Fillers</TabsTrigger>
-                <TabsTrigger value="government">Government</TabsTrigger>
-                <TabsTrigger value="educational">Educational</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:inline-flex sm:w-auto">
+                <TabsTrigger className="min-h-[44px] whitespace-normal px-2 py-2 text-center" value="all">All</TabsTrigger>
+                <TabsTrigger className="min-h-[44px] whitespace-normal px-2 py-2 text-center" value="gap_filler">Gap Fillers</TabsTrigger>
+                <TabsTrigger className="min-h-[44px] whitespace-normal px-2 py-2 text-center" value="government">Government</TabsTrigger>
+                <TabsTrigger className="min-h-[44px] whitespace-normal px-2 py-2 text-center" value="educational">Educational</TabsTrigger>
               </TabsList>
             </Tabs>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-              className="w-full sm:w-auto text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full sm:w-auto min-h-[44px] text-xs border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="az">Name A-Z</option>
               <option value="za">Name Z-A</option>

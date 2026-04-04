@@ -20,7 +20,7 @@ const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bas
 const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 
 async function proxyViaOrgo(apiPath: string): Promise<{ status: number; body: string }> {
-  const curlCmd = `curl -s -H "Authorization: Bearer ${COMPANION_API_TOKEN}" http://localhost:3001/${apiPath}`;
+  const curlCmd = `curl -s -w "\n__STATUS__:%{http_code}" -H "Authorization: Bearer ${COMPANION_API_TOKEN}" http://localhost:3001/${apiPath}`;
   
   const response = await fetch(ORGO_API_BASE, {
     method: "POST",
@@ -69,6 +69,13 @@ async function proxyViaOrgo(apiPath: string): Promise<{ status: number; body: st
     };
   }
 
+  const statusMatch = output.match(/\n__STATUS__:(\d{3})\s*$/);
+  if (statusMatch) {
+    const status = Number(statusMatch[1]);
+    const body = output.replace(/\n__STATUS__:\d{3}\s*$/, "");
+    return { status, body };
+  }
+
   return { status: 200, body: output };
 }
 
@@ -92,7 +99,7 @@ export async function GET(
   // Check if we're in demo mode
   const isDemo = request.cookies.get("companion-demo")?.value === "true";
   if (isDemo) {
-    return NextResponse.json({ error: "Demo mode — use demo data" }, { status: 400 });
+    return NextResponse.json({ error: "Demo mode does not proxy live companion API" }, { status: 404 });
   }
 
   // Check if Orgo credentials are configured

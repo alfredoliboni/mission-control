@@ -64,14 +64,15 @@ function TagInput({
             <button
               type="button"
               onClick={() => onChange(value.filter((t) => t !== tag))}
-              className="ml-0.5 text-muted-foreground hover:text-foreground"
+              className="ml-0.5 min-h-[24px] min-w-[24px] text-muted-foreground hover:text-foreground"
+              aria-label={`Remove ${tag}`}
             >
               x
             </button>
           </Badge>
         ))}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -83,7 +84,7 @@ function TagInput({
             }
           }}
         />
-        <Button type="button" variant="outline" size="sm" onClick={addTag}>
+        <Button type="button" variant="outline" size="sm" onClick={addTag} className="min-h-[44px]">
           Add
         </Button>
       </div>
@@ -498,7 +499,7 @@ export default function ProfilePage() {
 
         {/* Submit */}
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={saveProfile.isPending || isDemo}>
+          <Button type="submit" disabled={saveProfile.isPending}>
             {saveProfile.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (

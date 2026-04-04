@@ -76,7 +76,7 @@ export function Sidebar() {
           </span>
         </Link>
         <button
-          className="lg:hidden p-1 rounded-md hover:bg-warm-100"
+          className="lg:hidden min-h-[44px] min-w-[44px] rounded-md hover:bg-warm-100 flex items-center justify-center"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close sidebar"
         >
@@ -137,7 +137,7 @@ export function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex lg:flex-col lg:w-[260px] lg:border-r lg:border-border lg:bg-sidebar h-full"
+        className="hidden lg:flex lg:flex-col lg:w-[260px] lg:border-r lg:border-border lg:bg-sidebar h-full lg:order-1"
         role="complementary"
         aria-label="Sidebar"
       >

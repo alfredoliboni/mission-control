@@ -12,7 +12,7 @@ export async function GET(
   const isDemo = cookieStore.get("companion-demo")?.value === "true";
 
   if (!filename.endsWith(".md")) {
-    return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
+    return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
 
   if (isDemo) {

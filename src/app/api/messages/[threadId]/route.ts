@@ -22,5 +22,9 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ messages: messages ?? [] });
+  if (!messages || messages.length === 0) {
+    return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ messages });
 }

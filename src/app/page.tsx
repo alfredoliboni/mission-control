@@ -3,6 +3,12 @@ import Link from "next/link";
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:text-foreground focus:shadow"
+      >
+        Skip to main content
+      </a>
       <header className="border-b border-border">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -16,13 +22,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="text-sm text-warm-400 hover:text-foreground transition-colors"
+              className="inline-flex min-h-[44px] items-center text-sm text-warm-400 hover:text-foreground transition-colors"
             >
               Sign In
             </Link>
             <Link
               href="/demo"
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               See Demo
             </Link>
@@ -30,7 +36,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-4">
+      <main id="main-content" className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-2xl text-center space-y-6">
           <h1 className="font-heading text-4xl sm:text-5xl font-bold text-foreground leading-tight">
             Mission Control for
@@ -42,16 +48,16 @@ export default function LandingPage() {
             services for you. Track your pathway, discover programs, and never
             miss a deadline.
           </p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/demo"
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex min-h-[44px] w-full sm:w-auto items-center justify-center rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               Try the Demo
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center rounded-lg border border-border px-6 py-3 text-base font-medium text-foreground hover:bg-warm-100 transition-colors"
+              className="inline-flex min-h-[44px] w-full sm:w-auto items-center justify-center rounded-lg border border-border px-6 py-3 text-base font-medium text-foreground hover:bg-warm-100 transition-colors"
             >
               Sign In
             </Link>

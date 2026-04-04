@@ -28,6 +28,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
 
+  useEffect(() => {
+    document.title = "Sign In — Mission Control";
+  }, []);
+
   const handleDemo = () => {
     document.cookie = "companion-demo=true; path=/; max-age=86400; samesite=lax";
     router.push("/dashboard");
@@ -179,7 +183,7 @@ export default function LoginPage() {
                     setMode(mode === "password" ? "magic-link" : "password");
                     setError(null);
                   }}
-                  className="w-full text-xs text-primary hover:text-primary/80 text-center"
+                  className="w-full min-h-[44px] text-xs text-primary hover:text-primary/80 text-center"
                 >
                   {mode === "password"
                     ? "Sign in with magic link instead"
