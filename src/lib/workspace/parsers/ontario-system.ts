@@ -76,8 +76,8 @@ export function parseOntarioSystem(raw: string): OntarioSystemData {
   const lastUpdated = extractLastUpdated(raw);
 
   let journeyOverview = "";
-  let oap = { entryPoints: [] as string[], childhoodBudget: [] as string[], foundationalServices: [] as string[], waitTimes: [] as WaitTimeEntry[] };
-  let school = { iepPoints: [] as string[], boards: [] as { name: string; type: string }[] };
+  const oap = { entryPoints: [] as string[], childhoodBudget: [] as string[], foundationalServices: [] as string[], waitTimes: [] as WaitTimeEntry[] };
+  const school = { iepPoints: [] as string[], boards: [] as { name: string; type: string }[] };
   let financialSupports: BenefitEntry[] = [];
   let sources = "";
 

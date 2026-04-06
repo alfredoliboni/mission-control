@@ -9,7 +9,6 @@ import {
   DollarSign,
   Users,
   Calendar,
-  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +53,6 @@ export function ProgramCard({ program }: ProgramCardProps) {
 
   // Determine the primary action
   const primaryUrl = program.url;
-  const hasContact = program.phone || program.email;
 
   return (
     <Card
