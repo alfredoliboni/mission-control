@@ -1,9 +1,10 @@
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/demo", "/onboarding", "/api/"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths
@@ -26,8 +27,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // For production, check Supabase auth session
-  // For now, redirect unauthenticated users to login
+  // Check Supabase auth session
+  const { user, supabaseResponse } = await updateSession(request);
+
+  if (user) {
+    return supabaseResponse;
+  }
+
+  // Not authenticated — redirect to login
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   return NextResponse.redirect(url);
