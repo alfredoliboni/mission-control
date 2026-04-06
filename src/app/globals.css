@@ -48,55 +48,55 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* Mission Control custom colors */
-  --color-warm-50: #FAFAF8;
-  --color-warm-100: #F5F5F3;
-  --color-warm-200: #ECECEA;
-  --color-warm-300: #D1D5DB;
-  --color-warm-400: #636E72;
-  --color-warm-500: #2D3436;
+  --color-warm-50: #faf8f2;
+  --color-warm-100: #f0eee5;
+  --color-warm-200: #ddd8cc;
+  --color-warm-300: #c4bba8;
+  --color-warm-400: #8a7e6b;
+  --color-warm-500: #3d3229;
 
-  --color-status-success: #6BBF6B;
+  --color-status-success: #5a9a6a;
   --color-status-current: #4A90D9;
-  --color-status-blocked: #E57373;
-  --color-status-caution: #F5C542;
-  --color-status-upcoming: #D1D5DB;
-  --color-status-gap-filler: #8E6BBF;
+  --color-status-blocked: #c2453a;
+  --color-status-caution: #d4a843;
+  --color-status-upcoming: #c4bba8;
+  --color-status-gap-filler: #7d5fa0;
 }
 
 :root {
   /* Warm Mission Control light theme */
-  --background: #FAFAF8;
-  --foreground: #2D3436;
-  --card: #FFFFFF;
-  --card-foreground: #2D3436;
-  --popover: #FFFFFF;
-  --popover-foreground: #2D3436;
-  --primary: #4A90D9;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F5F5F3;
-  --secondary-foreground: #2D3436;
-  --muted: #F5F5F3;
-  --muted-foreground: #636E72;
-  --accent: #F5F5F3;
-  --accent-foreground: #2D3436;
-  --destructive: #E57373;
-  --border: #ECECEA;
-  --input: #ECECEA;
-  --ring: #4A90D9;
-  --chart-1: #4A90D9;
-  --chart-2: #6BBF6B;
-  --chart-3: #F5C542;
-  --chart-4: #E57373;
-  --chart-5: #8E6BBF;
+  --background: #f5f4ed;
+  --foreground: #3d3229;
+  --card: #fffef9;
+  --card-foreground: #3d3229;
+  --popover: #fffef9;
+  --popover-foreground: #3d3229;
+  --primary: #c96442;
+  --primary-foreground: #fef9f5;
+  --secondary: #ebe8df;
+  --secondary-foreground: #3d3229;
+  --muted: #ebe8df;
+  --muted-foreground: #8a7e6b;
+  --accent: #ebe8df;
+  --accent-foreground: #3d3229;
+  --destructive: #c2453a;
+  --border: #ddd8cc;
+  --input: #ddd8cc;
+  --ring: #c96442;
+  --chart-1: #c96442;
+  --chart-2: #5a9a6a;
+  --chart-3: #d4a843;
+  --chart-4: #c2453a;
+  --chart-5: #7d5fa0;
   --radius: 0.75rem;
-  --sidebar: #FAFAF8;
-  --sidebar-foreground: #2D3436;
-  --sidebar-primary: #4A90D9;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F5F5F3;
-  --sidebar-accent-foreground: #2D3436;
-  --sidebar-border: #ECECEA;
-  --sidebar-ring: #4A90D9;
+  --sidebar: #f0eee5;
+  --sidebar-foreground: #3d3229;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fef9f5;
+  --sidebar-accent: #e6e2d8;
+  --sidebar-accent-foreground: #3d3229;
+  --sidebar-border: #ddd8cc;
+  --sidebar-ring: #c96442;
 }
 
 @layer base {
@@ -110,6 +110,9 @@
     @apply font-sans;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-heading), Georgia, 'Times New Roman', serif;
+  }
+  [data-slot="card"] {
+    box-shadow: 0 1px 2px rgba(61, 50, 41, 0.04), 0 4px 12px rgba(61, 50, 41, 0.06);
   }
 }

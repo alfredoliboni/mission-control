@@ -23,7 +23,7 @@ export function TopBar() {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card">
+    <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card shadow-[0_1px_3px_rgba(61,50,41,0.04)]">
       <div className="flex items-center gap-3">
         <button
           className="lg:hidden p-2 rounded-md hover:bg-warm-100 transition-colors"
