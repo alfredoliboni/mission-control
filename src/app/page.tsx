@@ -7,16 +7,16 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-2xl" aria-hidden="true">
-              🧭
+              &#x1F9ED;
             </span>
-            <span className="font-heading font-bold text-lg">
+            <span className="font-heading font-bold text-lg text-foreground">
               The Companion
             </span>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="text-sm text-warm-400 hover:text-foreground transition-colors"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Sign In
             </Link>
@@ -37,7 +37,7 @@ export default function LandingPage() {
             <br />
             <span className="text-primary">Your Family&apos;s Journey</span>
           </h1>
-          <p className="text-lg text-warm-400 max-w-xl mx-auto leading-relaxed">
+          <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
             An AI-powered dashboard that navigates Ontario&apos;s autism
             services for you. Track your pathway, discover programs, and never
             miss a deadline.
@@ -60,36 +60,36 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-3 gap-6 pt-12 text-left">
             <div className="space-y-2">
               <p className="text-2xl" aria-hidden="true">
-                🗺️
+                &#x1F5FA;&#xFE0F;
               </p>
               <h3 className="font-heading font-semibold text-foreground">
                 Visual Pathway
               </h3>
-              <p className="text-sm text-warm-400">
+              <p className="text-sm text-muted-foreground">
                 See exactly where you are in the journey, what&apos;s next, and
                 what&apos;s blocked.
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-2xl" aria-hidden="true">
-                🏷️
+                &#x1F3F7;&#xFE0F;
               </p>
               <h3 className="font-heading font-semibold text-foreground">
                 Gap Fillers
               </h3>
-              <p className="text-sm text-warm-400">
+              <p className="text-sm text-muted-foreground">
                 Free programs and resources to use while waiting for funded
                 services.
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-2xl" aria-hidden="true">
-                🚨
+                &#x1F6A8;
               </p>
               <h3 className="font-heading font-semibold text-foreground">
                 Proactive Alerts
               </h3>
-              <p className="text-sm text-warm-400">
+              <p className="text-sm text-muted-foreground">
                 Your AI agent monitors deadlines, discovers programs, and flags
                 what needs attention.
               </p>

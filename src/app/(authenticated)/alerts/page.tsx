@@ -3,11 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParsedAlerts } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
-import { AlertCard } from "@/components/sections/AlertCard";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  Check,
+  X,
+  MessageSquare,
+  Phone,
+  Mail,
+  ExternalLink,
+  Stethoscope,
+} from "lucide-react";
+import type { ParsedAlert } from "@/types/workspace";
 
-type StatusFilter = "active" | "completed" | "dismissed" | "all";
+type StatusFilter = "active" | "resolved" | "all";
 
 const STORAGE_KEY = "alerts-state";
 
@@ -35,7 +43,7 @@ function savePersistedState(state: PersistedState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    /* quota exceeded — ignore */
+    /* quota exceeded */
   }
 }
 
@@ -43,12 +51,10 @@ function usePersistedAlertState() {
   const [state, setState] = useState<PersistedState>(() => loadPersistedState());
   const initialized = useRef(false);
 
-  // Mark as initialized after first render
   useEffect(() => {
     initialized.current = true;
   }, []);
 
-  // Persist to localStorage on changes (skip initial render)
   useEffect(() => {
     if (!initialized.current) return;
     savePersistedState(state);
@@ -56,6 +62,262 @@ function usePersistedAlertState() {
 
   return [state, setState] as const;
 }
+
+// ── Parse action text into CTA buttons ───────────────────────────────────
+
+interface ActionCTA {
+  label: string;
+  href?: string;
+  icon: typeof Phone;
+}
+
+function parseActionCTAs(action: string): ActionCTA[] {
+  const ctas: ActionCTA[] = [];
+  if (!action) return ctas;
+
+  const phoneMatch = action.match(/(\d[\d-]{7,})/);
+  if (phoneMatch) {
+    const phone = phoneMatch[1];
+    ctas.push({
+      label: `Call ${phone}`,
+      href: `tel:${phone.replace(/[^0-9+]/g, "")}`,
+      icon: Phone,
+    });
+  }
+
+  const emailMatch = action.match(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
+  );
+  if (emailMatch) {
+    ctas.push({
+      label: `Email ${emailMatch[1]}`,
+      href: `mailto:${emailMatch[1]}`,
+      icon: Mail,
+    });
+  }
+
+  if (
+    action.toLowerCase().includes("profile") &&
+    action.toLowerCase().includes("medical")
+  ) {
+    ctas.push({
+      label: "Review in Medical Tab",
+      href: "/profile",
+      icon: Stethoscope,
+    });
+  }
+
+  if (
+    action.toLowerCase().includes("register") &&
+    !ctas.some((c) => c.icon === Phone || c.icon === Mail)
+  ) {
+    ctas.push({
+      label: "Register Now",
+      icon: ExternalLink,
+    });
+  }
+
+  return ctas;
+}
+
+// ── Severity dot color mapping ───────────────────────────────────────────
+
+const severityDot: Record<string, string> = {
+  HIGH: "bg-status-blocked",
+  MEDIUM: "bg-status-caution",
+  INFO: "bg-status-current",
+};
+
+// ── Alert Item ───────────────────────────────────────────────────────────
+
+function AlertItem({
+  alert,
+  isCompleted,
+  isDismissed,
+  completedAt,
+  alertNotes,
+  onComplete,
+  onDismiss,
+  onAddNote,
+}: {
+  alert: ParsedAlert;
+  isCompleted: boolean;
+  isDismissed: boolean;
+  completedAt?: string;
+  alertNotes?: string[];
+  onComplete: () => void;
+  onDismiss: () => void;
+  onAddNote: (note: string) => void;
+}) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const actionCTAs = parseActionCTAs(alert.action);
+
+  const handleSubmitNote = () => {
+    if (noteText.trim()) {
+      onAddNote(noteText.trim());
+      setNoteText("");
+      setNoteOpen(false);
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "py-3 transition-all",
+        isCompleted && "opacity-60",
+        isDismissed && !isCompleted && "opacity-40"
+      )}
+    >
+      {/* Top row: dot + title + date */}
+      <div className="flex items-start gap-2.5">
+        {/* Severity dot */}
+        <div className="mt-[6px] shrink-0">
+          <div
+            className={cn(
+              "w-[7px] h-[7px] rounded-full",
+              severityDot[alert.severity] || "bg-muted-foreground"
+            )}
+          />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Title + date row */}
+          <div className="flex items-start justify-between gap-2">
+            <h3
+              className={cn(
+                "text-[13px] font-semibold text-foreground",
+                isCompleted && "line-through"
+              )}
+            >
+              {isCompleted && <Check className="inline h-3.5 w-3.5 text-status-success mr-1" />}
+              {alert.title}
+            </h3>
+            <span className="text-[11px] text-muted-foreground shrink-0 pt-0.5">{alert.date}</span>
+          </div>
+
+          {/* Description */}
+          {alert.description && (
+            <p className={cn(
+              "text-[12px] text-muted-foreground mt-0.5 leading-relaxed line-clamp-3",
+              isCompleted && "line-through"
+            )}>
+              {alert.description}
+            </p>
+          )}
+
+          {/* Action text */}
+          {alert.action && (
+            <p
+              className={cn(
+                "text-[12px] font-medium text-primary mt-1",
+                isCompleted && "line-through opacity-60"
+              )}
+            >
+              {alert.action.replace(/\s*—\s*🏷️.*$/, "")}
+            </p>
+          )}
+
+          {/* Completed timestamp */}
+          {isCompleted && completedAt && (
+            <p className="text-[10px] text-status-success mt-1">Completed {completedAt}</p>
+          )}
+
+          {/* CTA buttons for HIGH alerts */}
+          {alert.severity === "HIGH" && actionCTAs.length > 0 && !isCompleted && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {actionCTAs.map((cta, i) => {
+                const CtaIcon = cta.icon;
+                return cta.href ? (
+                  <a
+                    key={i}
+                    href={cta.href}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-md transition-colors"
+                  >
+                    <CtaIcon className="h-3.5 w-3.5" />
+                    {cta.label}
+                  </a>
+                ) : (
+                  <button
+                    key={i}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-md transition-colors"
+                  >
+                    <CtaIcon className="h-3.5 w-3.5" />
+                    {cta.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          {!isCompleted && !isDismissed && (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={onComplete}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-status-success hover:bg-status-success/8 px-2 py-1 rounded-md transition-colors"
+              >
+                <Check className="h-3.5 w-3.5" />
+                Complete
+              </button>
+              <button
+                onClick={onDismiss}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted px-2 py-1 rounded-md transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+                Dismiss
+              </button>
+              <button
+                onClick={() => setNoteOpen(!noteOpen)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted px-2 py-1 rounded-md transition-colors"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Note
+              </button>
+            </div>
+          )}
+
+          {/* Note input */}
+          {noteOpen && (
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmitNote()}
+                placeholder="Type a note..."
+                className="flex-1 text-[12px] border border-border rounded-md px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                onClick={handleSubmitNote}
+                disabled={!noteText.trim()}
+                className="text-[12px] font-medium text-primary hover:bg-primary/10 px-2 py-1 rounded-md transition-colors disabled:opacity-40"
+              >
+                Save
+              </button>
+            </div>
+          )}
+
+          {/* Persisted notes */}
+          {alertNotes && alertNotes.length > 0 && (
+            <div className="mt-1.5 space-y-0.5">
+              {alertNotes.map((note, j) => (
+                <p key={j} className="text-[11px] text-muted-foreground italic">
+                  Note: {note}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Main Alerts Page ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function AlertsPage() {
   const { data: alerts, isLoading } = useParsedAlerts();
@@ -93,18 +355,13 @@ export default function AlertsPage() {
 
   // Compute counts
   const allAlerts = alerts || [];
-  const counts = {
-    active: 0,
-    completed: 0,
-    dismissed: 0,
-    all: allAlerts.length,
-  };
+  const counts = { active: 0, resolved: 0, all: allAlerts.length };
+
   for (const a of allAlerts) {
     const key = alertKey(a.date, a.title);
-    if (completedIds.has(key)) {
-      counts.completed++;
-    } else if (dismissedIds.has(key) || a.status === "dismissed") {
-      counts.dismissed++;
+    const isResolved = completedIds.has(key) || dismissedIds.has(key) || a.status === "dismissed";
+    if (isResolved) {
+      counts.resolved++;
     } else {
       counts.active++;
     }
@@ -113,90 +370,69 @@ export default function AlertsPage() {
   // Filter alerts
   const filtered = allAlerts.filter((a) => {
     const key = alertKey(a.date, a.title);
-    const isCompleted = completedIds.has(key);
-    const isDismissed = dismissedIds.has(key) || a.status === "dismissed";
+    const isResolved = completedIds.has(key) || dismissedIds.has(key) || a.status === "dismissed";
 
     switch (filter) {
       case "active":
-        return !isCompleted && !isDismissed;
-      case "completed":
-        return isCompleted;
-      case "dismissed":
-        return isDismissed && !isCompleted;
+        return !isResolved;
+      case "resolved":
+        return isResolved;
       case "all":
         return true;
     }
   });
 
-  const filterOptions: { key: StatusFilter; label: string }[] = [
-    { key: "active", label: "Active" },
-    { key: "completed", label: "Completed" },
-    { key: "dismissed", label: "Dismissed" },
-    { key: "all", label: "All" },
+  const tabs: { key: StatusFilter; label: string; count: number }[] = [
+    { key: "active", label: "Active", count: counts.active },
+    { key: "resolved", label: "Resolved", count: counts.resolved },
+    { key: "all", label: "All", count: counts.all },
   ];
 
   return (
-    <WorkspaceSection title="Alerts" icon="🚨" isLoading={isLoading}>
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {filterOptions.map((opt) => (
+    <WorkspaceSection title="Alerts" icon="🔔" isLoading={isLoading}>
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-4 border-b border-border">
+        {tabs.map((tab) => (
           <button
-            key={opt.key}
-            onClick={() => setFilter(opt.key)}
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
             className={cn(
-              "inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors border",
-              filter === opt.key
-                ? "bg-primary text-white border-primary"
-                : "bg-background text-warm-400 border-border hover:bg-warm-50 hover:text-foreground"
+              "text-[13px] font-medium px-3 py-2 -mb-px border-b-2 transition-colors",
+              filter === tab.key
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            {opt.label}
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[10px] px-1.5 py-0 h-4 min-w-[1.25rem] flex items-center justify-center",
-                filter === opt.key
-                  ? "bg-white/20 text-white border-white/30"
-                  : "bg-warm-100 text-warm-400 border-warm-200"
-              )}
-            >
-              {counts[opt.key]}
-            </Badge>
+            {tab.label} ({tab.count})
           </button>
         ))}
       </div>
 
-      <div className="space-y-3">
+      {/* Alert list inside a single card */}
+      <div className="bg-card border border-border rounded-xl px-5 transition-all">
         {filtered.length > 0 ? (
-          filtered.map((alert) => {
-            const key = alertKey(alert.date, alert.title);
-            const isCompleted = completedIds.has(key);
-            const isDismissed = dismissedIds.has(key) || alert.status === "dismissed";
-            return (
-              <div key={key}>
-                <AlertCard
+          <div className="divide-y divide-border">
+            {filtered.map((alert) => {
+              const key = alertKey(alert.date, alert.title);
+              const isCompleted = completedIds.has(key);
+              const isDismissed = dismissedIds.has(key) || alert.status === "dismissed";
+              return (
+                <AlertItem
+                  key={key}
                   alert={alert}
                   isCompleted={isCompleted}
-                  isDismissed={isDismissed}
+                  isDismissed={isDismissed && !isCompleted}
                   completedAt={completedAt[key]}
+                  alertNotes={notes[key]}
                   onComplete={() => handleComplete(key)}
                   onDismiss={() => handleDismiss(key)}
                   onAddNote={(note) => handleAddNote(key, note)}
                 />
-                {notes[key] && notes[key].length > 0 && (
-                  <div className="mt-1 ml-4 space-y-1">
-                    {notes[key].map((note, j) => (
-                      <p key={j} className="text-xs text-warm-400 italic">
-                        Note: {note}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         ) : (
-          <p className="text-sm text-warm-400 py-8 text-center">
+          <p className="text-[13px] text-muted-foreground py-8 text-center">
             No alerts matching this filter
           </p>
         )}

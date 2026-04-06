@@ -38,7 +38,7 @@ export function WorkspaceSection({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-heading text-2xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
           {icon && (
             <span className="text-2xl" aria-hidden="true">
               {icon}

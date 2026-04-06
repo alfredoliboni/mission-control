@@ -154,7 +154,7 @@ export function AlertCard({
             </Badge>
             <span className="text-xs text-warm-400">{alert.date}</span>
             {alert.action.includes("🏷️ Gap Filler") && (
-              <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-600 border-purple-200">
+              <Badge variant="outline" className="text-[10px] bg-status-gap-filler/10 text-status-gap-filler border-status-gap-filler/20">
                 Gap Filler
               </Badge>
             )}

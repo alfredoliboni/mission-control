@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   User,
   Mail,
@@ -142,17 +140,17 @@ function InfoRow({
   onChange: (val: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 py-2">
+    <div className="flex items-center gap-3 py-2.5">
       <Icon className="size-4 text-muted-foreground shrink-0" />
-      <span className="text-sm text-muted-foreground w-32 shrink-0">{label}</span>
+      <span className="text-[13px] font-medium text-muted-foreground w-32 shrink-0">{label}</span>
       {isEditing ? (
         <Input
           value={value}
           onChange={(e) => onChange((e.target as HTMLInputElement).value)}
-          className="h-8 text-sm flex-1"
+          className="h-8 text-[13px] flex-1"
         />
       ) : (
-        <span className="text-sm text-foreground">{value}</span>
+        <span className="text-[13px] text-foreground">{value}</span>
       )}
     </div>
   );
@@ -168,25 +166,25 @@ function PartnerRow({
   onRemove: () => void;
 }) {
   const statusColors = {
-    active: "bg-emerald-50 text-emerald-700",
-    pending: "bg-amber-50 text-amber-700",
-    revoked: "bg-red-50 text-red-700",
+    active: "bg-status-success/8 text-status-success",
+    pending: "bg-status-caution/8 text-status-caution",
+    revoked: "bg-status-blocked/8 text-status-blocked",
   };
 
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="bg-card border border-border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h4 className="text-sm font-semibold text-foreground">{partner.name}</h4>
-            <Badge variant="secondary" className={`text-[10px] ${statusColors[partner.status]}`}>
+            <h4 className="text-[13px] font-semibold text-foreground">{partner.name}</h4>
+            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${statusColors[partner.status]}`}>
               {partner.status}
-            </Badge>
+            </span>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[12px] text-muted-foreground">
             {partner.role} · {partner.organization}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">{partner.email}</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">{partner.email}</p>
           {partner.lastAccess !== "—" && (
             <p className="text-[10px] text-muted-foreground mt-1">
               Last access: {partner.lastAccess}
@@ -194,9 +192,12 @@ function PartnerRow({
           )}
           <div className="flex flex-wrap gap-1 mt-2">
             {partner.permissions.map((perm) => (
-              <Badge key={perm} variant="outline" className="text-[10px] font-normal">
+              <span
+                key={perm}
+                className="text-[10px] font-medium text-muted-foreground border border-border px-1.5 py-0.5 rounded"
+              >
                 {perm}
-              </Badge>
+              </span>
             ))}
           </div>
         </div>
@@ -205,21 +206,21 @@ function PartnerRow({
             <Button
               variant="ghost"
               size="sm"
-              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-8 px-2"
+              className="text-status-caution hover:text-status-caution hover:bg-status-caution/8 h-8 px-2"
               onClick={onRevoke}
             >
               <EyeOff className="size-3.5 mr-1" />
-              <span className="text-xs">Revoke</span>
+              <span className="text-[11px]">Revoke</span>
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+            className="text-status-blocked hover:text-status-blocked hover:bg-status-blocked/8 h-8 px-2"
             onClick={onRemove}
           >
             <Trash2 className="size-3.5 mr-1" />
-            <span className="text-xs">Remove</span>
+            <span className="text-[11px]">Remove</span>
           </Button>
         </div>
       </div>
@@ -256,93 +257,92 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page title */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground font-heading">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-[22px] font-bold tracking-tight text-foreground flex items-center gap-2">
+          ⚙️ Settings
+        </h1>
+        <p className="text-[13px] text-muted-foreground mt-1">
           Manage your account, care team access, and privacy preferences.
         </p>
       </div>
 
       {/* ── Parent/Guardian Info ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <User className="size-4 text-muted-foreground" />
-              Parent / Guardian
-            </CardTitle>
-            {editingParent ? (
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2"
-                  onClick={() => setEditingParent(false)}
-                >
-                  <X className="size-3.5 mr-1" />
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setEditingParent(false)}
-                >
-                  <Check className="size-3.5 mr-1" />
-                  Save
-                </Button>
-              </div>
-            ) : (
+      <div className="bg-card border border-border rounded-xl">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
+            <User className="size-4 text-muted-foreground" />
+            Parent / Guardian
+          </h2>
+          {editingParent ? (
+            <div className="flex gap-1">
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2"
-                onClick={() => setEditingParent(true)}
+                onClick={() => setEditingParent(false)}
               >
-                <Pencil className="size-3.5 mr-1" />
-                Edit
+                <X className="size-3.5 mr-1" />
+                Cancel
               </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="divide-y divide-border">
-            <InfoRow icon={User} label="Full Name" value={parent.name} isEditing={editingParent} onChange={(v) => updateParent("name", v)} />
-            <InfoRow icon={Mail} label="Email" value={parent.email} isEditing={editingParent} onChange={(v) => updateParent("email", v)} />
-            <InfoRow icon={Phone} label="Phone" value={parent.phone} isEditing={editingParent} onChange={(v) => updateParent("phone", v)} />
-            <InfoRow icon={MapPin} label="Address" value={parent.address} isEditing={editingParent} onChange={(v) => updateParent("address", v)} />
-            <InfoRow icon={MapPin} label="City" value={parent.city} isEditing={editingParent} onChange={(v) => updateParent("city", v)} />
-            <InfoRow icon={MapPin} label="Postal Code" value={parent.postalCode} isEditing={editingParent} onChange={(v) => updateParent("postalCode", v)} />
-            <InfoRow icon={MapPin} label="Province" value={parent.province} isEditing={editingParent} onChange={(v) => updateParent("province", v)} />
-            <InfoRow icon={Heart} label="Language" value={parent.preferredLanguage} isEditing={editingParent} onChange={(v) => updateParent("preferredLanguage", v)} />
-            <InfoRow icon={Mail} label="Preferred Contact" value={parent.preferredContact} isEditing={editingParent} onChange={(v) => updateParent("preferredContact", v)} />
-          </div>
-        </CardContent>
-      </Card>
+              <Button
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => setEditingParent(false)}
+              >
+                <Check className="size-3.5 mr-1" />
+                Save
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              onClick={() => setEditingParent(true)}
+            >
+              <Pencil className="size-3.5 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
+        <div className="px-5 py-2 divide-y divide-border">
+          <InfoRow icon={User} label="Full Name" value={parent.name} isEditing={editingParent} onChange={(v) => updateParent("name", v)} />
+          <InfoRow icon={Mail} label="Email" value={parent.email} isEditing={editingParent} onChange={(v) => updateParent("email", v)} />
+          <InfoRow icon={Phone} label="Phone" value={parent.phone} isEditing={editingParent} onChange={(v) => updateParent("phone", v)} />
+          <InfoRow icon={MapPin} label="Address" value={parent.address} isEditing={editingParent} onChange={(v) => updateParent("address", v)} />
+          <InfoRow icon={MapPin} label="City" value={parent.city} isEditing={editingParent} onChange={(v) => updateParent("city", v)} />
+          <InfoRow icon={MapPin} label="Postal Code" value={parent.postalCode} isEditing={editingParent} onChange={(v) => updateParent("postalCode", v)} />
+          <InfoRow icon={MapPin} label="Province" value={parent.province} isEditing={editingParent} onChange={(v) => updateParent("province", v)} />
+          <InfoRow icon={Heart} label="Language" value={parent.preferredLanguage} isEditing={editingParent} onChange={(v) => updateParent("preferredLanguage", v)} />
+          <InfoRow icon={Mail} label="Preferred Contact" value={parent.preferredContact} isEditing={editingParent} onChange={(v) => updateParent("preferredContact", v)} />
+        </div>
+      </div>
 
       {/* ── Journey Partners (Care Team) ── */}
-      <Card>
-        <CardHeader className="pb-3">
+      <div className="bg-card border border-border rounded-xl">
+        <div className="px-5 py-4 border-b border-border">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
               <Users className="size-4 text-muted-foreground" />
               Care Team Access
-            </CardTitle>
-            <Badge variant="secondary" className="text-xs">
+            </h2>
+            <Badge variant="secondary" className="text-[11px]">
               {activePartners.length} active · {pendingPartners.length} pending
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[12px] text-muted-foreground mt-1">
             Providers must create their own account to be invited. You control what they can see and can revoke access anytime.
           </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+        <div className="px-5 py-4 space-y-4">
           {/* Invite */}
           <div className="flex gap-2">
             <Input
               placeholder="Provider's email address..."
               value={inviteEmail}
               onChange={(e) => setInviteEmail((e.target as HTMLInputElement).value)}
-              className="h-9 text-sm"
+              className="h-9 text-[13px]"
             />
             <Button
               size="sm"
@@ -374,7 +374,7 @@ export default function SettingsPage() {
           {/* Active */}
           {activePartners.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active</h4>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active</p>
               {activePartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
               ))}
@@ -384,7 +384,7 @@ export default function SettingsPage() {
           {/* Pending */}
           {pendingPartners.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pending Invitation</h4>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invitation</p>
               {pendingPartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
               ))}
@@ -394,29 +394,29 @@ export default function SettingsPage() {
           {/* Revoked */}
           {revokedPartners.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Revoked</h4>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Revoked</p>
               {revokedPartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* ── Privacy & Data ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-heading flex items-center gap-2">
+      <div className="bg-card border border-border rounded-xl">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
             <Shield className="size-4 text-muted-foreground" />
             Privacy & Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-1">
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="space-y-0 divide-y divide-border">
+            <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Share records with providers</p>
-                <p className="text-xs text-muted-foreground">Active care team members can view shared records</p>
+                <p className="text-[13px] font-medium text-foreground">Share records with providers</p>
+                <p className="text-[12px] text-muted-foreground">Active care team members can view shared records</p>
               </div>
               <Switch
                 checked={privacy.shareWithProviders}
@@ -424,12 +424,10 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Separator />
-
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Share with school</p>
-                <p className="text-xs text-muted-foreground">IEP and relevant records visible to school staff</p>
+                <p className="text-[13px] font-medium text-foreground">Share with school</p>
+                <p className="text-[12px] text-muted-foreground">IEP and relevant records visible to school staff</p>
               </div>
               <Switch
                 checked={privacy.shareWithSchool}
@@ -437,12 +435,10 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Separator />
-
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Anonymized research</p>
-                <p className="text-xs text-muted-foreground">Contribute anonymized data to autism research (no identifying info)</p>
+                <p className="text-[13px] font-medium text-foreground">Anonymized research</p>
+                <p className="text-[12px] text-muted-foreground">Contribute anonymized data to autism research (no identifying info)</p>
               </div>
               <Switch
                 checked={privacy.anonymizedResearch}
@@ -450,12 +446,10 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Separator />
-
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Email notifications</p>
-                <p className="text-xs text-muted-foreground">Alerts, reminders, and updates via email</p>
+                <p className="text-[13px] font-medium text-foreground">Email notifications</p>
+                <p className="text-[12px] text-muted-foreground">Alerts, reminders, and updates via email</p>
               </div>
               <Switch
                 checked={privacy.emailNotifications}
@@ -463,12 +457,10 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Separator />
-
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">SMS notifications</p>
-                <p className="text-xs text-muted-foreground">Time-sensitive alerts via text message</p>
+                <p className="text-[13px] font-medium text-foreground">SMS notifications</p>
+                <p className="text-[12px] text-muted-foreground">Time-sensitive alerts via text message</p>
               </div>
               <Switch
                 checked={privacy.smsNotifications}
@@ -477,10 +469,8 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <Separator />
-
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <div className="pt-3 border-t border-border space-y-3">
+            <h4 className="text-[13px] font-semibold text-foreground flex items-center gap-2">
               <Lock className="size-3.5" />
               Data Management
             </h4>
@@ -493,58 +483,54 @@ export default function SettingsPage() {
                 <Eye className="size-3.5 mr-1.5" />
                 View Access Log
               </Button>
-              <Button variant="outline" size="sm" className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+              <Button variant="outline" size="sm" className="h-8 text-status-blocked hover:text-status-blocked hover:bg-status-blocked/8 border-status-blocked/30">
                 <AlertTriangle className="size-3.5 mr-1.5" />
                 Delete All Data
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* ── About ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-heading flex items-center gap-2">
+      <div className="bg-card border border-border rounded-xl">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
             <Heart className="size-4 text-muted-foreground" />
             About
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Version</span>
-              <span className="text-foreground font-medium">1.0.0-beta</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Navigator Agent</span>
-              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-xs">Connected</Badge>
-            </div>
-            <Separator />
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Privacy Policy</span>
-              <a href="#" className="text-primary hover:underline text-xs inline-flex items-center gap-0.5">
-                View <ExternalLink className="size-3" />
-              </a>
-            </div>
-            <Separator />
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Terms of Service</span>
-              <a href="#" className="text-primary hover:underline text-xs inline-flex items-center gap-0.5">
-                View <ExternalLink className="size-3" />
-              </a>
-            </div>
-            <Separator />
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Support</span>
-              <a href="mailto:support@thecompanion.ca" className="text-primary hover:underline text-xs">
-                support@thecompanion.ca
-              </a>
-            </div>
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-0 divide-y divide-border">
+          <div className="flex justify-between py-2.5">
+            <span className="text-[13px] text-muted-foreground">Version</span>
+            <span className="text-[13px] text-foreground font-medium">1.0.0-beta</span>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex justify-between py-2.5">
+            <span className="text-[13px] text-muted-foreground">Navigator Agent</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-status-success/8 text-status-success">
+              Connected
+            </span>
+          </div>
+          <div className="flex justify-between items-center py-2.5">
+            <span className="text-[13px] text-muted-foreground">Privacy Policy</span>
+            <a href="#" className="text-primary hover:underline text-[12px] inline-flex items-center gap-0.5">
+              View <ExternalLink className="size-3" />
+            </a>
+          </div>
+          <div className="flex justify-between items-center py-2.5">
+            <span className="text-[13px] text-muted-foreground">Terms of Service</span>
+            <a href="#" className="text-primary hover:underline text-[12px] inline-flex items-center gap-0.5">
+              View <ExternalLink className="size-3" />
+            </a>
+          </div>
+          <div className="flex justify-between items-center py-2.5">
+            <span className="text-[13px] text-muted-foreground">Support</span>
+            <a href="mailto:support@thecompanion.ca" className="text-primary hover:underline text-[12px]">
+              support@thecompanion.ca
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

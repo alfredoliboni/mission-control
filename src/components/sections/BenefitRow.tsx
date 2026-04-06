@@ -39,7 +39,7 @@ const statusConfig: Record<BenefitStatus, { icon: typeof CheckCircle; color: str
   },
   renewed: {
     icon: RefreshCw,
-    color: "text-teal-600",
+    color: "text-status-renewed",
     label: "Renewed",
   },
   unknown: {

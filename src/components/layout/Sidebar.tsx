@@ -2,17 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  X,
-  LogOut,
-} from "lucide-react";
+import { X, LogOut } from "lucide-react";
 import { useWorkspaceSections } from "@/hooks/useWorkspace";
 import { getSectionGroups } from "@/lib/workspace/sections";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 
 const GROUP_LABELS: Record<string, string> = {
   overview: "Overview",
@@ -41,15 +36,15 @@ export function Sidebar() {
       href={route}
       onClick={() => setSidebarOpen(false)}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-        "hover:bg-warm-100",
+        "flex items-center gap-3 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all",
+        "hover:bg-warm-50",
         isActive(route)
-          ? "bg-primary/10 text-primary font-medium"
-          : "text-warm-400"
+          ? "bg-primary/8 text-primary font-semibold"
+          : "text-muted-foreground"
       )}
     >
       {typeof icon === "string" ? (
-        <span className="text-base w-5 text-center" aria-hidden="true">
+        <span className="text-[15px] w-5 text-center" aria-hidden="true">
           {icon}
         </span>
       ) : (
@@ -61,17 +56,14 @@ export function Sidebar() {
 
   const sidebarContent = (
     <>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-2">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2"
+          className="flex items-center gap-[10px]"
           onClick={() => setSidebarOpen(false)}
         >
-          <span className="text-xl" aria-hidden="true">
-            🧭
-          </span>
-          <span className="font-heading font-bold text-lg text-foreground">
+          <span className="text-[22px]" aria-hidden="true">🧭</span>
+          <span className="font-bold text-[15px] tracking-tight text-foreground">
             Mission Control
           </span>
         </Link>
@@ -84,20 +76,12 @@ export function Sidebar() {
         </button>
       </div>
 
-      <Separator className="mx-4" />
-
-      {/* Navigation */}
       <nav
-        className="flex-1 overflow-y-auto px-3 py-4 space-y-6"
+        className="flex-1 overflow-y-auto px-3 py-1 space-y-5"
         aria-label="Main navigation"
       >
-        {/* Dashboard (always first) */}
         <div>
-          {navLink(
-            "/dashboard",
-            <LayoutDashboard className="h-5 w-5" />,
-            "Dashboard"
-          )}
+          {navLink("/dashboard", "📊", "Dashboard")}
         </div>
 
         {isLoading ? (
@@ -111,10 +95,10 @@ export function Sidebar() {
             if (items.length === 0) return null;
             return (
               <div key={group}>
-                <h3 className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-warm-400">
+                <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {GROUP_LABELS[group] || group}
                 </h3>
-                <div className="space-y-0.5">
+                <div className="space-y-[2px]">
                   {items.map((section) =>
                     navLink(section.route, section.icon, section.label)
                   )}
@@ -125,8 +109,7 @@ export function Sidebar() {
         ) : null}
       </nav>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-border space-y-0.5">
+      <div className="p-3 border-t border-border space-y-[2px]">
         {navLink("/settings", "⚙️", "Settings")}
         {isDemo ? (
           <Link
@@ -136,7 +119,7 @@ export function Sidebar() {
                 "companion-demo=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
               setSidebarOpen(false);
             }}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-warm-400 hover:bg-warm-100 transition-colors"
+            className="flex items-center gap-3 rounded-lg px-3 py-[7px] text-[13px] font-medium text-muted-foreground hover:bg-warm-50 transition-all"
           >
             <LogOut className="h-4 w-4" />
             Exit Demo
@@ -148,16 +131,14 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex lg:flex-col lg:w-[260px] lg:border-r lg:border-border lg:bg-sidebar h-full"
+        className="hidden lg:flex lg:flex-col lg:w-[260px] lg:border-r lg:border-border lg:bg-card h-full"
         role="complementary"
         aria-label="Sidebar"
       >
         {sidebarContent}
       </aside>
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-50 lg:hidden"
@@ -169,7 +150,7 @@ export function Sidebar() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setSidebarOpen(false)}
           />
-          <aside className="absolute left-0 top-0 bottom-0 w-[280px] bg-sidebar flex flex-col shadow-xl">
+          <aside className="absolute left-0 top-0 bottom-0 w-[280px] bg-card flex flex-col shadow-xl">
             {sidebarContent}
           </aside>
         </div>

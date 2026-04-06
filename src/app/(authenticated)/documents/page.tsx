@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useParsedDocuments } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -21,7 +20,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FileText, Eye, Download, ImageIcon, FileIcon } from "lucide-react";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
 import type { DocumentEntry } from "@/types/workspace";
@@ -53,105 +51,95 @@ export default function DocumentsPage() {
     : null;
 
   return (
-    <WorkspaceSection
-      title="Documents"
-      icon="📄"
-      isLoading={isLoading}
-    >
+    <WorkspaceSection title="Documents" icon="📄" isLoading={isLoading}>
       {documents && (
         <div className="space-y-6">
-          {/* Documents table */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-heading">
+          {/* Documents card */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="text-[15px] font-semibold text-foreground">
                 All Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>From</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="w-24">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {documents.documents.map((doc, i) => (
-                      <TableRow
-                        key={i}
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => setSelectedDoc(doc)}
-                      >
-                        <TableCell className="text-xs whitespace-nowrap">
-                          {doc.date}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-warm-300 shrink-0" />
-                            {doc.title}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{doc.from}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px]">
-                            {doc.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedDoc(doc);
-                              }}
-                              className="p-1.5 rounded-md hover:bg-warm-100 transition-colors text-warm-400 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                              aria-label={`View ${doc.title}`}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1.5 rounded-md hover:bg-warm-100 transition-colors text-warm-400 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                              aria-label={`Download ${doc.title}`}
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+              </h2>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[12px] font-medium text-muted-foreground">Date</TableHead>
+                  <TableHead className="text-[12px] font-medium text-muted-foreground">Title</TableHead>
+                  <TableHead className="text-[12px] font-medium text-muted-foreground">From</TableHead>
+                  <TableHead className="text-[12px] font-medium text-muted-foreground">Type</TableHead>
+                  <TableHead className="text-[12px] font-medium text-muted-foreground w-24">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {documents.documents.map((doc, i) => (
+                  <TableRow
+                    key={i}
+                    className="cursor-pointer hover:bg-primary/4 transition-colors"
+                    onClick={() => setSelectedDoc(doc)}
+                  >
+                    <TableCell className="text-[12px] text-muted-foreground whitespace-nowrap">
+                      {doc.date}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-[13px] font-medium text-foreground">{doc.title}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-[12px] text-muted-foreground">{doc.from}</TableCell>
+                    <TableCell>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/8 text-primary">
+                        {doc.type}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDoc(doc);
+                          }}
+                          className="p-1.5 rounded-md hover:bg-primary/8 transition-colors text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          aria-label={`View ${doc.title}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-md hover:bg-primary/8 transition-colors text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          aria-label={`Download ${doc.title}`}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {/* Summaries */}
           {documents.summaries.length > 0 && (
             <section>
-              <h2 className="font-heading text-lg font-semibold text-foreground mb-3">
-                Agent Summaries
-              </h2>
-              <div className="space-y-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                🤖 Agent Summaries
+              </p>
+              <div className="space-y-3">
                 {documents.summaries.map((summary, i) => (
-                  <Card key={i}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">
-                        {summary.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                  <div key={i} className="bg-card border border-border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                    <h3 className="text-[14px] font-semibold text-foreground mb-2">
+                      {summary.title}
+                    </h3>
+                    <div className="text-[12px] text-muted-foreground">
                       <MarkdownRenderer
                         content={summary.findings
                           .map((f) => `- ${f}`)
                           .join("\n")}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>
@@ -163,33 +151,33 @@ export default function DocumentsPage() {
       <Dialog open={!!selectedDoc} onOpenChange={(open) => !open && setSelectedDoc(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selectedDoc?.title}</DialogTitle>
+            <DialogTitle className="text-[15px] font-semibold">{selectedDoc?.title}</DialogTitle>
             <DialogDescription>
               {selectedDoc?.from} &middot; {selectedDoc?.date} &middot;{" "}
-              <Badge variant="outline" className="text-[10px]">
+              <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/8 text-primary">
                 {selectedDoc?.type}
-              </Badge>
+              </span>
             </DialogDescription>
           </DialogHeader>
 
           {/* Preview area */}
-          <div className="rounded-lg border border-border bg-muted/30 p-6 min-h-[200px] flex flex-col items-center justify-center gap-3">
+          <div className="rounded-xl border border-border bg-card p-6 min-h-[200px] flex flex-col items-center justify-center gap-3">
             {selectedDoc && isImageType(selectedDoc.title) ? (
               <div className="text-center space-y-2">
-                <ImageIcon className="h-12 w-12 text-warm-300 mx-auto" />
-                <p className="text-sm text-warm-400">Image preview</p>
-                <p className="text-xs text-warm-300">{selectedDoc.storageLink}</p>
+                <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="text-[13px] text-muted-foreground">Image preview</p>
+                <p className="text-[11px] text-muted-foreground">{selectedDoc.storageLink}</p>
               </div>
             ) : (
               <div className="text-center space-y-2">
                 {(() => {
                   const DocIcon = selectedDoc ? getDocIcon(selectedDoc.type) : FileText;
-                  return <DocIcon className="h-12 w-12 text-warm-300 mx-auto" />;
+                  return <DocIcon className="h-12 w-12 text-muted-foreground mx-auto" />;
                 })()}
-                <p className="text-sm font-medium text-foreground">
+                <p className="text-[13px] font-medium text-foreground">
                   {selectedDoc?.title}
                 </p>
-                <p className="text-xs text-warm-400">
+                <p className="text-[11px] text-muted-foreground">
                   PDF document &middot; {selectedDoc?.storageLink}
                 </p>
               </div>
@@ -198,10 +186,10 @@ export default function DocumentsPage() {
             {/* Show matching summary if found */}
             {matchingSummary && (
               <div className="w-full mt-4 pt-4 border-t border-border">
-                <p className="text-xs font-medium text-foreground mb-2">
+                <p className="text-[12px] font-semibold text-foreground mb-2">
                   Agent Summary
                 </p>
-                <div className="text-xs">
+                <div className="text-[12px] text-muted-foreground">
                   <MarkdownRenderer
                     content={matchingSummary.findings
                       .map((f) => `- ${f}`)

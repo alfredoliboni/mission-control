@@ -47,41 +47,42 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Mission Control custom colors */
-  --color-warm-50: #faf8f2;
-  --color-warm-100: #f0eee5;
-  --color-warm-200: #ddd8cc;
+  /* Mission Control custom colors — Cream Balance palette */
+  --color-warm-50: #faf9f6;
+  --color-warm-100: #f3f1ec;
+  --color-warm-200: #e9e7e1;
   --color-warm-300: #c4bba8;
-  --color-warm-400: #8a7e6b;
-  --color-warm-500: #3d3229;
+  --color-warm-400: #78716c;
+  --color-warm-500: #2d2d2d;
 
-  --color-status-success: #5a9a6a;
-  --color-status-current: #4A90D9;
-  --color-status-blocked: #c2453a;
-  --color-status-caution: #d4a843;
+  --color-status-success: #2d8a4e;
+  --color-status-current: #3b7dd8;
+  --color-status-blocked: #c43a31;
+  --color-status-caution: #c08c20;
   --color-status-upcoming: #c4bba8;
-  --color-status-gap-filler: #7d5fa0;
+  --color-status-gap-filler: #7c5caa;
+  --color-status-renewed: #2a9d8f;
 }
 
 :root {
-  /* Warm Mission Control light theme */
-  --background: #f5f4ed;
-  --foreground: #3d3229;
-  --card: #fffef9;
-  --card-foreground: #3d3229;
-  --popover: #fffef9;
-  --popover-foreground: #3d3229;
+  /* Cream Balance light theme */
+  --background: #faf9f6;
+  --foreground: #2d2d2d;
+  --card: #fefefe;
+  --card-foreground: #2d2d2d;
+  --popover: #fefefe;
+  --popover-foreground: #2d2d2d;
   --primary: #c96442;
   --primary-foreground: #fef9f5;
-  --secondary: #ebe8df;
-  --secondary-foreground: #3d3229;
-  --muted: #ebe8df;
-  --muted-foreground: #8a7e6b;
-  --accent: #ebe8df;
-  --accent-foreground: #3d3229;
+  --secondary: #f3f1ec;
+  --secondary-foreground: #2d2d2d;
+  --muted: #f3f1ec;
+  --muted-foreground: #78716c;
+  --accent: #f3f1ec;
+  --accent-foreground: #2d2d2d;
   --destructive: #c2453a;
-  --border: #ddd8cc;
-  --input: #ddd8cc;
+  --border: #e7e5e0;
+  --input: #e7e5e0;
   --ring: #c96442;
   --chart-1: #c96442;
   --chart-2: #5a9a6a;
@@ -89,13 +90,13 @@
   --chart-4: #c2453a;
   --chart-5: #7d5fa0;
   --radius: 0.75rem;
-  --sidebar: #f0eee5;
-  --sidebar-foreground: #3d3229;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2d2d2d;
   --sidebar-primary: #c96442;
   --sidebar-primary-foreground: #fef9f5;
-  --sidebar-accent: #e6e2d8;
-  --sidebar-accent-foreground: #3d3229;
-  --sidebar-border: #ddd8cc;
+  --sidebar-accent: #ebe9e3;
+  --sidebar-accent-foreground: #2d2d2d;
+  --sidebar-border: #e7e5e0;
   --sidebar-ring: #c96442;
 }
 
@@ -110,7 +111,8 @@
     @apply font-sans;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading), Georgia, 'Times New Roman', serif;
+    font-family: var(--font-heading), system-ui, sans-serif;
+    font-weight: 600;
   }
   [data-slot="card"] {
     box-shadow: 0 1px 2px rgba(61, 50, 41, 0.04), 0 4px 12px rgba(61, 50, 41, 0.06);

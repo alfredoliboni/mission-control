@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  AlertTriangle,
-  Users,
-  BookOpen,
-  DollarSign,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useParsedAlerts,
@@ -14,25 +8,31 @@ import {
   useParsedBenefits,
   useParsedProviders,
   useParsedPrograms,
+  useParsedProfile,
 } from "@/hooks/useWorkspace";
-import { DashboardStatCard } from "@/components/sections/DashboardStatCard";
-import { AlertCard } from "@/components/sections/AlertCard";
-import { NextActionsCard } from "@/components/sections/NextActionsCard";
+
+/* ── Severity dot color map ──────────────────────────────────── */
+const severityDot: Record<string, string> = {
+  HIGH: "bg-status-blocked",
+  MEDIUM: "bg-status-caution",
+  INFO: "bg-status-success",
+};
 
 export default function DashboardPage() {
   const { data: alerts, isLoading: alertsLoading } = useParsedAlerts();
   const { data: pathway, isLoading: pathwayLoading } = useParsedPathway();
   const { data: benefits, isLoading: benefitsLoading } = useParsedBenefits();
-  const { data: providers, isLoading: providersLoading } =
-    useParsedProviders();
+  const { data: providers, isLoading: providersLoading } = useParsedProviders();
   const { data: programs, isLoading: programsLoading } = useParsedPrograms();
+  const { data: profile, isLoading: profileLoading } = useParsedProfile();
 
   const isLoading =
     alertsLoading ||
     pathwayLoading ||
     benefitsLoading ||
     providersLoading ||
-    programsLoading;
+    programsLoading ||
+    profileLoading;
 
   // Compute stats
   const activeAlerts = alerts?.filter((a) => a.status === "active") || [];
@@ -59,122 +59,227 @@ export default function DashboardPage() {
       }
     : null;
 
+  const childName = profile?.basicInfo?.name || "your child";
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-24 rounded-2xl" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24" />
+            <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
         </div>
         <div className="grid lg:grid-cols-2 gap-6">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
         </div>
       </div>
     );
   }
 
+  /* ── Metric card config ────────────────────────────────────── */
+  const metrics = [
+    {
+      emoji: "\uD83D\uDEA8",
+      bg: "bg-[#fde8e8]",
+      value: activeAlerts.length,
+      label: "Active Alerts",
+      href: "/alerts",
+      color: highAlerts.length > 0 ? "text-status-blocked" : "text-status-caution",
+    },
+    {
+      emoji: "\uD83C\uDFE5",
+      bg: "bg-[#fef0e8]",
+      value: providerCount,
+      label: "Providers Found",
+      href: "/providers",
+      color: "text-primary",
+    },
+    {
+      emoji: "\uD83D\uDCDA",
+      bg: "bg-[#e6f4ea]",
+      value: programCount,
+      label: "Programs Available",
+      href: "/programs",
+      color: "text-status-success",
+    },
+    {
+      emoji: "\uD83D\uDCB0",
+      bg: "bg-[#fef7e0]",
+      value: benefitsPending,
+      label: "Benefits Pending",
+      href: "/benefits",
+      color: "text-status-caution",
+    },
+  ];
+
+  const progressPct =
+    stageProgress && stageProgress.total > 0
+      ? (stageProgress.completed / stageProgress.total) * 100
+      : 0;
+
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-2xl font-bold text-foreground">
-        Dashboard
-      </h1>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardStatCard
-          icon={AlertTriangle}
-          label="Active Alerts"
-          value={activeAlerts.length}
-          color={highAlerts.length > 0 ? "text-status-blocked" : "text-status-caution"}
-          href="/alerts"
-        />
-        <DashboardStatCard
-          icon={Users}
-          label="Providers Found"
-          value={providerCount}
-          color="text-primary"
-          href="/providers"
-        />
-        <DashboardStatCard
-          icon={BookOpen}
-          label="Programs Available"
-          value={programCount}
-          color="text-status-success"
-          href="/programs"
-        />
-        <DashboardStatCard
-          icon={DollarSign}
-          label="Benefits Pending"
-          value={benefitsPending}
-          color="text-status-caution"
-          href="/benefits"
-        />
+      {/* ── Welcome card ─────────────────────────────────────── */}
+      <div className="bg-gradient-to-r from-[#fef5f0] via-[#fdf2f8] to-[#f0f4ff] border border-border rounded-2xl px-6 py-5 flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-xl font-bold text-foreground">
+            Good morning! Here&apos;s {childName}&apos;s journey overview{" "}
+            <span aria-hidden="true">&#x1F44B;</span>
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Everything in one place — alerts, pathway, and next steps.
+          </p>
+        </div>
+        <span className="text-4xl hidden sm:block" aria-hidden="true">
+          &#x1F31F;
+        </span>
       </div>
 
+      {/* ── Metric cards ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {metrics.map((m) => (
+          <Link
+            key={m.label}
+            href={m.href}
+            className="bg-card border border-border rounded-xl px-4 py-4 flex items-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <span
+              className={`${m.bg} flex items-center justify-center w-10 h-10 rounded-lg text-xl shrink-0`}
+              aria-hidden="true"
+            >
+              {m.emoji}
+            </span>
+            <div>
+              <p className={`text-2xl font-bold font-heading ${m.color}`}>
+                {m.value}
+              </p>
+              <p className="text-xs font-medium text-muted-foreground">
+                {m.label}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Two-column: Stage + Alerts ───────────────────────── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Current stage progress */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <span aria-hidden="true">🗺️</span>
+        {/* Current Stage */}
+        <div className="bg-card border border-border rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-border/80">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <h2 className="font-heading text-base font-semibold text-foreground flex items-center gap-2">
+              <span aria-hidden="true">&#x1F5FA;&#xFE0F;</span>
               {currentStage
-                ? `Stage: ${currentStage.title}`
+                ? `Current Stage: ${currentStage.title}`
                 : "Pathway"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h2>
+            <Link
+              href="/pathway"
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              View pathway &rarr;
+            </Link>
+          </div>
+
+          <div className="px-4 pb-4 space-y-4">
+            {/* Progress bar */}
             {stageProgress && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-warm-400">Progress</span>
-                  <span className="text-sm font-medium text-foreground">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Progress
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">
                     {stageProgress.completed}/{stageProgress.total}
                   </span>
                 </div>
                 <div className="h-2 bg-warm-200 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-status-current rounded-full transition-all"
+                    className="h-full rounded-full transition-all"
                     style={{
-                      width: `${
-                        stageProgress.total > 0
-                          ? (stageProgress.completed / stageProgress.total) *
-                            100
-                          : 0
-                      }%`,
+                      width: `${progressPct}%`,
+                      background:
+                        "linear-gradient(90deg, var(--color-status-current), var(--color-status-renewed))",
                     }}
                   />
                 </div>
               </div>
             )}
-            {pathway?.nextActions && pathway.nextActions.length > 0 && (
-              <NextActionsCard actions={pathway.nextActions.slice(0, 3)} />
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Active alerts */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <span aria-hidden="true">🚨</span>
-              Active Alerts
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {activeAlerts.length === 0 ? (
-              <p className="text-sm text-warm-400">No active alerts</p>
-            ) : (
-              activeAlerts
-                .slice(0, 3)
-                .map((alert, i) => (
-                  <AlertCard key={i} alert={alert} compact />
-                ))
+            {/* Next actions (numbered) */}
+            {pathway?.nextActions && pathway.nextActions.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Next Actions
+                </h3>
+                <ol className="space-y-2">
+                  {pathway.nextActions.slice(0, 4).map((action, i) => (
+                    <li key={i} className="flex items-start gap-3 text-sm">
+                      <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-foreground font-normal">
+                        {action}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Active Alerts */}
+        <div className="bg-card border border-border rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-border/80">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <h2 className="font-heading text-base font-semibold text-foreground flex items-center gap-2">
+              <span aria-hidden="true">&#x1F514;</span>
+              Active Alerts
+            </h2>
+            <Link
+              href="/alerts"
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              View all &rarr;
+            </Link>
+          </div>
+
+          <div className="px-4 pb-4 space-y-3">
+            {activeAlerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                No active alerts — you&apos;re all caught up.
+              </p>
+            ) : (
+              activeAlerts.slice(0, 4).map((alert, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 py-2 border-b border-border last:border-b-0"
+                >
+                  {/* Severity dot */}
+                  <span
+                    className={`mt-1.5 shrink-0 rounded-full ${severityDot[alert.severity] || "bg-warm-300"}`}
+                    style={{ width: 7, height: 7 }}
+                    aria-label={`${alert.severity} severity`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground leading-snug">
+                      {alert.title}
+                    </p>
+                    {alert.action && (
+                      <p className="text-xs font-medium text-primary mt-0.5 truncate">
+                        {alert.action.replace(/\s*—\s*🏷️.*$/, "")}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {alert.date}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

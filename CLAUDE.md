@@ -44,10 +44,10 @@ reads them via a thin API and renders rich UI.
 
 ## Design System
 
-- Warm parchment aesthetic (Claude DESIGN.md inspired)
-- Instrument Serif for headings, DM Sans for body
-- Terracotta primary (`#c96442`), parchment background (`#f5f4ed`)
-- Status colors: sage green (success), blue (current), warm red (blocked), gold (caution), dusty purple (gap filler)
+- Cream Balance aesthetic (warm minimalism)
+- DM Sans throughout (400/500/600/700 weights for hierarchy)
+- Terracotta primary (`#c96442`), cream background (`#faf9f6`)
+- Status colors: sage green (success), blue (current), warm red (blocked), gold (caution), dusty purple (gap filler), teal (renewed)
 - CSS variables in `src/app/globals.css` drive the entire color system
 
 ## Format Contract

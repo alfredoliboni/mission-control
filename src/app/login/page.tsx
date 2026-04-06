@@ -13,7 +13,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
 
   const handleDemo = () => {
-    document.cookie = "companion-demo=true; path=/; max-age=86400; samesite=lax";
+    document.cookie =
+      "companion-demo=true; path=/; max-age=86400; samesite=lax";
     router.push("/dashboard");
   };
 
@@ -31,21 +32,21 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl" aria-hidden="true">
-              🧭
+              &#x1F9ED;
             </span>
             <h1 className="font-heading text-2xl font-bold text-foreground">
               Mission Control
             </h1>
           </div>
-          <p className="text-sm text-warm-400">
+          <p className="text-sm text-muted-foreground">
             Your family&apos;s autism services dashboard
           </p>
         </div>
 
         {/* Login card */}
-        <Card>
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="text-lg font-heading text-center">
+            <CardTitle className="text-lg font-heading font-semibold text-center">
               Sign In
             </CardTitle>
           </CardHeader>
@@ -81,14 +82,17 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="w-full">
+              <Button
+                type="submit"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
                 Sign In
               </Button>
             </form>
 
             <div className="relative">
               <Separator />
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-3 text-xs text-warm-400">
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-3 text-xs text-muted-foreground">
                 or
               </span>
             </div>
@@ -100,7 +104,7 @@ export default function LoginPage() {
               onClick={handleDemo}
             >
               Try Demo
-              <span className="ml-2 text-warm-400 text-xs">
+              <span className="ml-2 text-muted-foreground text-xs">
                 — sample data, no login required
               </span>
             </Button>
@@ -112,7 +116,7 @@ export default function LoginPage() {
               onClick={() => router.push("/onboarding")}
             >
               Get Started
-              <span className="ml-2 text-warm-400 text-xs">
+              <span className="ml-2 text-muted-foreground text-xs">
                 — set up your child&apos;s profile
               </span>
             </Button>

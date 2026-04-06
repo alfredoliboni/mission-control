@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, Bell } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Menu } from "lucide-react";
 import { useParsedAlerts, useParsedProfile } from "@/hooks/useWorkspace";
 import { useAppStore } from "@/store/appStore";
 
@@ -16,14 +15,19 @@ export function TopBar() {
     : 0;
 
   const childName = profile?.basicInfo.name || "Loading...";
+  const initials = childName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   const currentStage = profile?.basicInfo.currentStage || "";
-
   const stageLabel = currentStage
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card shadow-[0_1px_3px_rgba(61,50,41,0.04)]">
+    <header className="flex items-center justify-between h-14 px-7 border-b border-border bg-card">
       <div className="flex items-center gap-3">
         <button
           className="lg:hidden p-2 rounded-md hover:bg-warm-100 transition-colors"
@@ -33,14 +37,20 @@ export function TopBar() {
           <Menu className="h-5 w-5" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <h1 className="font-heading font-semibold text-sm sm:text-base text-foreground">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-[30px] h-[30px] rounded-[10px] flex items-center justify-center text-white text-[12px] font-bold"
+            style={{ background: "linear-gradient(135deg, #f0c27f, #fc5c7d)" }}
+          >
+            {initials}
+          </div>
+          <span className="text-sm font-semibold text-foreground">
             {childName}
-          </h1>
+          </span>
           {stageLabel && (
-            <Badge variant="secondary" className="text-xs font-normal">
+            <span className="text-[11px] font-medium text-muted-foreground bg-warm-50 px-2 py-0.5 rounded">
               {stageLabel}
-            </Badge>
+            </span>
           )}
         </div>
       </div>
@@ -48,14 +58,12 @@ export function TopBar() {
       <div className="flex items-center gap-2">
         <Link
           href="/alerts"
-          className="relative p-2 rounded-md hover:bg-warm-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+          className="relative w-8 h-8 rounded-lg flex items-center justify-center hover:bg-warm-50 transition-colors text-base"
           aria-label={`${activeAlertCount} active alerts`}
         >
-          <Bell className="h-5 w-5 text-warm-400" />
+          🔔
           {activeAlertCount > 0 && (
-            <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-status-blocked text-white text-[10px] font-bold flex items-center justify-center">
-              {activeAlertCount}
-            </span>
+            <span className="absolute top-[5px] right-[5px] w-[7px] h-[7px] rounded-full bg-status-blocked border-[1.5px] border-card" />
           )}
         </Link>
       </div>

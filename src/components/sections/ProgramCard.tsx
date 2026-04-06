@@ -40,7 +40,7 @@ export function ProgramCard({ program }: ProgramCardProps) {
     )
       return {
         label: "In Progress",
-        className: "bg-blue-50 text-blue-600 border-blue-200",
+        className: "bg-status-current/10 text-status-current border-status-current/20",
       };
     return null;
   };

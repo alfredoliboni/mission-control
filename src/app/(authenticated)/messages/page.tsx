@@ -13,7 +13,11 @@ export default function MessagesPage() {
       icon="💬"
       isLoading={isLoading}
     >
-      {content && <MarkdownRenderer content={content} />}
+      {content && (
+        <div className="bg-card border border-border rounded-xl p-5">
+          <MarkdownRenderer content={content} />
+        </div>
+      )}
     </WorkspaceSection>
   );
 }
