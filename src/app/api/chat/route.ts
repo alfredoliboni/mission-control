@@ -28,6 +28,43 @@ function getDemoResponse(message: string): string {
   return DEMO_RESPONSES.default;
 }
 
+const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
+const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
+const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
+const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
+
+async function sendToGateway(message: string): Promise<string> {
+  // Send message to OpenClaw Gateway via Orgo.ai bash API
+  // The Gateway accepts messages via its webchat API
+  const escapedMessage = message.replace(/'/g, "'\\''");
+  const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d '{"message":"${escapedMessage}"}' http://localhost:18789/api/chat`;
+
+  const response = await fetch(ORGO_API_BASE, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${ORGO_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ command: curlCmd }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Orgo API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  const output = result.output || "";
+
+  // Try to parse the Gateway response
+  try {
+    const parsed = JSON.parse(output);
+    return parsed.response || parsed.message || parsed.content || output;
+  } catch {
+    // If not JSON, return raw output (agent might return plain text)
+    return output || "I'm processing your request. Please check back shortly.";
+  }
+}
+
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const isDemo = cookieStore.get("companion-demo")?.value === "true";
@@ -39,17 +76,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message required" }, { status: 400 });
   }
 
+  // Demo mode: simulated responses
   if (isDemo) {
-    // Simulate a slight delay for realism
     await new Promise((resolve) => setTimeout(resolve, 800));
     return NextResponse.json({
       response: getDemoResponse(message),
     });
   }
 
-  // Production: proxy to OpenClaw Gateway
-  // For now, return demo response as fallback
-  return NextResponse.json({
-    response: getDemoResponse(message),
-  });
+  // Production: proxy to OpenClaw Gateway via Orgo.ai
+  if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
+    // Fallback to demo responses if not configured
+    return NextResponse.json({
+      response: getDemoResponse(message),
+    });
+  }
+
+  try {
+    const agentResponse = await sendToGateway(message);
+    return NextResponse.json({ response: agentResponse });
+  } catch (err) {
+    console.error("Gateway chat error:", err);
+    return NextResponse.json({
+      response: "I'm having trouble connecting right now. Please try again in a moment.",
+    }, { status: 502 });
+  }
 }

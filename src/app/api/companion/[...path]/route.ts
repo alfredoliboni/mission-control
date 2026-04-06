@@ -20,7 +20,7 @@ const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bas
 const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 
 async function proxyViaOrgo(apiPath: string): Promise<{ status: number; body: string }> {
-  const curlCmd = `curl -s -H "Authorization: Bearer ${COMPANION_API_TOKEN}" http://localhost:3001/${apiPath}`;
+  const curlCmd = `curl -s -H "Authorization: Bearer ${COMPANION_API_TOKEN}" http://localhost:18789/${apiPath}`;
   
   const response = await fetch(ORGO_API_BASE, {
     method: "POST",
