@@ -65,7 +65,7 @@ export function Sidebar() {
         >
           <span className="text-[22px]" aria-hidden="true">🧭</span>
           <span className="font-bold text-[15px] tracking-tight text-foreground">
-            Mission Control
+            The Companion
           </span>
         </Link>
         <button

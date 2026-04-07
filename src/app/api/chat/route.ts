@@ -38,11 +38,13 @@ async function sendToGateway(message: string, agentId: string = "main"): Promise
   // Using exec instead of bash avoids JSON escaping issues with markdown/unicode in responses
   const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
 
-  const escapedMessage = message.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+  // Base64 encode the message to avoid any escaping issues in Python
+  const b64Message = Buffer.from(message).toString("base64");
 
   const pythonCode = `
-import json, urllib.request
-payload = json.dumps({"model": "openclaw/${agentId}", "messages": [{"role": "user", "content": "${escapedMessage}"}], "user": "${agentId}"}).encode()
+import json, urllib.request, base64
+msg = base64.b64decode("${b64Message}").decode()
+payload = json.dumps({"model": "openclaw/${agentId}", "messages": [{"role": "user", "content": msg}], "user": "${agentId}"}).encode()
 req = urllib.request.Request("http://127.0.0.1:18789/v1/chat/completions", data=payload, headers={"Authorization": "Bearer ${COMPANION_API_TOKEN}", "Content-Type": "application/json"})
 try:
     resp = urllib.request.urlopen(req, timeout=90)
