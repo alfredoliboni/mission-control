@@ -40,7 +40,7 @@ export function ChatPanel() {
     <>
       {/* Mobile: full screen, Desktop: fixed panel */}
       <div
-        className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:right-4 z-50 sm:w-[400px] sm:h-[500px] bg-card sm:rounded-2xl sm:shadow-2xl sm:border sm:border-border flex flex-col"
+        className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:right-4 z-50 sm:w-[400px] sm:h-[500px] bg-card sm:rounded-2xl sm:shadow-2xl sm:border sm:border-border flex flex-col overflow-hidden"
         role="dialog"
         aria-label="Chat with Navigator"
       >
@@ -64,7 +64,7 @@ export function ChatPanel() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 px-4 py-3" ref={scrollRef}>
+        <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0" ref={scrollRef}>
           <div className="space-y-3">
             {messages.length === 0 && (
               <div className="text-center py-12">
@@ -87,7 +87,7 @@ export function ChatPanel() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input */}
         <form
