@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   User,
   Feather,
@@ -18,12 +19,16 @@ import {
   X,
   CloudUpload,
   FileText,
+  Mail,
+  Lock,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // Add Custom Tag Input
@@ -147,7 +152,7 @@ const initialFormData: FormData = {
 // Constants
 // ---------------------------------------------------------------------------
 
-const TOTAL_STEPS = 8;
+const TOTAL_ONBOARDING_STEPS = 8;
 
 const INDIGENOUS_OPTIONS = [
   { id: "first-nations", label: "First Nations" },
@@ -420,9 +425,32 @@ function StepIcon({
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // Start at 0 until auth check completes
   const [transitioning, setTransitioning] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [completing, setCompleting] = useState(false);
+
+  // Auth state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  // Check if already logged in on mount
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setIsLoggedIn(true);
+        setStep(1); // Skip account creation step
+      } else {
+        setStep(0); // Show account creation step
+      }
+      setAuthChecked(true);
+    });
+  }, []);
 
   // Medication / Supplement add forms
   const [medForm, setMedForm] = useState({ name: "", dosage: "", frequency: "" });
@@ -438,7 +466,10 @@ export default function OnboardingPage() {
     canUploadRecords: false,
   });
 
-  const progress = Math.round((step / TOTAL_STEPS) * 100);
+  const firstStep = isLoggedIn ? 1 : 0;
+  const totalSteps = isLoggedIn ? TOTAL_ONBOARDING_STEPS : TOTAL_ONBOARDING_STEPS + 1;
+  const currentStepIndex = isLoggedIn ? step : step + 1; // 1-based for display
+  const progress = Math.round((currentStepIndex / totalSteps) * 100);
 
   // ---------------------------------------------------------------------------
   // Navigation
@@ -446,18 +477,24 @@ export default function OnboardingPage() {
 
   const goTo = useCallback(
     (target: number) => {
-      if (target < 1 || target > TOTAL_STEPS) return;
+      if (target < firstStep || target > TOTAL_ONBOARDING_STEPS) return;
       setTransitioning(true);
       setTimeout(() => {
         setStep(target);
         setTransitioning(false);
       }, 200);
     },
-    []
+    [firstStep]
   );
 
   const canProceed = useCallback(() => {
     switch (step) {
+      case 0:
+        return (
+          authEmail.trim().length > 0 &&
+          authPassword.length >= 6 &&
+          authPassword === authConfirmPassword
+        );
       case 1:
         return formData.nickname.trim().length > 0;
       case 3:
@@ -467,7 +504,7 @@ export default function OnboardingPage() {
       default:
         return true;
     }
-  }, [step, formData.nickname, formData.journeyStage, formData.supportNeeds]);
+  }, [step, authEmail, authPassword, authConfirmPassword, formData.nickname, formData.journeyStage, formData.supportNeeds]);
 
   const isOptionalStep = step === 2 || step === 5 || step === 6 || step === 7 || step === 8;
 
@@ -476,22 +513,49 @@ export default function OnboardingPage() {
   // ---------------------------------------------------------------------------
 
   const handleComplete = useCallback(async () => {
-    const profile = generateProfileMarkdown(formData);
-    localStorage.setItem("onboarding-profile", profile);
+    setCompleting(true);
 
-    // Send profile to agent workspace
     try {
-      await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileMarkdown: profile }),
-      });
-    } catch {
-      // Continue even if agent write fails — profile is in localStorage
-    }
+      // Step 1: Create Supabase account if not already logged in
+      if (!isLoggedIn) {
+        const supabase = createClient();
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword,
+        });
 
-    router.push("/dashboard");
-  }, [formData, router]);
+        if (signUpError) {
+          toast.error(signUpError.message || "Failed to create account");
+          setCompleting(false);
+          return;
+        }
+
+        toast.success("Account created successfully");
+      }
+
+      // Step 2: Generate profile and save to localStorage
+      const profile = generateProfileMarkdown(formData);
+      localStorage.setItem("onboarding-profile", profile);
+
+      // Step 3: Send profile to agent workspace
+      try {
+        await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profileMarkdown: profile }),
+        });
+      } catch {
+        // Continue even if agent write fails — profile is in localStorage
+      }
+
+      // Step 4: Redirect to dashboard
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error("Something went wrong. Please try again.");
+      setCompleting(false);
+      console.error("Onboarding complete error:", err);
+    }
+  }, [formData, router, isLoggedIn, authEmail, authPassword]);
 
   // ---------------------------------------------------------------------------
   // Multi-select helper
@@ -523,6 +587,81 @@ export default function OnboardingPage() {
   // ---------------------------------------------------------------------------
   // Step renderers
   // ---------------------------------------------------------------------------
+
+  function renderStep0() {
+    return (
+      <>
+        <StepIcon icon={Mail} bgClass="bg-primary/10 text-primary" />
+        <h2 className="font-heading text-2xl font-bold text-center text-foreground">
+          Create Your Account
+        </h2>
+        <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
+          First, let us set up your account. This keeps your family&apos;s
+          information secure and lets you access it anytime.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Email address <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="email"
+              placeholder="your@email.com"
+              value={authEmail}
+              onChange={(e) => {
+                setAuthEmail(e.target.value);
+                setAuthError("");
+              }}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Password <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="password"
+              placeholder="At least 6 characters"
+              value={authPassword}
+              onChange={(e) => {
+                setAuthPassword(e.target.value);
+                setAuthError("");
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Confirm password <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="password"
+              placeholder="Re-enter your password"
+              value={authConfirmPassword}
+              onChange={(e) => {
+                setAuthConfirmPassword(e.target.value);
+                setAuthError("");
+              }}
+            />
+            {authConfirmPassword && authPassword !== authConfirmPassword && (
+              <p className="text-xs text-destructive mt-1">Passwords do not match</p>
+            )}
+          </div>
+          {authError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+              {authError}
+            </p>
+          )}
+          <p className="text-xs text-warm-400 text-center mt-2">
+            Already have an account?{" "}
+            <a href="/login" className="text-primary hover:underline font-medium">
+              Sign in here
+            </a>
+          </p>
+        </div>
+      </>
+    );
+  }
 
   function renderStep1() {
     return (
@@ -1583,6 +1722,7 @@ export default function OnboardingPage() {
   }
 
   const stepRenderers: Record<number, () => React.ReactNode> = {
+    0: renderStep0,
     1: renderStep1,
     2: renderStep2,
     3: renderStep3,
@@ -1613,69 +1753,82 @@ export default function OnboardingPage() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col items-center px-4 py-8">
-        {/* Progress area */}
-        <div className="w-full max-w-2xl mb-8">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="font-medium text-foreground">
-              Step {step} of {TOTAL_STEPS}
-            </span>
-            <span className="text-warm-400">{progress}% Complete</span>
+        {!authChecked ? (
+          <div className="flex items-center justify-center py-20 text-warm-400">
+            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            <span className="text-sm">Loading...</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-warm-200 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Step card */}
-        <Card className="w-full max-w-2xl">
-          <CardContent>
-            <div
-              className={`transition-opacity duration-300 ${
-                transitioning ? "opacity-0" : "opacity-100"
-              }`}
-            >
-              {stepRenderers[step]?.()}
+        ) : (
+          <>
+            {/* Progress area */}
+            <div className="w-full max-w-2xl mb-8">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="font-medium text-foreground">
+                  Step {currentStepIndex} of {totalSteps}
+                </span>
+                <span className="text-warm-400">{progress}% Complete</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-warm-200 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Navigation */}
-        <div className="w-full max-w-2xl mt-6 flex items-center justify-between">
-          <Button
-            variant="outline"
-            disabled={step === 1}
-            onClick={() => goTo(step - 1)}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Back
-          </Button>
+            {/* Step card */}
+            <Card className="w-full max-w-2xl">
+              <CardContent>
+                <div
+                  className={`transition-opacity duration-300 ${
+                    transitioning ? "opacity-0" : "opacity-100"
+                  }`}
+                >
+                  {stepRenderers[step]?.()}
+                </div>
+              </CardContent>
+            </Card>
 
-          <div className="flex items-center gap-3">
-            {isOptionalStep && step < TOTAL_STEPS && (
-              <Button variant="ghost" onClick={() => goTo(step + 1)}>
-                Skip this step
-              </Button>
-            )}
-
-            {step < TOTAL_STEPS ? (
+            {/* Navigation */}
+            <div className="w-full max-w-2xl mt-6 flex items-center justify-between">
               <Button
-                disabled={!canProceed()}
-                onClick={() => goTo(step + 1)}
+                variant="outline"
+                disabled={step === firstStep}
+                onClick={() => goTo(step - 1)}
               >
-                Continue
-                <ArrowRight className="h-4 w-4 ml-1.5" />
+                <ArrowLeft className="h-4 w-4 mr-1.5" />
+                Back
               </Button>
-            ) : (
-              <Button onClick={handleComplete}>
-                <Check className="h-4 w-4 mr-1.5" />
-                Complete Setup
-              </Button>
-            )}
-          </div>
-        </div>
+
+              <div className="flex items-center gap-3">
+                {isOptionalStep && step < TOTAL_ONBOARDING_STEPS && (
+                  <Button variant="ghost" onClick={() => goTo(step + 1)}>
+                    Skip this step
+                  </Button>
+                )}
+
+                {step < TOTAL_ONBOARDING_STEPS ? (
+                  <Button
+                    disabled={!canProceed()}
+                    onClick={() => goTo(step + 1)}
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-1.5" />
+                  </Button>
+                ) : (
+                  <Button onClick={handleComplete} disabled={completing}>
+                    {completing ? (
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-1.5" />
+                    )}
+                    {completing ? "Setting up..." : "Complete Setup"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

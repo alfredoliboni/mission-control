@@ -27,17 +27,36 @@ function getBaseUrl(): string {
   return isDemo() ? "/api/workspace" : "/api/workspace-live";
 }
 
+class WorkspaceError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "WorkspaceError";
+    this.status = status;
+  }
+}
+
+/** Returns true for errors that indicate the Orgo.ai VM is down */
+export function isNavigatorOffline(error: unknown): boolean {
+  if (error instanceof WorkspaceError) {
+    return error.status === 404 || error.status === 502 || error.status === 503;
+  }
+  return false;
+}
+
 async function fetchFileList(): Promise<string[]> {
   const base = getBaseUrl();
   const res = await fetch(base);
-  if (!res.ok) throw new Error("Failed to fetch workspace file list");
+  if (!res.ok)
+    throw new WorkspaceError("Failed to fetch workspace file list", res.status);
   return res.json();
 }
 
 async function fetchFile(filename: string): Promise<string> {
   const base = getBaseUrl();
   const res = await fetch(`${base}/${filename}`);
-  if (!res.ok) throw new Error(`Failed to fetch ${filename}`);
+  if (!res.ok)
+    throw new WorkspaceError(`Failed to fetch ${filename}`, res.status);
   return res.text();
 }
 
@@ -50,6 +69,7 @@ export function useWorkspaceFiles() {
     queryFn: fetchFileList,
     staleTime: demo ? Infinity : 30_000,
     refetchInterval: demo ? false : 30_000,
+    retry: 2,
   });
 }
 
@@ -61,6 +81,7 @@ export function useWorkspaceFile(filename: string) {
     enabled: !!filename,
     staleTime: demo ? Infinity : 30_000,
     refetchInterval: demo ? false : 30_000,
+    retry: 2,
   });
 }
 

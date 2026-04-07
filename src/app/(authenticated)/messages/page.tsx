@@ -274,7 +274,7 @@ function NewThreadForm({
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <button
           onClick={onCancel}
-          className="p-1.5 rounded-md hover:bg-warm-100 transition-colors sm:hidden"
+          className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 transition-colors sm:hidden"
           aria-label="Back"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -336,7 +336,7 @@ function NewThreadForm({
           <button
             type="button"
             onClick={onCancel}
-            className="h-8 px-3 rounded-lg text-sm font-medium text-warm-400 hover:bg-warm-100 transition-colors"
+            className="h-11 px-4 rounded-lg text-sm font-medium text-warm-400 hover:bg-warm-100 transition-colors"
           >
             Cancel
           </button>
@@ -345,7 +345,7 @@ function NewThreadForm({
             disabled={
               !subject.trim() || !content.trim() || mutation.isPending
             }
-            className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+            className="h-11 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
             {mutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -403,7 +403,7 @@ function ConversationView({
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
         <button
           onClick={onBack}
-          className="p-1.5 rounded-md hover:bg-warm-100 transition-colors sm:hidden"
+          className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 transition-colors sm:hidden"
           aria-label="Back to threads"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -449,7 +449,7 @@ function ConversationView({
             <button
               type="submit"
               disabled={!input.trim() || mutation.isPending}
-              className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Send reply"
             >
               {mutation.isPending ? (
@@ -513,7 +513,7 @@ export default function MessagesPage() {
             Messages
           </h1>
         </div>
-        <div className="bg-card border border-border rounded-xl h-[calc(100vh-12rem)] flex items-center justify-center">
+        <div className="bg-card border border-border rounded-xl h-[calc(100dvh-12rem)] flex items-center justify-center">
           <div className="flex items-center gap-2 text-warm-300">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span className="text-sm">Loading messages...</span>
@@ -536,7 +536,7 @@ export default function MessagesPage() {
       </div>
 
       {/* Two-panel layout */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden h-[calc(100vh-12rem)] flex">
+      <div className="bg-card border border-border rounded-xl overflow-hidden h-[calc(100dvh-12rem)] flex">
         {/* Left panel — Thread list */}
         <div
           className={cn(
@@ -554,7 +554,7 @@ export default function MessagesPage() {
                 setShowNewThread(true);
                 setSelectedThreadId(null);
               }}
-              className="w-full h-8 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors inline-flex items-center justify-center gap-1.5"
+              className="w-full h-11 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors inline-flex items-center justify-center gap-1.5"
             >
               <Plus className="h-3.5 w-3.5" />
               New Message

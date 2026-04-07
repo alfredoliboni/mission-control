@@ -9,6 +9,7 @@ import {
   useParsedProviders,
   useParsedPrograms,
   useParsedProfile,
+  isNavigatorOffline,
 } from "@/hooks/useWorkspace";
 
 /* ── Severity dot color map ──────────────────────────────────── */
@@ -19,12 +20,12 @@ const severityDot: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { data: alerts, isLoading: alertsLoading } = useParsedAlerts();
-  const { data: pathway, isLoading: pathwayLoading } = useParsedPathway();
-  const { data: benefits, isLoading: benefitsLoading } = useParsedBenefits();
-  const { data: providers, isLoading: providersLoading } = useParsedProviders();
-  const { data: programs, isLoading: programsLoading } = useParsedPrograms();
-  const { data: profile, isLoading: profileLoading } = useParsedProfile();
+  const { data: alerts, isLoading: alertsLoading, error: alertsError } = useParsedAlerts();
+  const { data: pathway, isLoading: pathwayLoading, error: pathwayError } = useParsedPathway();
+  const { data: benefits, isLoading: benefitsLoading, error: benefitsError } = useParsedBenefits();
+  const { data: providers, isLoading: providersLoading, error: providersError } = useParsedProviders();
+  const { data: programs, isLoading: programsLoading, error: programsError } = useParsedPrograms();
+  const { data: profile, isLoading: profileLoading, error: profileError } = useParsedProfile();
 
   const isLoading =
     alertsLoading ||
@@ -33,6 +34,10 @@ export default function DashboardPage() {
     providersLoading ||
     programsLoading ||
     profileLoading;
+
+  const errors = [alertsError, pathwayError, benefitsError, providersError, programsError, profileError];
+  const hasError = errors.some(Boolean);
+  const isOffline = errors.some((e) => isNavigatorOffline(e));
 
   // Compute stats
   const activeAlerts = alerts?.filter((a) => a.status === "active") || [];
@@ -121,8 +126,25 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* ── Navigator offline banner ────────────────────────── */}
+      {hasError && (
+        <div className="bg-[#fef7e0] border border-[#f5d67a] rounded-xl px-5 py-4 flex items-center gap-3">
+          <span className="text-xl shrink-0" aria-hidden="true">📡</span>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {isOffline
+                ? "Your Navigator is currently offline. Showing cached data."
+                : "Some data could not be loaded. Showing cached data."}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              We&apos;ll keep trying to reconnect automatically.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Welcome card ─────────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-[#fef5f0] via-[#fdf2f8] to-[#f0f4ff] border border-border rounded-2xl px-6 py-5 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#fef5f0] via-[#fdf2f8] to-[#f0f4ff] border border-border rounded-2xl px-4 py-4 sm:px-6 sm:py-5 flex items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-xl font-bold text-foreground">
             Good morning! Here&apos;s {childName}&apos;s journey overview{" "}

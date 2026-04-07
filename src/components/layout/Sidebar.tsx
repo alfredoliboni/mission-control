@@ -37,7 +37,7 @@ export function Sidebar() {
       href={route}
       onClick={() => setSidebarOpen(false)}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 min-h-[44px] text-[13px] font-medium transition-all",
         "hover:bg-warm-50",
         isActive(route)
           ? "bg-primary/8 text-primary font-semibold"
@@ -69,7 +69,7 @@ export function Sidebar() {
           </span>
         </Link>
         <button
-          className="lg:hidden p-1 rounded-md hover:bg-warm-100"
+          className="lg:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close sidebar"
         >
@@ -124,7 +124,7 @@ export function Sidebar() {
             setSidebarOpen(false);
             window.location.href = "/login";
           }}
-          className="flex items-center gap-3 rounded-lg px-3 py-[7px] text-[13px] font-medium text-muted-foreground hover:bg-warm-50 transition-all w-full text-left"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 min-h-[44px] text-[13px] font-medium text-muted-foreground hover:bg-warm-50 transition-all w-full text-left"
         >
           <LogOut className="h-4 w-4" />
           {isDemo ? "Exit Demo" : "Sign Out"}

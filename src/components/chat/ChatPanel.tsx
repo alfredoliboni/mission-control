@@ -56,10 +56,10 @@ export function ChatPanel() {
           </div>
           <button
             onClick={() => setChatOpen(false)}
-            className="p-1.5 rounded-md hover:bg-warm-100 transition-colors"
+            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md hover:bg-warm-100 transition-colors"
             aria-label="Close chat"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -107,7 +107,7 @@ export function ChatPanel() {
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Send message"
             >
               <Send className="h-4 w-4" />
