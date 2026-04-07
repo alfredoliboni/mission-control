@@ -35,14 +35,15 @@ const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bas
 
 async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
   // Send message to OpenClaw Gateway via Orgo.ai bash API
-  // Uses OpenAI-compatible /v1/chat/completions endpoint
+  // Uses base64 encoding to avoid shell escaping issues with special characters
   const payload = JSON.stringify({
     model: `openclaw/${agentId}`,
     messages: [{ role: "user", content: message }],
-    user: agentId, // maintains conversation continuity per agent
-  }).replace(/"/g, '\\"');
+    user: agentId,
+  });
 
-  const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d "${payload}" http://localhost:18789/v1/chat/completions`;
+  const b64Payload = Buffer.from(payload).toString("base64");
+  const curlCmd = `echo '${b64Payload}' | base64 -d | curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d @- http://localhost:18789/v1/chat/completions`;
 
   const response = await fetch(ORGO_API_BASE, {
     method: "POST",
@@ -71,7 +72,7 @@ async function sendToGateway(message: string, agentId: string = "main"): Promise
     }
     return output;
   } catch {
-    return output || "I'm processing your request. Please check back shortly.";
+    return output || "I'm having trouble connecting. Please try again.";
   }
 }
 
