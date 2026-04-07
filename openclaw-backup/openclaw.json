@@ -1,0 +1,74 @@
+{
+  "gateway": {
+    "auth": {
+      "mode": "token",
+      "token": "REDACTED"
+    },
+    "mode": "local",
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.5",
+    "lastTouchedAt": "2026-04-07T02:49:05.406Z"
+  },
+  "agents": {
+    "defaults": {
+      "models": {
+        "openai-codex/gpt-5.4": {}
+      },
+      "model": {
+        "primary": "openai-codex/gpt-5.4"
+      }
+    },
+    "list": [
+      {
+        "id": "navigator-santos",
+        "workspace": "~/.openclaw/workspace-santos"
+      },
+      {
+        "id": "navigator-chen",
+        "workspace": "~/.openclaw/workspace-chen"
+      },
+      {
+        "id": "navigator-okafor",
+        "workspace": "~/.openclaw/workspace-okafor"
+      },
+      {
+        "id": "navigator-tremblay",
+        "workspace": "~/.openclaw/workspace-tremblay"
+      },
+      {
+        "id": "navigator-rivera",
+        "workspace": "~/.openclaw/workspace-rivera"
+      }
+    ]
+  },
+  "auth": {
+    "profiles": {
+      "openai-codex:luisa.liboni@gmail.com": {
+        "provider": "openai-codex",
+        "mode": "oauth",
+        "email": "luisa.liboni@gmail.com"
+      }
+    }
+  },
+  "wizard": {
+    "lastRunAt": "2026-04-07T02:42:39.458Z",
+    "lastRunVersion": "2026.4.5",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "plugins": {
+    "entries": {
+      "openai": {
+        "enabled": true
+      }
+    }
+  }
+}
