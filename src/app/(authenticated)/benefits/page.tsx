@@ -493,59 +493,106 @@ export default function BenefitsPage() {
       agentMonitoring={benefits?.agentMonitoring}
       isLoading={isLoading}
     >
-      {benefits && (
-        <div className="space-y-4">
-          <p className="text-[13px] text-muted-foreground -mt-2">
-            {eligibleCount} benefits eligible or in progress
-            {notStartedCount > 0 && ` · ${notStartedCount} to explore`}
-          </p>
+      {benefits && (() => {
+        // Split benefits into 3 columns based on status
+        const recommended: BenefitStatusRow[] = [];
+        const applied: BenefitStatusRow[] = [];
+        const resolved: BenefitStatusRow[] = [];
 
-          {/* Eligible / active benefits */}
-          {sortedRows.filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit]).length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {sortedRows
-                .filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit])
-                .map((row, i) => (
-                  <BenefitCard
-                    key={i}
-                    row={row}
-                    detail={findDetail(row.benefit)}
-                    onSetReminder={handleSetReminder}
-                    onMarkApplied={handleMarkApplied}
-                    tracking={trackingData[row.benefit]}
-                    onUpdateTracking={handleUpdateTracking}
-                    hasReminder={hasReminder(row.benefit)}
-                  />
-                ))}
-            </div>
-          )}
+        for (const row of sortedRows) {
+          const t = trackingData[row.benefit];
+          if (t && (t.status === "approved" || t.status === "denied")) {
+            resolved.push(row);
+          } else if (t || row.status === "pending" || row.status === "waiting" || row.status === "registered") {
+            applied.push(row);
+          } else if (row.status === "approved" || row.status === "active" || row.status === "renewed") {
+            resolved.push(row);
+          } else {
+            recommended.push(row);
+          }
+        }
 
-          {/* Not started benefits — de-emphasized */}
-          {sortedRows.filter((r) => !eligibleStatuses.has(r.status) && !trackingData[r.benefit]).length > 0 && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Worth Exploring
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2 opacity-80">
-                {sortedRows
-                  .filter((r) => !eligibleStatuses.has(r.status) && !trackingData[r.benefit])
-                  .map((row, i) => (
-                    <BenefitCard
-                      key={i}
-                      row={row}
-                      detail={findDetail(row.benefit)}
-                      onSetReminder={handleSetReminder}
-                      onMarkApplied={handleMarkApplied}
-                      tracking={trackingData[row.benefit]}
-                    onUpdateTracking={handleUpdateTracking}
-                      hasReminder={hasReminder(row.benefit)}
-                    />
-                  ))}
+        const renderCard = (row: BenefitStatusRow, i: number) => (
+          <BenefitCard
+            key={i}
+            row={row}
+            detail={findDetail(row.benefit)}
+            onSetReminder={handleSetReminder}
+            onMarkApplied={handleMarkApplied}
+            tracking={trackingData[row.benefit]}
+            onUpdateTracking={handleUpdateTracking}
+            hasReminder={hasReminder(row.benefit)}
+          />
+        );
+
+        return (
+          <div className="space-y-6">
+            <p className="text-[13px] text-muted-foreground -mt-2">
+              {applied.length + resolved.length} benefits in progress or approved
+              {recommended.length > 0 && ` · ${recommended.length} recommended by your Navigator`}
+            </p>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Column 1: Recommended by Agent */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Recommended
+                  </h3>
+                  <span className="text-[10px] bg-primary/8 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                    {recommended.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {recommended.length > 0
+                    ? recommended.map(renderCard)
+                    : <p className="text-[12px] text-muted-foreground py-4 text-center">All benefits have been actioned</p>
+                  }
+                </div>
+              </div>
+
+              {/* Column 2: Applied / In Progress */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📨</span>
+                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Applied
+                  </h3>
+                  <span className="text-[10px] bg-status-caution/8 text-status-caution px-1.5 py-0.5 rounded-full font-medium">
+                    {applied.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {applied.length > 0
+                    ? applied.map(renderCard)
+                    : <p className="text-[12px] text-muted-foreground py-4 text-center">No applications in progress</p>
+                  }
+                </div>
+              </div>
+
+              {/* Column 3: Approved / Denied */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">✅</span>
+                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Result
+                  </h3>
+                  <span className="text-[10px] bg-status-success/8 text-status-success px-1.5 py-0.5 rounded-full font-medium">
+                    {resolved.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {resolved.length > 0
+                    ? resolved.map(renderCard)
+                    : <p className="text-[12px] text-muted-foreground py-4 text-center">No results yet</p>
+                  }
+                </div>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
     </WorkspaceSection>
   );
 }
