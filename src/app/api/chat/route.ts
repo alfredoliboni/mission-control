@@ -33,11 +33,17 @@ const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
-async function sendToGateway(message: string): Promise<string> {
+async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
   // Send message to OpenClaw Gateway via Orgo.ai bash API
-  // The Gateway accepts messages via its webchat API
-  const escapedMessage = message.replace(/'/g, "'\\''");
-  const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d '{"message":"${escapedMessage}"}' http://localhost:18789/api/chat`;
+  // Uses OpenAI-compatible /v1/chat/completions endpoint
+  const escapedMessage = message.replace(/"/g, '\\"').replace(/'/g, "'\\''");
+  const payload = JSON.stringify({
+    model: `openclaw/${agentId}`,
+    messages: [{ role: "user", content: message }],
+    user: agentId, // maintains conversation continuity per agent
+  }).replace(/"/g, '\\"');
+
+  const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d "${payload}" http://localhost:18789/v1/chat/completions`;
 
   const response = await fetch(ORGO_API_BASE, {
     method: "POST",
@@ -55,12 +61,17 @@ async function sendToGateway(message: string): Promise<string> {
   const result = await response.json();
   const output = result.output || "";
 
-  // Try to parse the Gateway response
+  // Parse OpenAI-compatible response
   try {
     const parsed = JSON.parse(output);
-    return parsed.response || parsed.message || parsed.content || output;
+    if (parsed.choices?.[0]?.message?.content) {
+      return parsed.choices[0].message.content;
+    }
+    if (parsed.error?.message) {
+      throw new Error(parsed.error.message);
+    }
+    return output;
   } catch {
-    // If not JSON, return raw output (agent might return plain text)
     return output || "I'm processing your request. Please check back shortly.";
   }
 }
