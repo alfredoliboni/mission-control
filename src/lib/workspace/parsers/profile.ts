@@ -33,14 +33,14 @@ function parseBulletList(content: string): string[] {
 function parseBasicInfo(content: string): ProfileBasicInfo {
   const pairs = extractKeyValuePairs(content);
   return {
-    name: pairs.name || "",
-    dateOfBirth: pairs.date_of_birth || "",
+    name: pairs.name || pairs.nickname || "",
+    dateOfBirth: pairs.date_of_birth || pairs.dob || "",
     age: pairs.age || "",
-    diagnosis: pairs.diagnosis || "",
-    currentStage: pairs.current_stage || "",
+    diagnosis: pairs.diagnosis || pairs.diagnosis_date || "",
+    currentStage: pairs.current_stage || pairs.stage || "",
     postalCode: pairs.postal_code || "",
-    location: pairs.location || "",
-    familyLanguage: pairs.family_language || "",
+    location: pairs.location || pairs["city/region"] || pairs.city || "",
+    familyLanguage: pairs.family_language || pairs.languages_at_home || pairs.language || "",
     ...pairs,
   };
 }

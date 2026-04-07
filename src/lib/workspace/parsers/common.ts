@@ -105,11 +105,20 @@ export function extractKeyValuePairs(
   markdown: string
 ): Record<string, string> {
   const pairs: Record<string, string> = {};
-  const regex = /^-\s*\*\*(.+?):\*\*\s*(.+)$/gm;
+  // Match both **Key:** Value (bold) and - Key: Value (plain) formats
+  const boldRegex = /^-\s*\*\*(.+?):\*\*\s*(.+)$/gm;
+  const plainRegex = /^-\s*([^*\n]+?):\s+(.+)$/gm;
   let match;
-  while ((match = regex.exec(markdown)) !== null) {
+  while ((match = boldRegex.exec(markdown)) !== null) {
     const key = match[1].trim().toLowerCase().replace(/\s+/g, "_");
     pairs[key] = match[2].trim();
+  }
+  // Only try plain format for keys not already found
+  while ((match = plainRegex.exec(markdown)) !== null) {
+    const key = match[1].trim().toLowerCase().replace(/\s+/g, "_");
+    if (!pairs[key]) {
+      pairs[key] = match[2].trim();
+    }
   }
   return pairs;
 }
