@@ -46,8 +46,8 @@ async function sendToGateway(message: string, agentId: string = "main"): Promise
   const pythonCode = [
     "import json, urllib.request, base64",
     `msg = base64.b64decode("${b64Message}").decode()`,
-    `token = base64.b64decode("${b64Token}").decode()`,
-    `agent = base64.b64decode("${b64AgentId}").decode()`,
+    `token = base64.b64decode("${b64Token}").decode().strip()`,
+    `agent = base64.b64decode("${b64AgentId}").decode().strip()`,
     'payload = json.dumps({"model": "openclaw/" + agent, "messages": [{"role": "user", "content": msg}], "user": agent}).encode()',
     'headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}',
     'req = urllib.request.Request("http://127.0.0.1:18789/v1/chat/completions", data=payload, headers=headers)',
