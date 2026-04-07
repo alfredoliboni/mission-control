@@ -5,10 +5,12 @@ import {
   parseAlerts,
   parseBenefits,
   parseDocuments,
+  parseEmployment,
   parsePathway,
   parseProfile,
   parsePrograms,
   parseProviders,
+  parseUniversity,
 } from "@/lib/workspace/parsers";
 import { parseOntarioSystem } from "@/lib/workspace/parsers/ontario-system";
 import { discoverSections } from "@/lib/workspace/sections";
@@ -128,6 +130,16 @@ export function useParsedPrograms() {
 export function useParsedDocuments() {
   const { data: raw, ...rest } = useWorkspaceFile("documents.md");
   return { ...rest, data: raw ? parseDocuments(raw) : undefined };
+}
+
+export function useParsedEmployment() {
+  const { data: raw, ...rest } = useWorkspaceFile("employment.md");
+  return { ...rest, data: raw ? parseEmployment(raw) : undefined };
+}
+
+export function useParsedUniversity() {
+  const { data: raw, ...rest } = useWorkspaceFile("university.md");
+  return { ...rest, data: raw ? parseUniversity(raw) : undefined };
 }
 
 export function useParsedOntarioSystem() {

@@ -308,6 +308,40 @@ export interface ParsedOntarioSystem {
   sources: string;
 }
 
+// ── Parsed employment ───────────────────────────────────────────────────
+
+export interface ParsedEmployment {
+  title: string;
+  lastUpdated?: string;
+  status?: string;
+  strengths: string[];
+  supportNeeds: string[];
+  goals: { nearTerm: string[]; midTerm: string[] };
+  planningAreas: { title: string; description: string; items: string[] }[];
+  careerHypotheses: string[];
+  nextActions: string[];
+}
+
+// ── Parsed university ────────────────────────────────────────────────────
+
+export interface UniversityPlanningPriority {
+  title: string;
+  description: string;
+  items: string[];
+}
+
+export interface ParsedUniversity {
+  title: string;
+  lastUpdated: string;
+  status: string;
+  snapshot: string;
+  academicThemes: string[];
+  planningPriorities: UniversityPlanningPriority[];
+  documentationNeeded: string[];
+  campusConsiderations: string[];
+  cautionNotes: string[];
+}
+
 // ── Chat types ───────────────────────────────────────────────────────────
 
 export interface ChatMessage {
