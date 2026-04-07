@@ -3,100 +3,201 @@ import Link from "next/link";
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      {/* ── Header ─────────────────────────────────────────── */}
+      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-2xl" aria-hidden="true">
-              &#x1F9ED;
+              🧭
             </span>
             <span className="font-heading font-bold text-lg text-foreground">
               The Companion
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/demo"
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              See Demo
-            </Link>
-          </div>
+          <Link
+            href="/login"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign In
+          </Link>
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="max-w-2xl text-center space-y-6">
-          <h1 className="font-heading text-4xl sm:text-5xl font-bold text-foreground leading-tight">
-            Mission Control for
-            <br />
-            <span className="text-primary">Your Family&apos;s Journey</span>
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            An AI-powered dashboard that navigates Ontario&apos;s autism
-            services for you. Track your pathway, discover programs, and never
-            miss a deadline.
-          </p>
-          <div className="flex items-center justify-center gap-4">
+      <main className="flex-1">
+        {/* ── Hero ──────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20">
+          <div className="max-w-3xl mx-auto text-center space-y-6">
+            <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight tracking-tight">
+              Your Family&apos;s AI Navigator
+              <br />
+              <span className="text-primary">for Autism Services</span>
+            </h1>
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Every child with autism deserves a dedicated guide through
+              Ontario&apos;s complex service system. The Companion gives your
+              family a personal AI navigator that works 24/7 — finding
+              providers, tracking deadlines, and preparing recommendations
+              while you focus on what matters most.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <Link
+                href="/demo"
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 transition-colors w-full sm:w-auto"
+              >
+                Try the Demo
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-lg border-2 border-border px-8 py-3.5 text-base font-semibold text-foreground hover:bg-warm-100 transition-colors w-full sm:w-auto"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── How It Works ─────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-16 sm:py-20 bg-warm-100/50">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground text-center mb-12">
+              How It Works
+            </h2>
+            <div className="grid sm:grid-cols-3 gap-8 sm:gap-10">
+              <div className="text-center space-y-3">
+                <div className="text-4xl mb-2">🧒</div>
+                <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                  1
+                </div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Tell Us About Your Child
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Complete a simple onboarding to share your child&apos;s needs,
+                  interests, and where you are in the journey.
+                </p>
+              </div>
+              <div className="text-center space-y-3">
+                <div className="text-4xl mb-2">🤖</div>
+                <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                  2
+                </div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Your Navigator Gets to Work
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Your personal AI agent researches providers, monitors
+                  deadlines, identifies benefits, and prepares recommendations
+                  specific to your family.
+                </p>
+              </div>
+              <div className="text-center space-y-3">
+                <div className="text-4xl mb-2">📊</div>
+                <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                  3
+                </div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  See Everything in One Place
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Your Mission Control dashboard shows everything your navigator
+                  found — providers matched to your child, upcoming deadlines,
+                  available programs, and financial supports.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Feature Cards ────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-16 sm:py-20">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground text-center mb-12">
+              What Your Navigator Does
+            </h2>
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div className="bg-card rounded-xl border border-border p-6 sm:p-8 space-y-3">
+                <div className="text-3xl">🏥</div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Provider Matching
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Your navigator searches for therapists, clinics, and
+                  specialists near you. It ranks them by fit — considering your
+                  child&apos;s needs, waitlists, OAP funding, and location.
+                </p>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-6 sm:p-8 space-y-3">
+                <div className="text-3xl">🚨</div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Proactive Alerts
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Never miss a deadline. Your navigator monitors OAP timelines,
+                  benefit renewals, assessment dates, and program registrations.
+                </p>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-6 sm:p-8 space-y-3">
+                <div className="text-3xl">💰</div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Benefits Tracking
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  DTC, CDB, OAP, RDSP, ACSD — your navigator knows every
+                  financial support available and tracks your application status.
+                </p>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-6 sm:p-8 space-y-3">
+                <div className="text-3xl">🗺️</div>
+                <h3 className="font-heading font-semibold text-lg text-foreground">
+                  Journey Pathway
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  See exactly where your family is in the autism services journey
+                  and what comes next. Clear stages with actionable next steps.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Who It's For ─────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-16 sm:py-20 bg-warm-100/50">
+          <div className="max-w-3xl mx-auto text-center space-y-4">
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+              Built for Ontario Families
+            </h2>
+            <p className="text-lg text-muted-foreground leading-relaxed">
+              For families navigating the Ontario autism services system —
+              whether you&apos;re newly diagnosed or transitioning to adult
+              services.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Final CTA ────────────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-20 sm:py-28">
+          <div className="max-w-3xl mx-auto text-center space-y-6">
+            <h2 className="font-heading text-3xl sm:text-4xl font-bold text-foreground">
+              Ready to see your Mission Control?
+            </h2>
             <Link
               href="/demo"
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-10 py-4 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               Try the Demo
             </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center rounded-lg border border-border px-6 py-3 text-base font-medium text-foreground hover:bg-warm-100 transition-colors"
-            >
-              Sign In
-            </Link>
           </div>
-
-          <div className="grid sm:grid-cols-3 gap-6 pt-12 text-left">
-            <div className="space-y-2">
-              <p className="text-2xl" aria-hidden="true">
-                &#x1F5FA;&#xFE0F;
-              </p>
-              <h3 className="font-heading font-semibold text-foreground">
-                Visual Pathway
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                See exactly where you are in the journey, what&apos;s next, and
-                what&apos;s blocked.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-2xl" aria-hidden="true">
-                &#x1F3F7;&#xFE0F;
-              </p>
-              <h3 className="font-heading font-semibold text-foreground">
-                Gap Fillers
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Free programs and resources to use while waiting for funded
-                services.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-2xl" aria-hidden="true">
-                &#x1F6A8;
-              </p>
-              <h3 className="font-heading font-semibold text-foreground">
-                Proactive Alerts
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Your AI agent monitors deadlines, discovers programs, and flags
-                what needs attention.
-              </p>
-            </div>
-          </div>
-        </div>
+        </section>
       </main>
+
+      {/* ── Footer ───────────────────────────────────────── */}
+      <footer className="border-t border-border py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            The Companion — Made with ❤️ for Ontario families
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
