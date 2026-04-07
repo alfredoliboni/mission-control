@@ -36,6 +36,15 @@ function ProgramCardInline({ program }: { program: ParsedProgram }) {
           {tag.label}
         </span>
       </div>
+      {/* Gap Filler explanation */}
+      {program.category === "gap_filler" && (
+        <p className="text-[11px] text-status-gap-filler/80 mt-1 leading-snug">
+          {program.whyGapFiller
+            ? program.whyGapFiller
+            : `While waiting for funded services, this ${program.type?.toLowerCase() || "program"} can help. Your Navigator identified this based on Alex's needs.`}
+        </p>
+      )}
+
       <div className="text-[12px] text-muted-foreground leading-[1.6] space-y-0.5">
         {program.type && <p>{program.type}</p>}
         {program.cost && program.cost !== "—" && <p>Cost: {program.cost}</p>}
@@ -46,9 +55,7 @@ function ProgramCardInline({ program }: { program: ParsedProgram }) {
         {program.location && program.location !== "—" && (
           <p>Location: {program.location}</p>
         )}
-        {program.whyGapFiller && (
-          <p className="italic mt-1">{program.whyGapFiller}</p>
-        )}
+        {/* whyGapFiller shown above the details block for gap_filler programs */}
         {program.status && program.status !== "—" && (
           <p>Status: {program.status}</p>
         )}

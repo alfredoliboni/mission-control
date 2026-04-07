@@ -1,21 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParsedBenefits } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import type { BenefitStatus, BenefitStatusRow, BenefitDetail } from "@/types/workspace";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
-  Upload,
   Bell,
   RefreshCw,
   DollarSign,
   CalendarDays,
   Shield,
+  Clock,
+  MessageSquare,
 } from "lucide-react";
+
+/* ── reminder persistence ────────────────────────────────────────── */
+
+const REMINDER_STORAGE_KEY = "benefits-reminders";
+
+interface BenefitReminder {
+  benefitName: string;
+  remindAt: string; // ISO date string
+  setAt: string;
+}
+
+function loadReminders(): BenefitReminder[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(REMINDER_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveReminders(reminders: BenefitReminder[]) {
+  try {
+    localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(reminders));
+  } catch { /* quota exceeded */ }
+}
+
+/* ── applied status persistence ──────────────────────────────────── */
+
+const APPLIED_STORAGE_KEY = "benefits-applied";
+
+function loadAppliedStatuses(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(APPLIED_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveAppliedStatuses(statuses: Record<string, string>) {
+  try {
+    localStorage.setItem(APPLIED_STORAGE_KEY, JSON.stringify(statuses));
+  } catch { /* quota exceeded */ }
+}
 
 /* ── status config ─────────────────────────────────────────────── */
 
@@ -98,12 +144,20 @@ function DetailRow({
 function BenefitCard({
   row,
   detail,
+  onSetReminder,
+  onMarkApplied,
+  appliedStatus,
+  hasReminder,
 }: {
   row: BenefitStatusRow;
   detail?: BenefitDetail;
+  onSetReminder: (benefitName: string, option: "1week" | "1month") => void;
+  onMarkApplied: (benefitName: string) => void;
+  appliedStatus?: string;
+  hasReminder: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const cfg = statusConfig[row.status];
 
   return (
@@ -130,9 +184,9 @@ function BenefitCard({
 
           {/* Status with dot */}
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className={cn("w-2 h-2 rounded-full shrink-0", cfg.dotColor)} />
+            <span className={cn("w-2 h-2 rounded-full shrink-0", appliedStatus ? "bg-status-current" : cfg.dotColor)} />
             <span className="text-[12px] font-medium text-foreground">
-              {localStatus || cfg.label}
+              {appliedStatus || cfg.label}
             </span>
           </div>
 
@@ -202,24 +256,66 @@ function BenefitCard({
           )}
 
           {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-border">
-            {row.status === "not_started" && (
-              <button
-                onClick={() => setLocalStatus("Applied")}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-status-current hover:bg-status-current/8 px-2 py-1 rounded-md transition-colors"
-              >
-                <CheckCircle className="h-3.5 w-3.5" />
-                Mark as Applied
-              </button>
-            )}
-            <button className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted-foreground/8 px-2 py-1 rounded-md transition-colors">
-              <Upload className="h-3.5 w-3.5" />
-              Upload Document
-            </button>
-            <button className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted-foreground/8 px-2 py-1 rounded-md transition-colors">
-              <Bell className="h-3.5 w-3.5" />
-              Set Reminder
-            </button>
+          <div className="pt-3 mt-3 border-t border-border space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {row.status === "not_started" && !appliedStatus && (
+                <div className="space-y-1">
+                  <button
+                    onClick={() => onMarkApplied(row.benefit)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-status-current hover:bg-status-current/8 px-2 py-1 rounded-md transition-colors"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Mark as Applied
+                  </button>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 pl-2">
+                    <MessageSquare className="h-2.5 w-2.5" />
+                    You can also tell your Navigator in the chat
+                  </p>
+                </div>
+              )}
+              {appliedStatus && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-success px-2 py-1">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Marked as Applied
+                </span>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setReminderOpen(!reminderOpen)}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors",
+                    hasReminder
+                      ? "text-status-caution"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/8"
+                  )}
+                >
+                  {hasReminder ? <Clock className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+                  {hasReminder ? "Reminder Set" : "Set Reminder"}
+                </button>
+                {reminderOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-10 bg-card border border-border rounded-lg shadow-lg p-2 min-w-[160px]">
+                    <button
+                      onClick={() => {
+                        onSetReminder(row.benefit, "1week");
+                        setReminderOpen(false);
+                      }}
+                      className="w-full text-left text-[12px] text-foreground hover:bg-muted px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      Remind in 1 week
+                    </button>
+                    <button
+                      onClick={() => {
+                        onSetReminder(row.benefit, "1month");
+                        setReminderOpen(false);
+                      }}
+                      className="w-full text-left text-[12px] text-foreground hover:bg-muted px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      Remind in 1 month
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -229,8 +325,63 @@ function BenefitCard({
 
 /* ── Page ──────────────────────────────────────────────────────── */
 
+// Statuses that indicate the family IS eligible / has engaged
+const eligibleStatuses = new Set<BenefitStatus>([
+  "approved",
+  "active",
+  "registered",
+  "pending",
+  "waiting",
+  "renewed",
+]);
+
 export default function BenefitsPage() {
   const { data: benefits, isLoading } = useParsedBenefits();
+  const [reminders, setReminders] = useState<BenefitReminder[]>(() => loadReminders());
+  const [appliedStatuses, setAppliedStatuses] = useState<Record<string, string>>(() => loadAppliedStatuses());
+
+  const initialized = useRef(false);
+  useEffect(() => { initialized.current = true; }, []);
+  useEffect(() => {
+    if (!initialized.current) return;
+    saveReminders(reminders);
+  }, [reminders]);
+  useEffect(() => {
+    if (!initialized.current) return;
+    saveAppliedStatuses(appliedStatuses);
+  }, [appliedStatuses]);
+
+  const handleSetReminder = useCallback((benefitName: string, option: "1week" | "1month") => {
+    const now = new Date();
+    const remindAt = new Date(now);
+    if (option === "1week") {
+      remindAt.setDate(remindAt.getDate() + 7);
+    } else {
+      remindAt.setMonth(remindAt.getMonth() + 1);
+    }
+    const newReminder: BenefitReminder = {
+      benefitName,
+      remindAt: remindAt.toISOString(),
+      setAt: now.toISOString(),
+    };
+    setReminders((prev) => [...prev.filter((r) => r.benefitName !== benefitName), newReminder]);
+    const label = option === "1week" ? "1 week" : "1 month";
+    toast.success(`Reminder set for ${remindAt.toLocaleDateString()}`, {
+      description: `We'll remind you about ${benefitName} in ${label}.`,
+    });
+  }, []);
+
+  const handleMarkApplied = useCallback((benefitName: string) => {
+    const timestamp = new Date().toLocaleDateString();
+    setAppliedStatuses((prev) => ({ ...prev, [benefitName]: `Applied on ${timestamp}` }));
+    toast.success("Marked as Applied", {
+      description: `${benefitName} has been marked as applied. You can also tell your Navigator in the chat.`,
+    });
+  }, []);
+
+  const hasReminder = useCallback((benefitName: string) => {
+    return reminders.some((r) => r.benefitName === benefitName);
+  }, [reminders]);
 
   // Match detail entries to status rows by name similarity
   function findDetail(benefitName: string): BenefitDetail | undefined {
@@ -248,6 +399,18 @@ export default function BenefitsPage() {
     });
   }
 
+  // Sort: eligible/active benefits first, not_started/unknown last
+  const sortedRows = benefits
+    ? [...benefits.statusTable].sort((a, b) => {
+        const aEligible = eligibleStatuses.has(a.status) ? 0 : 1;
+        const bEligible = eligibleStatuses.has(b.status) ? 0 : 1;
+        return aEligible - bEligible;
+      })
+    : [];
+
+  const eligibleCount = sortedRows.filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit]).length;
+  const notStartedCount = sortedRows.length - eligibleCount;
+
   return (
     <WorkspaceSection
       title="Benefits"
@@ -259,17 +422,52 @@ export default function BenefitsPage() {
       {benefits && (
         <div className="space-y-4">
           <p className="text-[13px] text-muted-foreground -mt-2">
-            {benefits.statusTable.length} benefits tracked
+            {eligibleCount} benefits eligible or in progress
+            {notStartedCount > 0 && ` · ${notStartedCount} to explore`}
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {benefits.statusTable.map((row, i) => (
-              <BenefitCard
-                key={i}
-                row={row}
-                detail={findDetail(row.benefit)}
-              />
-            ))}
-          </div>
+
+          {/* Eligible / active benefits */}
+          {sortedRows.filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit]).length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {sortedRows
+                .filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit])
+                .map((row, i) => (
+                  <BenefitCard
+                    key={i}
+                    row={row}
+                    detail={findDetail(row.benefit)}
+                    onSetReminder={handleSetReminder}
+                    onMarkApplied={handleMarkApplied}
+                    appliedStatus={appliedStatuses[row.benefit]}
+                    hasReminder={hasReminder(row.benefit)}
+                  />
+                ))}
+            </div>
+          )}
+
+          {/* Not started benefits — de-emphasized */}
+          {sortedRows.filter((r) => !eligibleStatuses.has(r.status) && !appliedStatuses[r.benefit]).length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Worth Exploring
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2 opacity-80">
+                {sortedRows
+                  .filter((r) => !eligibleStatuses.has(r.status) && !appliedStatuses[r.benefit])
+                  .map((row, i) => (
+                    <BenefitCard
+                      key={i}
+                      row={row}
+                      detail={findDetail(row.benefit)}
+                      onSetReminder={handleSetReminder}
+                      onMarkApplied={handleMarkApplied}
+                      appliedStatus={appliedStatuses[row.benefit]}
+                      hasReminder={hasReminder(row.benefit)}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </WorkspaceSection>

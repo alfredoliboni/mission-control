@@ -12,6 +12,7 @@ import {
   Mail,
   ExternalLink,
   Stethoscope,
+  Undo2,
 } from "lucide-react";
 import type { ParsedAlert } from "@/types/workspace";
 
@@ -139,6 +140,7 @@ function AlertItem({
   onComplete,
   onDismiss,
   onAddNote,
+  onUndo,
 }: {
   alert: ParsedAlert;
   isCompleted: boolean;
@@ -148,6 +150,7 @@ function AlertItem({
   onComplete: () => void;
   onDismiss: () => void;
   onAddNote: (note: string) => void;
+  onUndo: () => void;
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -221,6 +224,19 @@ function AlertItem({
           {/* Completed timestamp */}
           {isCompleted && completedAt && (
             <p className="text-[10px] text-status-success mt-1">Completed {completedAt}</p>
+          )}
+
+          {/* Undo button for resolved alerts */}
+          {(isCompleted || isDismissed) && (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={onUndo}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted px-2 py-1 rounded-md transition-colors border border-transparent hover:border-border"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                Reactivate
+              </button>
+            </div>
           )}
 
           {/* CTA buttons for HIGH alerts */}
@@ -353,6 +369,18 @@ export default function AlertsPage() {
     }));
   }, [setPersisted]);
 
+  const handleUndo = useCallback((key: string) => {
+    setPersisted((prev) => {
+      const { [key]: _removedAt, ...restCompletedAt } = prev.completedAt;
+      return {
+        ...prev,
+        completedIds: prev.completedIds.filter((id) => id !== key),
+        dismissedIds: prev.dismissedIds.filter((id) => id !== key),
+        completedAt: restCompletedAt,
+      };
+    });
+  }, [setPersisted]);
+
   // Compute counts
   const allAlerts = alerts || [];
   const counts = { active: 0, resolved: 0, all: allAlerts.length };
@@ -427,6 +455,7 @@ export default function AlertsPage() {
                   onComplete={() => handleComplete(key)}
                   onDismiss={() => handleDismiss(key)}
                   onAddNote={(note) => handleAddNote(key, note)}
+                  onUndo={() => handleUndo(key)}
                 />
               );
             })}
