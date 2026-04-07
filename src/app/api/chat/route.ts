@@ -34,24 +34,32 @@ const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
 async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
-  // Send message to OpenClaw Gateway via Orgo.ai bash API
-  // Uses base64 encoding to avoid shell escaping issues with special characters
-  const payload = JSON.stringify({
-    model: `openclaw/${agentId}`,
-    messages: [{ role: "user", content: message }],
-    user: agentId,
-  });
+  // Send message to OpenClaw Gateway via Orgo.ai exec (Python) API
+  // Using exec instead of bash avoids JSON escaping issues with markdown/unicode in responses
+  const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
 
-  const b64Payload = Buffer.from(payload).toString("base64");
-  const curlCmd = `echo '${b64Payload}' | base64 -d | curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d @- http://localhost:18789/v1/chat/completions`;
+  const escapedMessage = message.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 
-  const response = await fetch(ORGO_API_BASE, {
+  const pythonCode = `
+import json, urllib.request
+payload = json.dumps({"model": "openclaw/${agentId}", "messages": [{"role": "user", "content": "${escapedMessage}"}], "user": "${agentId}"}).encode()
+req = urllib.request.Request("http://127.0.0.1:18789/v1/chat/completions", data=payload, headers={"Authorization": "Bearer ${COMPANION_API_TOKEN}", "Content-Type": "application/json"})
+try:
+    resp = urllib.request.urlopen(req, timeout=90)
+    result = json.loads(resp.read().decode())
+    content = result["choices"][0]["message"]["content"]
+    print(json.dumps({"ok": True, "content": content}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": str(e)}))
+`.trim();
+
+  const response = await fetch(ORGO_EXEC_BASE, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${ORGO_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ command: curlCmd }),
+    body: JSON.stringify({ code: pythonCode }),
   });
 
   if (!response.ok) {
@@ -59,16 +67,15 @@ async function sendToGateway(message: string, agentId: string = "main"): Promise
   }
 
   const result = await response.json();
-  const output = result.output || "";
+  const output = (result.output || "").trim();
 
-  // Parse OpenAI-compatible response
   try {
     const parsed = JSON.parse(output);
-    if (parsed.choices?.[0]?.message?.content) {
-      return parsed.choices[0].message.content;
+    if (parsed.ok && parsed.content) {
+      return parsed.content;
     }
-    if (parsed.error?.message) {
-      throw new Error(parsed.error.message);
+    if (parsed.error) {
+      throw new Error(parsed.error);
     }
     return output;
   } catch {
