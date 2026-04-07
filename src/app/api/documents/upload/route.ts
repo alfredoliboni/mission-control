@@ -131,6 +131,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Notify the family's agent about the new document (fire-and-forget)
+    const baseUrl = request.nextUrl.origin;
+    fetch(`${baseUrl}/api/agent/notify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": request.headers.get("cookie") || "",
+      },
+      body: JSON.stringify({
+        type: "document_uploaded",
+        title: title,
+        details: `Type: ${docType}. Uploaded by: ${user.email}`,
+      }),
+    }).catch(() => { /* best-effort notification */ });
+
     return NextResponse.json({ success: true, document });
   } catch (err) {
     console.error("Upload handler error:", err);
