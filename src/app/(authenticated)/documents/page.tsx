@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
+import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPopover";
 import type { DocumentEntry } from "@/types/workspace";
 
 function getDocIcon(type: string) {
@@ -425,6 +426,10 @@ export default function DocumentsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          <DocumentSharingPopover
+                            docId={`uploaded-${doc.id}`}
+                            docTitle={doc.title}
+                          />
                           {doc.download_url && (
                             <a
                               href={doc.download_url}
@@ -495,6 +500,10 @@ export default function DocumentsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <DocumentSharingPopover
+                          docId={`agent-${i}-${doc.title.replace(/\s+/g, "-").toLowerCase()}`}
+                          docTitle={doc.title}
+                        />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
