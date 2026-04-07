@@ -46,22 +46,37 @@ function saveReminders(reminders: BenefitReminder[]) {
 
 /* ── applied status persistence ──────────────────────────────────── */
 
-const APPLIED_STORAGE_KEY = "benefits-applied";
+const TRACKING_STORAGE_KEY = "benefits-tracking";
 
-function loadAppliedStatuses(): Record<string, string> {
+type TrackingStatus = "applied" | "pending_review" | "approved" | "denied";
+
+interface BenefitTracking {
+  status: TrackingStatus;
+  appliedDate: string;
+  updatedAt: string;
+}
+
+function loadTracking(): Record<string, BenefitTracking> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = localStorage.getItem(APPLIED_STORAGE_KEY);
+    const raw = localStorage.getItem(TRACKING_STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return {};
 }
 
-function saveAppliedStatuses(statuses: Record<string, string>) {
+function saveTracking(tracking: Record<string, BenefitTracking>) {
   try {
-    localStorage.setItem(APPLIED_STORAGE_KEY, JSON.stringify(statuses));
+    localStorage.setItem(TRACKING_STORAGE_KEY, JSON.stringify(tracking));
   } catch { /* quota exceeded */ }
 }
+
+const TRACKING_CONFIG: Record<TrackingStatus, { label: string; emoji: string; dotColor: string; next?: TrackingStatus[] }> = {
+  applied: { label: "Applied", emoji: "📨", dotColor: "bg-status-current", next: ["pending_review", "approved", "denied"] },
+  pending_review: { label: "Pending Review", emoji: "⏳", dotColor: "bg-status-caution", next: ["approved", "denied"] },
+  approved: { label: "Approved", emoji: "✅", dotColor: "bg-status-success" },
+  denied: { label: "Denied", emoji: "❌", dotColor: "bg-status-blocked", next: ["applied"] },
+};
 
 /* ── status config ─────────────────────────────────────────────── */
 
@@ -146,14 +161,16 @@ function BenefitCard({
   detail,
   onSetReminder,
   onMarkApplied,
-  appliedStatus,
+  onUpdateTracking,
+  tracking,
   hasReminder,
 }: {
   row: BenefitStatusRow;
   detail?: BenefitDetail;
   onSetReminder: (benefitName: string, option: "1week" | "1month") => void;
   onMarkApplied: (benefitName: string) => void;
-  appliedStatus?: string;
+  onUpdateTracking: (benefitName: string, status: TrackingStatus) => void;
+  tracking?: BenefitTracking;
   hasReminder: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -184,9 +201,9 @@ function BenefitCard({
 
           {/* Status with dot */}
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className={cn("w-2 h-2 rounded-full shrink-0", appliedStatus ? "bg-status-current" : cfg.dotColor)} />
+            <span className={cn("w-2 h-2 rounded-full shrink-0", tracking ? TRACKING_CONFIG[tracking.status].dotColor : cfg.dotColor)} />
             <span className="text-[12px] font-medium text-foreground">
-              {appliedStatus || cfg.label}
+              {tracking ? `${TRACKING_CONFIG[tracking.status].emoji} ${TRACKING_CONFIG[tracking.status].label}` : cfg.label}
             </span>
           </div>
 
@@ -255,10 +272,11 @@ function BenefitCard({
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — tracking flow */}
           <div className="pt-3 mt-3 border-t border-border space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              {row.status === "not_started" && !appliedStatus && (
+              {/* Not started — show "Mark as Applied" */}
+              {!tracking && row.status === "not_started" && (
                 <div className="space-y-1">
                   <button
                     onClick={() => onMarkApplied(row.benefit)}
@@ -273,10 +291,48 @@ function BenefitCard({
                   </p>
                 </div>
               )}
-              {appliedStatus && (
+
+              {/* Tracking active — show current status + next actions */}
+              {tracking && (
+                <div className="space-y-2 w-full">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", TRACKING_CONFIG[tracking.status].dotColor)} />
+                    <span className="text-[12px] font-semibold">
+                      {TRACKING_CONFIG[tracking.status].emoji} {TRACKING_CONFIG[tracking.status].label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      since {new Date(tracking.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  {/* Next status buttons */}
+                  {TRACKING_CONFIG[tracking.status].next && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {TRACKING_CONFIG[tracking.status].next!.map((nextStatus) => (
+                        <button
+                          key={nextStatus}
+                          onClick={() => onUpdateTracking(row.benefit, nextStatus)}
+                          className={cn(
+                            "inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors border",
+                            nextStatus === "approved" && "text-status-success border-status-success/30 hover:bg-status-success/8",
+                            nextStatus === "denied" && "text-status-blocked border-status-blocked/30 hover:bg-status-blocked/8",
+                            nextStatus === "pending_review" && "text-status-caution border-status-caution/30 hover:bg-status-caution/8",
+                            nextStatus === "applied" && "text-status-current border-status-current/30 hover:bg-status-current/8",
+                          )}
+                        >
+                          {TRACKING_CONFIG[nextStatus].emoji} {TRACKING_CONFIG[nextStatus].label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Already approved from agent data (not user-tracked) */}
+              {!tracking && (row.status === "approved" || row.status === "active") && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-success px-2 py-1">
                   <CheckCircle className="h-3.5 w-3.5" />
-                  Marked as Applied
+                  {cfg.label}
                 </span>
               )}
               <div className="relative">
@@ -338,7 +394,7 @@ const eligibleStatuses = new Set<BenefitStatus>([
 export default function BenefitsPage() {
   const { data: benefits, isLoading } = useParsedBenefits();
   const [reminders, setReminders] = useState<BenefitReminder[]>(() => loadReminders());
-  const [appliedStatuses, setAppliedStatuses] = useState<Record<string, string>>(() => loadAppliedStatuses());
+  const [trackingData, setTrackingData] = useState<Record<string, BenefitTracking>>(() => loadTracking());
 
   const initialized = useRef(false);
   useEffect(() => { initialized.current = true; }, []);
@@ -348,8 +404,8 @@ export default function BenefitsPage() {
   }, [reminders]);
   useEffect(() => {
     if (!initialized.current) return;
-    saveAppliedStatuses(appliedStatuses);
-  }, [appliedStatuses]);
+    saveTracking(trackingData);
+  }, [trackingData]);
 
   const handleSetReminder = useCallback((benefitName: string, option: "1week" | "1month") => {
     const now = new Date();
@@ -372,10 +428,28 @@ export default function BenefitsPage() {
   }, []);
 
   const handleMarkApplied = useCallback((benefitName: string) => {
-    const timestamp = new Date().toLocaleDateString();
-    setAppliedStatuses((prev) => ({ ...prev, [benefitName]: `Applied on ${timestamp}` }));
+    const now = new Date().toISOString();
+    setTrackingData((prev) => ({
+      ...prev,
+      [benefitName]: { status: "applied", appliedDate: now, updatedAt: now },
+    }));
     toast.success("Marked as Applied", {
-      description: `${benefitName} has been marked as applied. You can also tell your Navigator in the chat.`,
+      description: `${benefitName} is now being tracked. Update the status when you hear back.`,
+    });
+  }, []);
+
+  const handleUpdateTracking = useCallback((benefitName: string, status: TrackingStatus) => {
+    setTrackingData((prev) => ({
+      ...prev,
+      [benefitName]: {
+        ...prev[benefitName],
+        status,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+    const cfg = TRACKING_CONFIG[status];
+    toast.success(`${cfg.emoji} ${benefitName}`, {
+      description: `Status updated to: ${cfg.label}`,
     });
   }, []);
 
@@ -408,7 +482,7 @@ export default function BenefitsPage() {
       })
     : [];
 
-  const eligibleCount = sortedRows.filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit]).length;
+  const eligibleCount = sortedRows.filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit]).length;
   const notStartedCount = sortedRows.length - eligibleCount;
 
   return (
@@ -427,10 +501,10 @@ export default function BenefitsPage() {
           </p>
 
           {/* Eligible / active benefits */}
-          {sortedRows.filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit]).length > 0 && (
+          {sortedRows.filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit]).length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2">
               {sortedRows
-                .filter((r) => eligibleStatuses.has(r.status) || appliedStatuses[r.benefit])
+                .filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit])
                 .map((row, i) => (
                   <BenefitCard
                     key={i}
@@ -438,7 +512,8 @@ export default function BenefitsPage() {
                     detail={findDetail(row.benefit)}
                     onSetReminder={handleSetReminder}
                     onMarkApplied={handleMarkApplied}
-                    appliedStatus={appliedStatuses[row.benefit]}
+                    tracking={trackingData[row.benefit]}
+                    onUpdateTracking={handleUpdateTracking}
                     hasReminder={hasReminder(row.benefit)}
                   />
                 ))}
@@ -446,14 +521,14 @@ export default function BenefitsPage() {
           )}
 
           {/* Not started benefits — de-emphasized */}
-          {sortedRows.filter((r) => !eligibleStatuses.has(r.status) && !appliedStatuses[r.benefit]).length > 0 && (
+          {sortedRows.filter((r) => !eligibleStatuses.has(r.status) && !trackingData[r.benefit]).length > 0 && (
             <div className="space-y-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Worth Exploring
               </p>
               <div className="grid gap-4 sm:grid-cols-2 opacity-80">
                 {sortedRows
-                  .filter((r) => !eligibleStatuses.has(r.status) && !appliedStatuses[r.benefit])
+                  .filter((r) => !eligibleStatuses.has(r.status) && !trackingData[r.benefit])
                   .map((row, i) => (
                     <BenefitCard
                       key={i}
@@ -461,7 +536,8 @@ export default function BenefitsPage() {
                       detail={findDetail(row.benefit)}
                       onSetReminder={handleSetReminder}
                       onMarkApplied={handleMarkApplied}
-                      appliedStatus={appliedStatuses[row.benefit]}
+                      tracking={trackingData[row.benefit]}
+                    onUpdateTracking={handleUpdateTracking}
                       hasReminder={hasReminder(row.benefit)}
                     />
                   ))}
