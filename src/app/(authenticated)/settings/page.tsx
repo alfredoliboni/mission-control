@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +26,7 @@ import {
   X,
   AlertTriangle,
   Heart,
+  Loader2,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -72,49 +75,6 @@ const DEMO_PARENT: ParentInfo = {
   preferredLanguage: "Portuguese",
   preferredContact: "Email",
 };
-
-const DEMO_PARTNERS: Partner[] = [
-  {
-    id: "1",
-    name: "Ms. Rodriguez",
-    role: "Teacher",
-    organization: "St. Mary's Catholic School",
-    email: "rodriguez@ldcsb.ca",
-    status: "active",
-    lastAccess: "2026-03-28",
-    permissions: ["View profile", "View IEP", "Message"],
-  },
-  {
-    id: "2",
-    name: "Jessica Park",
-    role: "Speech-Language Pathologist",
-    organization: "TVCC",
-    email: "jpark@tvcc.on.ca",
-    status: "active",
-    lastAccess: "2026-03-25",
-    permissions: ["View profile", "View medical", "Message", "Add notes"],
-  },
-  {
-    id: "3",
-    name: "Dr. Patel",
-    role: "Developmental Pediatrician",
-    organization: "TVCC",
-    email: "dpatel@tvcc.on.ca",
-    status: "active",
-    lastAccess: "2026-03-15",
-    permissions: ["View profile", "View medical", "Edit medical", "Message"],
-  },
-  {
-    id: "4",
-    name: "Dr. Sarah Chen",
-    role: "Pediatrician",
-    organization: "London Health Sciences Centre",
-    email: "schen@lhsc.on.ca",
-    status: "pending",
-    lastAccess: "—",
-    permissions: ["View profile", "View medical"],
-  },
-];
 
 const DEMO_PRIVACY: PrivacySettings = {
   shareWithProviders: true,
@@ -230,25 +190,106 @@ function PartnerRow({
 
 // ── Main page ────────────────────────────────────────────────────────────
 
+// ── API helpers ─────────────────────────────────────────────────────────
+
+async function fetchCareTeam(): Promise<Partner[]> {
+  const res = await fetch("/api/care-team");
+  if (!res.ok) {
+    if (res.status === 401) return [];
+    throw new Error("Failed to fetch care team");
+  }
+  const data = await res.json();
+  // Map stakeholder_links rows to Partner shape
+  return (data.stakeholders ?? []).map((s: Record<string, unknown>) => ({
+    id: s.id as string,
+    name: (s.name as string) || "Unknown",
+    role: (s.role as string) || "Provider",
+    organization: (s.organization as string) || "—",
+    email: (s.email as string) || "",
+    status: (s.status as Partner["status"]) || "active",
+    lastAccess: (s.last_access as string) || "—",
+    permissions: (s.permissions as string[]) || ["View profile"],
+  }));
+}
+
+async function inviteCareTeamMember(body: {
+  email: string;
+  name: string;
+  role: string;
+  organization?: string;
+}): Promise<void> {
+  const res = await fetch("/api/care-team/invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to invite team member");
+  }
+}
+
+async function removeCareTeamMember(id: string): Promise<void> {
+  const res = await fetch(`/api/care-team/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to remove team member");
+  }
+}
+
+// ── Main page ────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const [parent, setParent] = useState(DEMO_PARENT);
-  const [partners, setPartners] = useState(DEMO_PARTNERS);
   const [privacy, setPrivacy] = useState(DEMO_PRIVACY);
   const [editingParent, setEditingParent] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("Provider");
+  const [inviteOrg, setInviteOrg] = useState("");
+
+  // ── Care Team: fetch from API ──
+  const {
+    data: partners = [],
+    isLoading: loadingPartners,
+  } = useQuery({
+    queryKey: ["care-team"],
+    queryFn: fetchCareTeam,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // ── Invite mutation ──
+  const inviteMutation = useMutation({
+    mutationFn: inviteCareTeamMember,
+    onSuccess: () => {
+      toast.success("Invitation sent successfully");
+      queryClient.invalidateQueries({ queryKey: ["care-team"] });
+      setInviteEmail("");
+      setInviteName("");
+      setInviteRole("Provider");
+      setInviteOrg("");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to send invitation");
+    },
+  });
+
+  // ── Remove mutation ──
+  const removeMutation = useMutation({
+    mutationFn: removeCareTeamMember,
+    onSuccess: () => {
+      toast.success("Team member removed");
+      queryClient.invalidateQueries({ queryKey: ["care-team"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to remove team member");
+    },
+  });
 
   const updateParent = (key: keyof ParentInfo, value: string) => {
     setParent((p) => ({ ...p, [key]: value }));
-  };
-
-  const revokePartner = (id: string) => {
-    setPartners((ps) =>
-      ps.map((p) => (p.id === id ? { ...p, status: "revoked" as const } : p))
-    );
-  };
-
-  const removePartner = (id: string) => {
-    setPartners((ps) => ps.filter((p) => p.id !== id));
   };
 
   const activePartners = partners.filter((p) => p.status === "active");
@@ -337,46 +378,71 @@ export default function SettingsPage() {
         </div>
         <div className="px-5 py-4 space-y-4">
           {/* Invite */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Provider's email address..."
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail((e.target as HTMLInputElement).value)}
-              className="h-9 text-[13px]"
-            />
-            <Button
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={() => {
-                if (inviteEmail) {
-                  setPartners((ps) => [
-                    ...ps,
-                    {
-                      id: Date.now().toString(),
-                      name: inviteEmail.split("@")[0],
-                      role: "Provider",
-                      organization: "—",
-                      email: inviteEmail,
-                      status: "pending",
-                      lastAccess: "—",
-                      permissions: ["View profile"],
-                    },
-                  ]);
-                  setInviteEmail("");
-                }
-              }}
-            >
-              <UserPlus className="size-3.5 mr-1" />
-              Invite
-            </Button>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Provider's email address..."
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail((e.target as HTMLInputElement).value)}
+                className="h-9 text-[13px] flex-1"
+              />
+              <Input
+                placeholder="Name..."
+                value={inviteName}
+                onChange={(e) => setInviteName((e.target as HTMLInputElement).value)}
+                className="h-9 text-[13px] flex-1"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Role (e.g. Therapist)..."
+                value={inviteRole}
+                onChange={(e) => setInviteRole((e.target as HTMLInputElement).value)}
+                className="h-9 text-[13px] flex-1"
+              />
+              <Input
+                placeholder="Organization (optional)..."
+                value={inviteOrg}
+                onChange={(e) => setInviteOrg((e.target as HTMLInputElement).value)}
+                className="h-9 text-[13px] flex-1"
+              />
+              <Button
+                size="sm"
+                className="h-9 shrink-0"
+                disabled={!inviteEmail || !inviteName || !inviteRole || inviteMutation.isPending}
+                onClick={() => {
+                  inviteMutation.mutate({
+                    email: inviteEmail,
+                    name: inviteName,
+                    role: inviteRole,
+                    organization: inviteOrg || undefined,
+                  });
+                }}
+              >
+                {inviteMutation.isPending ? (
+                  <Loader2 className="size-3.5 mr-1 animate-spin" />
+                ) : (
+                  <UserPlus className="size-3.5 mr-1" />
+                )}
+                Invite
+              </Button>
+            </div>
           </div>
+
+          {/* Loading state */}
+          {loadingPartners && (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              <span className="text-[13px]">Loading care team...</span>
+            </div>
+          )}
 
           {/* Active */}
           {activePartners.length > 0 && (
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active</p>
               {activePartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
             </div>
           )}
@@ -386,7 +452,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invitation</p>
               {pendingPartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
             </div>
           )}
@@ -396,8 +462,16 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Revoked</p>
               {revokedPartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => revokePartner(p.id)} onRemove={() => removePartner(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingPartners && partners.length === 0 && (
+            <div className="text-center py-8">
+              <Users className="size-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-[13px] text-muted-foreground">No care team members yet. Invite providers above.</p>
             </div>
           )}
         </div>

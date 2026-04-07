@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   User,
@@ -654,9 +655,9 @@ export default function OnboardingPage() {
           )}
           <p className="text-xs text-warm-400 text-center mt-2">
             Already have an account?{" "}
-            <a href="/login" className="text-primary hover:underline font-medium">
+            <Link href="/login" className="text-primary hover:underline font-medium">
               Sign in here
-            </a>
+            </Link>
           </p>
         </div>
       </>
