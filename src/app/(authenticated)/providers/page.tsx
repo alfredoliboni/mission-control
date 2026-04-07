@@ -6,6 +6,7 @@ import { useParsedProviders, useParsedProfile } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProviderMap } from "@/components/sections/ProviderMap";
 import {
   Search,
   Phone,
@@ -397,6 +398,17 @@ function SearchTabContent() {
 
   return (
     <div className="space-y-4">
+      {/* Provider Map */}
+      <ProviderMap
+        providers={results.map((p) => ({
+          name: p.name,
+          type: p.type || undefined,
+          city: p.location_city || undefined,
+        }))}
+        childCity={city || undefined}
+        onSelectCity={(c) => setCity(c)}
+      />
+
       {/* Search input */}
       <div className="relative max-w-lg">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
