@@ -458,7 +458,7 @@ export default function DocumentsPage() {
                 Agent Documents
               </h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Parsed from your Navigator agent's workspace
+                Parsed from your Navigator agent&apos;s workspace
               </p>
             </div>
             <Table>
