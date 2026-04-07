@@ -174,6 +174,25 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ── For Providers ───────────────────────────────── */}
+        <section className="px-4 sm:px-6 py-16 sm:py-20">
+          <div className="max-w-3xl mx-auto text-center space-y-4">
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+              Are you a Service Provider?
+            </h2>
+            <p className="text-lg text-muted-foreground leading-relaxed">
+              Therapists, clinics, and community organizations can register
+              to be matched with families who need your services.
+            </p>
+            <Link
+              href="/portal/register"
+              className="inline-flex items-center justify-center rounded-lg border-2 border-primary px-8 py-3 text-base font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+            >
+              Register as a Provider
+            </Link>
+          </div>
+        </section>
+
         {/* ── Final CTA ────────────────────────────────────── */}
         <section className="px-4 sm:px-6 py-20 sm:py-28">
           <div className="max-w-3xl mx-auto text-center space-y-6">

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getFamilyAgent } from "@/lib/family-agents";
 
@@ -10,7 +10,7 @@ const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bas
  * GET /api/workspace-live
  * Lists .md files in the logged-in user's agent workspace on Orgo.ai VM.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const family = getFamilyAgent(user?.email ?? undefined);

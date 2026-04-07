@@ -485,12 +485,14 @@ export default function MessagesPage() {
   const { data: workspaceMessages } = useWorkspaceFile("messages.md");
 
   // Build combined thread list
-  const apiThreads = threadsData?.threads ?? [];
   const navigatorThread = buildNavigatorThread(workspaceMessages ?? "");
-  const allThreads = useMemo<ThreadSummary[]>(() => [
-    ...apiThreads,
-    ...(navigatorThread ? [navigatorThread] : []),
-  ], [apiThreads, navigatorThread]);
+  const allThreads = useMemo<ThreadSummary[]>(() => {
+    const threads = threadsData?.threads ?? [];
+    return [
+      ...threads,
+      ...(navigatorThread ? [navigatorThread] : []),
+    ];
+  }, [threadsData, navigatorThread]);
 
   // Auto-select first thread if none selected
   const effectiveThreadId = selectedThreadId || (!showNewThread && allThreads.length > 0 ? allThreads[0].id : null);

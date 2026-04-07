@@ -128,20 +128,31 @@ Format drift breaks parsers — always test after changing parser logic.
 ### Working
 - Frontend v2 (all pages rewritten from scratch, Cream Balance design)
 - 239 vitest tests passing (all parsers + sections)
+- Lint: 0 errors, 0 warnings
 - Supabase Auth (sign in, sign up, session validation, sign out)
+- 5 family accounts with dedicated OpenClaw agents on Orgo.ai VM
+- Chat bubble connected to OpenClaw Gateway (Claude Sonnet 4.6)
+- Each family routes to their own Navigator agent
 - Demo mode (cookie-based, static .md files)
-- Build compiles clean (Next.js 16)
-- Chat components exist (ChatBubble, ChatPanel, ChatMessage)
-- API proxy to Orgo.ai Gateway exists (`/api/companion/[...path]`)
+- Document upload (drag-drop → Supabase Storage, signed URLs)
+- Care team invite (create account + stakeholder_links)
+- Real messaging (threads, send, Navigator thread from workspace)
+- Provider Portal (/portal/register — public registration)
+- Onboarding creates account automatically (step 0 if not logged in)
+- Settings page wired to real APIs (invite/remove care team)
+- Error boundaries + offline handling (retry, fallback UI)
+- Mobile optimized (44px touch targets, dvh viewport)
+- 43 memory files across 5 agent workspaces (backed up in openclaw-backup/)
+- 31 routes, 16 API endpoints
+- Deploy on Vercel with all env vars configured
 
 ### Pending
-- Connect chat bubble to Gateway API (family ↔ agent conversation)
-- Provider Portal (B2B registration CRUD)
-- Document upload integration (Supabase Storage ↔ agent processing)
-- Care Team invites (doctors/schools upload + messaging)
 - Agent ↔ Supabase loop (agent reads provider DB, processes uploads)
 - Real-time notifications (email/SMS via Resend/Twilio)
-- Adolescent sections (employment, university)
+- Employer Portal (for adolescent job matching)
+- University Portal (accommodation listings)
+- Multi-child support (one family, multiple children)
+- PWA (installable on mobile)
 
 ## Rules
 

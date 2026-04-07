@@ -95,17 +95,6 @@ export function useWorkspaceSections() {
 
 // --- Typed data hooks (always parse client-side from raw .md) ---
 
-import type {
-  ParsedAlert,
-  ParsedPathway,
-  ParsedProfile,
-  ParsedProviders,
-  ParsedBenefits,
-  ParsedPrograms,
-  ParsedDocuments,
-  ParsedOntarioSystem,
-} from "@/types/workspace";
-
 export function useParsedAlerts() {
   const { data: raw, ...rest } = useWorkspaceFile("alerts.md");
   return { ...rest, data: raw ? parseAlerts(raw) : undefined };

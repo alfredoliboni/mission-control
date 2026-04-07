@@ -36,7 +36,6 @@ const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bas
 async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
   // Send message to OpenClaw Gateway via Orgo.ai bash API
   // Uses OpenAI-compatible /v1/chat/completions endpoint
-  const escapedMessage = message.replace(/"/g, '\\"').replace(/'/g, "'\\''");
   const payload = JSON.stringify({
     model: `openclaw/${agentId}`,
     messages: [{ role: "user", content: message }],
