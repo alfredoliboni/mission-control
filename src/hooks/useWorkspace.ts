@@ -20,34 +20,25 @@ function isDemo(): boolean {
   return document.cookie.includes("companion-demo=true");
 }
 
-// --- Demo mode: fetch raw .md from /api/workspace and parse client-side ---
+// --- Unified fetch: demo uses /api/workspace, live uses /api/workspace-live ---
+// Both return raw .md content; parsing is always client-side.
+
+function getBaseUrl(): string {
+  return isDemo() ? "/api/workspace" : "/api/workspace-live";
+}
 
 async function fetchFileList(): Promise<string[]> {
-  const res = await fetch("/api/workspace");
+  const base = getBaseUrl();
+  const res = await fetch(base);
   if (!res.ok) throw new Error("Failed to fetch workspace file list");
   return res.json();
 }
 
 async function fetchFile(filename: string): Promise<string> {
-  const res = await fetch(`/api/workspace/${filename}`);
+  const base = getBaseUrl();
+  const res = await fetch(`${base}/${filename}`);
   if (!res.ok) throw new Error(`Failed to fetch ${filename}`);
   return res.text();
-}
-
-// --- Production mode: fetch parsed JSON from companion API proxy ---
-
-async function fetchParsed<T>(filename: string): Promise<T> {
-  const res = await fetch(`/api/companion/api/parsed/${filename}`);
-  if (!res.ok) throw new Error(`Companion API error for ${filename}: ${res.status}`);
-  const data = await res.json();
-  return data.parsed as T;
-}
-
-async function fetchCompanionFileList(): Promise<string[]> {
-  const res = await fetch("/api/companion/api/files");
-  if (!res.ok) throw new Error("Companion API error for file list");
-  const data = await res.json();
-  return data.files.map((f: { filename: string }) => f.filename);
 }
 
 // --- Hooks ---
@@ -56,17 +47,20 @@ export function useWorkspaceFiles() {
   const demo = isDemo();
   return useQuery({
     queryKey: ["workspace", "files", demo ? "demo" : "live"],
-    queryFn: demo ? fetchFileList : fetchCompanionFileList,
-    staleTime: demo ? Infinity : 30_000, // Live: refetch every 30s
+    queryFn: fetchFileList,
+    staleTime: demo ? Infinity : 30_000,
     refetchInterval: demo ? false : 30_000,
   });
 }
 
 export function useWorkspaceFile(filename: string) {
+  const demo = isDemo();
   return useQuery({
-    queryKey: ["workspace", "file", filename],
+    queryKey: ["workspace", "file", filename, demo ? "demo" : "live"],
     queryFn: () => fetchFile(filename),
     enabled: !!filename,
+    staleTime: demo ? Infinity : 30_000,
+    refetchInterval: demo ? false : 30_000,
   });
 }
 
@@ -78,7 +72,7 @@ export function useWorkspaceSections() {
   };
 }
 
-// --- Typed data hooks (demo = parse client-side, live = pre-parsed from API) ---
+// --- Typed data hooks (always parse client-side from raw .md) ---
 
 import type {
   ParsedAlert,
@@ -92,169 +86,41 @@ import type {
 } from "@/types/workspace";
 
 export function useParsedAlerts() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("alerts.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "alerts", "live"],
-    queryFn: () => fetchParsed<ParsedAlert[]>("alerts.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseAlerts(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("alerts.md");
+  return { ...rest, data: raw ? parseAlerts(raw) : undefined };
 }
 
 export function useParsedPathway() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("pathway.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "pathway", "live"],
-    queryFn: () => fetchParsed<ParsedPathway>("pathway.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parsePathway(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("pathway.md");
+  return { ...rest, data: raw ? parsePathway(raw) : undefined };
 }
 
 export function useParsedProfile() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("child-profile.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "profile", "live"],
-    queryFn: () => fetchParsed<ParsedProfile>("child-profile.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseProfile(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("child-profile.md");
+  return { ...rest, data: raw ? parseProfile(raw) : undefined };
 }
 
 export function useParsedProviders() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("providers.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "providers", "live"],
-    queryFn: () => fetchParsed<ParsedProviders>("providers.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseProviders(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("providers.md");
+  return { ...rest, data: raw ? parseProviders(raw) : undefined };
 }
 
 export function useParsedBenefits() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("benefits.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "benefits", "live"],
-    queryFn: () => fetchParsed<ParsedBenefits>("benefits.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseBenefits(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("benefits.md");
+  return { ...rest, data: raw ? parseBenefits(raw) : undefined };
 }
 
 export function useParsedPrograms() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("programs.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "programs", "live"],
-    queryFn: () => fetchParsed<ParsedPrograms>("programs.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parsePrograms(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("programs.md");
+  return { ...rest, data: raw ? parsePrograms(raw) : undefined };
 }
 
 export function useParsedDocuments() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("documents.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "documents", "live"],
-    queryFn: () => fetchParsed<ParsedDocuments>("documents.md"),
-    enabled: !demo,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseDocuments(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("documents.md");
+  return { ...rest, data: raw ? parseDocuments(raw) : undefined };
 }
 
 export function useParsedOntarioSystem() {
-  const demo = isDemo();
-  const { data: raw, ...demoRest } = useWorkspaceFile("ontario-system.md");
-  
-  const liveQuery = useQuery({
-    queryKey: ["parsed", "ontario-system", "live"],
-    queryFn: () => fetchParsed<ParsedOntarioSystem>("ontario-system.md"),
-    enabled: !demo,
-    staleTime: 60_000, // Less frequent — reference data
-    refetchInterval: 60_000,
-  });
-
-  if (demo) {
-    return {
-      ...demoRest,
-      data: raw ? parseOntarioSystem(raw) : undefined,
-    };
-  }
-  return liveQuery;
+  const { data: raw, ...rest } = useWorkspaceFile("ontario-system.md");
+  return { ...rest, data: raw ? parseOntarioSystem(raw) : undefined };
 }
