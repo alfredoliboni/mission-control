@@ -475,10 +475,21 @@ export default function OnboardingPage() {
   // Completion
   // ---------------------------------------------------------------------------
 
-  const handleComplete = useCallback(() => {
+  const handleComplete = useCallback(async () => {
     const profile = generateProfileMarkdown(formData);
     localStorage.setItem("onboarding-profile", profile);
-    document.cookie = "companion-demo=true; path=/; max-age=86400; samesite=lax";
+
+    // Send profile to agent workspace
+    try {
+      await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileMarkdown: profile }),
+      });
+    } catch {
+      // Continue even if agent write fails — profile is in localStorage
+    }
+
     router.push("/dashboard");
   }, [formData, router]);
 
