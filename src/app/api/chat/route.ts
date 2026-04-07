@@ -97,14 +97,21 @@ export async function POST(request: NextRequest) {
 
   // Production: proxy to OpenClaw Gateway via Orgo.ai
   if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
-    // Fallback to demo responses if not configured
     return NextResponse.json({
       response: getDemoResponse(message),
     });
   }
 
+  // Get the logged-in user's email to route to their agent
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { getFamilyAgent } = await import("@/lib/family-agents");
+  const family = getFamilyAgent(user?.email ?? undefined);
+
   try {
-    const agentResponse = await sendToGateway(message);
+    const agentResponse = await sendToGateway(message, family.agentId);
     return NextResponse.json({ response: agentResponse });
   } catch (err) {
     console.error("Gateway chat error:", err);
