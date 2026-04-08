@@ -1,0 +1,19 @@
+{
+  "functions": {
+    "src/app/api/chat/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/onboarding/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agent/notify/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/workspace-live/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/workspace-live/[filename]/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
