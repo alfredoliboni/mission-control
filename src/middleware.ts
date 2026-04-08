@@ -3,6 +3,8 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/demo", "/onboarding", "/portal"];
+// Note: /team (Care Team Portal) requires auth but is NOT public.
+// It is handled by the (team) route group layout which verifies stakeholder status.
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

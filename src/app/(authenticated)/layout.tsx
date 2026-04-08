@@ -19,6 +19,17 @@ export default async function AuthenticatedLayout({
     if (!user) {
       redirect("/login");
     }
+
+    // Check if this user is a stakeholder — redirect to Care Team Portal
+    const { data: stakeholderLinks } = await supabase
+      .from("stakeholder_links")
+      .select("id")
+      .eq("stakeholder_id", user.id)
+      .limit(1);
+
+    if (stakeholderLinks && stakeholderLinks.length > 0) {
+      redirect("/team");
+    }
   }
 
   return (

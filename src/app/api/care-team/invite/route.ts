@@ -55,6 +55,11 @@ export async function POST(request: NextRequest) {
     stakeholderId = newUser.user.id;
   }
 
+  // Set user_metadata so the account is identifiable as a stakeholder
+  await supabaseAdmin.auth.admin.updateUserById(stakeholderId, {
+    user_metadata: { role: "stakeholder", stakeholder_role: role },
+  });
+
   // Insert stakeholder link
   const { data: link, error: linkError } = await supabaseAdmin
     .from("stakeholder_links")
