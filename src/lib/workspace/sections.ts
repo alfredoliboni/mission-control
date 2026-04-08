@@ -106,6 +106,13 @@ const knownSections: Record<string, SectionConfig> = {
     route: "/school-support",
     group: "dynamic",
   },
+  "community": {
+    icon: "👥",
+    label: "Community",
+    order: 20,
+    route: "/community",
+    group: "connect",
+  },
 };
 
 function titleCase(str: string): string {

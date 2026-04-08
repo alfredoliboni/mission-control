@@ -83,6 +83,7 @@ export function Sidebar() {
       >
         <div>
           {navLink("/dashboard", "📊", "Dashboard")}
+          {navLink("/community", "👥", "Community")}
         </div>
 
         {isLoading ? (
