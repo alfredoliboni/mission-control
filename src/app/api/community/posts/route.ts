@@ -17,7 +17,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 89,
-      pinned: true,
+      is_pinned: true,
       created_at: new Date(now - 90 * day).toISOString(),
       comments: [
         {
@@ -58,7 +58,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 47,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 45 * day).toISOString(),
       comments: [
         {
@@ -85,7 +85,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 35,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 30 * day).toISOString(),
       comments: [
         {
@@ -119,7 +119,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 52,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 20 * day).toISOString(),
       comments: [
         {
@@ -153,7 +153,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 128,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 14 * day).toISOString(),
       comments: [
         {
@@ -187,7 +187,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 29,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 10 * day).toISOString(),
       comments: [
         {
@@ -214,7 +214,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 41,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 7 * day).toISOString(),
       comments: [
         {
@@ -241,7 +241,7 @@ function createSeedPosts() {
       author_name: "Anonymous Parent",
       is_anonymous: true,
       upvotes: 33,
-      pinned: false,
+      is_pinned: false,
       created_at: new Date(now - 3 * day).toISOString(),
       comments: [
         {
@@ -285,7 +285,7 @@ async function seedIfEmpty(admin: ReturnType<typeof createAdminClient>) {
         author_name: postData.author_name,
         is_anonymous: postData.is_anonymous,
         upvotes: postData.upvotes,
-        pinned: postData.pinned,
+        is_pinned: postData.is_pinned,
         created_at: postData.created_at,
       })
       .select("id")
@@ -359,9 +359,9 @@ export async function GET(request: NextRequest) {
 
   // Sort: pinned first, then by mode
   if (sort === "popular") {
-    query = query.order("pinned", { ascending: false }).order("upvotes", { ascending: false });
+    query = query.order("is_pinned", { ascending: false }).order("upvotes", { ascending: false });
   } else {
-    query = query.order("pinned", { ascending: false }).order("created_at", { ascending: false });
+    query = query.order("is_pinned", { ascending: false }).order("created_at", { ascending: false });
   }
 
   const { data: posts, error } = await query;
@@ -415,7 +415,7 @@ export async function GET(request: NextRequest) {
     createdAt: p.created_at,
     upvotes: p.upvotes,
     upvotedByUser: userUpvotes.has(p.id),
-    pinned: p.pinned,
+    pinned: p.is_pinned,
     commentCount: commentCounts[p.id] || 0,
   }));
 
@@ -461,7 +461,7 @@ export async function POST(request: NextRequest) {
       author_name: authorName,
       is_anonymous: isAnonymous ?? true,
       upvotes: 0,
-      pinned: false,
+      is_pinned: false,
     })
     .select("*")
     .single();
@@ -483,7 +483,7 @@ export async function POST(request: NextRequest) {
       createdAt: post.created_at,
       upvotes: post.upvotes,
       upvotedByUser: false,
-      pinned: post.pinned,
+      pinned: post.is_pinned,
       commentCount: 0,
     },
   });

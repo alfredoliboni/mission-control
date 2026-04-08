@@ -63,7 +63,7 @@ export async function GET(
       createdAt: post.created_at,
       upvotes: post.upvotes,
       upvotedByUser,
-      pinned: post.pinned,
+      pinned: post.is_pinned,
     },
     comments: (comments || []).map((c) => ({
       id: c.id,
