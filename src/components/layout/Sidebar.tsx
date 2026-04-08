@@ -81,9 +81,11 @@ export function Sidebar() {
         className="flex-1 overflow-y-auto px-3 py-1 space-y-5"
         aria-label="Main navigation"
       >
-        <div>
+        <div className="space-y-[2px]">
           {navLink("/dashboard", "📊", "Dashboard")}
           {navLink("/community", "👥", "Community")}
+          {navLink("/messages", "💬", "Messages")}
+          {navLink("/documents", "📄", "Documents")}
         </div>
 
         {isLoading ? (
