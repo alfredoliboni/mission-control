@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPopover";
 import { useAppStore } from "@/store/appStore";
+import { useChat } from "@/hooks/useChat";
 import { useParsedProfile } from "@/hooks/useWorkspace";
 import { toast } from "sonner";
 
@@ -456,23 +457,16 @@ function DocumentDetail({
   onBack: () => void;
 }) {
   const setChatOpen = useAppStore((s) => s.setChatOpen);
+  const { sendMessage } = useChat();
 
   const handleAskNavigator = () => {
     setChatOpen(true);
-    toast(`Ask your Navigator about "${doc.title}"`, {
-      description:
-        "The chat is now open -- type your question about this document.",
-      duration: 4000,
-    });
+    sendMessage(`I have a document called "${doc.title}" (type: ${doc.doc_type}, uploaded on ${new Date(doc.uploaded_at).toLocaleDateString()}). What can you tell me about this document? What are the key takeaways for our family?`);
   };
 
   const handleGetSummary = () => {
     setChatOpen(true);
-    toast(`Ask your Navigator to summarize "${doc.title}"`, {
-      description:
-        'Try: "Please summarize the document and tell me the key findings"',
-      duration: 5000,
-    });
+    sendMessage(`Please summarize the document "${doc.title}" (type: ${doc.doc_type}). Give me the key findings, recommendations, and any action items we should follow up on.`);
   };
 
   const tags = doc.metadata?.tags;
