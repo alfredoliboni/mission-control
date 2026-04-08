@@ -19,10 +19,13 @@ import {
   ChevronUp,
   Filter,
   CheckCircle2,
+  DollarSign,
+  CreditCard,
+  Info,
 } from "lucide-react";
-import type { ParsedProvider } from "@/types/workspace";
+import type { ParsedProvider, ParsedProviders } from "@/types/workspace";
 
-// ── Types ───────────────────────────────────────────────────────────────
+// -- Types -------------------------------------------------------------------
 
 interface SupabaseProvider {
   id: string;
@@ -44,9 +47,41 @@ interface SupabaseProvider {
   accepts_funding: string[] | null;
 }
 
+interface EnrichedProvider {
+  name: string;
+  relevance?: string;
+  priority?: string;
+  isGapFiller?: boolean;
+  notes?: string;
+  supabase_id?: string;
+  type?: string;
+  description?: string | null;
+  specialties?: string[] | null;
+  services_array?: string[] | null;
+  services_text?: string;
+  location_address?: string | null;
+  location_city?: string | null;
+  location_postal?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  waitlist_estimate?: string | null;
+  is_verified?: boolean;
+  rating?: number | null;
+  price_range?: string | null;
+  accepts_funding?: string[] | null;
+  funding_text?: string;
+  enriched: boolean;
+  // Original agent fields (when not enriched)
+  contact?: string;
+  waitlist?: string;
+  funding?: string;
+  services?: string;
+}
+
 type Tab = "matches" | "search";
 
-// ── Helpers ─────────────────────────────────────────────────────────────
+// -- Helpers -----------------------------------------------------------------
 
 function extractContactLinks(contact: string) {
   const phone = contact.match(/[\d()+-][\d\s()+-]{6,}/)?.[0]?.trim();
@@ -55,14 +90,13 @@ function extractContactLinks(contact: string) {
   return { phone, email, website };
 }
 
-function getBorderColor(provider: ParsedProvider): string {
-  if (provider.priority === "highest") return "border-l-primary";
-  if (provider.isGapFiller) return "border-l-status-gap-filler";
+function getBorderColor(priority?: string, isGapFiller?: boolean): string {
+  if (priority === "highest") return "border-l-primary";
+  if (isGapFiller) return "border-l-status-gap-filler";
   return "border-l-status-current";
 }
 
 function formatServicesAsDots(services: string): string {
-  // Split on common delimiters and join with bullet
   const parts = services
     .split(/[,;/]/)
     .map((s) => s.trim())
@@ -71,12 +105,130 @@ function formatServicesAsDots(services: string): string {
   return parts.join(" \u2022 ");
 }
 
-// ── Matched Provider Card (from workspace) ──────────────────────────────
+function buildFullAddress(
+  address?: string | null,
+  city?: string | null,
+  postal?: string | null
+): string | null {
+  const parts = [address, city, postal].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
 
-function MatchedProviderCard({ provider }: { provider: ParsedProvider }) {
-  const contacts = extractContactLinks(provider.contact || "");
-  const borderColor = getBorderColor(provider);
+// -- Enrichment hook ---------------------------------------------------------
 
+function useEnrichedProviders(providers: ParsedProviders | undefined) {
+  const allWorkspace = useMemo(() => {
+    if (!providers) return [];
+    return [
+      ...providers.highestPriority,
+      ...providers.relevant,
+      ...providers.other,
+    ];
+  }, [providers]);
+
+  const { data: enriched, isLoading: enrichLoading } = useQuery<{
+    providers: EnrichedProvider[];
+  }>({
+    queryKey: [
+      "providers-enrich",
+      allWorkspace.map((p) => p.name).join("|"),
+    ],
+    queryFn: async () => {
+      const res = await fetch("/api/providers/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providers: allWorkspace.map((p) => ({
+            name: p.name,
+            type: p.type,
+            services: p.services,
+            relevance: p.relevance,
+            waitlist: p.waitlist,
+            contact: p.contact,
+            funding: p.funding,
+            notes: p.notes,
+            priority: p.priority,
+            isGapFiller: p.isGapFiller,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("Enrich failed");
+      return res.json();
+    },
+    enabled: allWorkspace.length > 0,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  // Build a map from name -> enriched data
+  const enrichMap = useMemo(() => {
+    const map = new Map<string, EnrichedProvider>();
+    if (enriched?.providers) {
+      for (const ep of enriched.providers) {
+        map.set(ep.name, ep);
+      }
+    }
+    return map;
+  }, [enriched]);
+
+  return { enrichMap, enrichLoading };
+}
+
+// -- Enriched Provider Card --------------------------------------------------
+
+function EnrichedProviderCard({
+  provider,
+  enriched,
+}: {
+  provider: ParsedProvider;
+  enriched?: EnrichedProvider;
+}) {
+  const isEnriched = enriched?.enriched === true;
+  const borderColor = getBorderColor(provider.priority, provider.isGapFiller);
+
+  // Resolve fields: prefer enriched Supabase data when available
+  const name = enriched?.name || provider.name;
+  const isVerified = isEnriched && enriched?.is_verified;
+  const priceRange = enriched?.price_range;
+
+  // Services: prefer array from Supabase, fall back to agent text
+  const servicesDisplay = isEnriched && enriched?.services_array?.length
+    ? enriched.services_array.join(" \u2022 ")
+    : isEnriched && enriched?.specialties?.length
+      ? enriched.specialties.join(" \u2022 ")
+      : provider.services
+        ? formatServicesAsDots(provider.services)
+        : null;
+
+  // Address
+  const fullAddress = isEnriched
+    ? buildFullAddress(
+        enriched?.location_address,
+        enriched?.location_city,
+        enriched?.location_postal
+      )
+    : null;
+
+  // Contact info: prefer Supabase
+  const phone = isEnriched ? enriched?.phone : extractContactLinks(provider.contact || "").phone;
+  const email = isEnriched ? enriched?.email : extractContactLinks(provider.contact || "").email;
+  const website = isEnriched
+    ? enriched?.website
+    : extractContactLinks(provider.contact || "").website;
+
+  // Waitlist
+  const waitlist = enriched?.waitlist_estimate || provider.waitlist;
+  const hasWaitlist = waitlist && waitlist !== "\u2014";
+
+  // Rating
+  const rating = enriched?.rating;
+
+  // Funding
+  const acceptsFunding = isEnriched && enriched?.accepts_funding?.length
+    ? enriched.accepts_funding
+    : null;
+
+  // Why text
   const whyText =
     provider.relevance && provider.relevance !== "\u2014"
       ? provider.relevance
@@ -88,80 +240,123 @@ function MatchedProviderCard({ provider }: { provider: ParsedProvider }) {
     <div
       className={`bg-card border border-border ${borderColor} border-l-[3px] rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md group relative`}
     >
-      {/* Top row: name + price placeholder */}
+      {/* Top row: name + verified badge + price */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-[14px] font-semibold text-foreground leading-snug">
-          {provider.name}
-        </h3>
-        {provider.funding && provider.funding !== "\u2014" && (
-          <span className="text-[11px] text-muted-foreground font-medium shrink-0">
-            {provider.funding}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h3 className="text-[14px] font-semibold text-foreground leading-snug truncate">
+            {name}
+          </h3>
+          {isVerified && (
+            <CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" />
+          )}
+        </div>
+        {priceRange && (
+          <span className="text-[11px] text-muted-foreground font-medium shrink-0 flex items-center gap-0.5">
+            <DollarSign className="h-3 w-3" />
+            {priceRange}
           </span>
         )}
       </div>
 
       {/* Services as dot-separated tags */}
-      {provider.services && (
+      {servicesDisplay && (
         <p className="text-[12px] text-foreground/80 font-medium leading-relaxed mb-2">
-          {formatServicesAsDots(provider.services)}
+          {servicesDisplay}
         </p>
       )}
 
-      {/* Meta row: distance, wait, rating */}
+      {/* Address */}
+      {fullAddress && (
+        <p className="flex items-start gap-1 text-[11px] text-muted-foreground mb-1">
+          <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+          <span>{fullAddress}</span>
+        </p>
+      )}
+
+      {/* Phone + Email inline */}
+      {(phone || email) && (
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-1">
+          {phone && (
+            <a
+              href={`tel:${phone.replace(/\s/g, "")}`}
+              className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>{phone}</span>
+            </a>
+          )}
+          {email && (
+            <a
+              href={`mailto:${email}`}
+              className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate max-w-[160px]">{email}</span>
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Website */}
+      {website && (
+        <a
+          href={website.startsWith("http") ? website : `https://${website}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors mb-2"
+        >
+          <Globe className="h-3 w-3 shrink-0" />
+          <span className="truncate max-w-[200px]">
+            {website.replace(/^https?:\/\//, "")}
+          </span>
+        </a>
+      )}
+
+      {/* Meta row: waitlist, rating */}
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-3">
-        {provider.type && (
+        {!fullAddress && provider.type && (
           <span className="flex items-center gap-1">
             <MapPin className="h-3 w-3 shrink-0" /> {provider.type}
           </span>
         )}
-        {provider.waitlist && provider.waitlist !== "\u2014" && (
+        {hasWaitlist && (
           <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3 shrink-0" /> {provider.waitlist}
+            <Clock className="h-3 w-3 shrink-0" /> {waitlist}
           </span>
         )}
-        <span className="flex items-center gap-1">
-          <Star className="h-3 w-3 shrink-0 text-status-caution" /> 4.5
-        </span>
+        {rating && (
+          <span className="flex items-center gap-1">
+            <Star className="h-3 w-3 shrink-0 text-status-caution" /> {rating}
+          </span>
+        )}
       </div>
+
+      {/* Accepted funding tags */}
+      {acceptsFunding && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          <CreditCard className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+          {acceptsFunding.map((f) => (
+            <span
+              key={f}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium uppercase"
+            >
+              {f}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Why line */}
       <p className="text-[11px] text-primary leading-relaxed">
         <span className="font-semibold">Why:</span> {whyText}
       </p>
 
-      {/* Contact links */}
-      {(contacts.phone || contacts.email || contacts.website) && (
-        <div className="flex flex-wrap items-center gap-3 mt-3 pt-2 border-t border-border">
-          {contacts.phone && (
-            <a
-              href={`tel:${contacts.phone}`}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Call ${provider.name}`}
-            >
-              <Phone className="h-3 w-3" />
-            </a>
-          )}
-          {contacts.email && (
-            <a
-              href={`mailto:${contacts.email}`}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Email ${provider.name}`}
-            >
-              <Mail className="h-3 w-3" />
-            </a>
-          )}
-          {contacts.website && (
-            <a
-              href={contacts.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Visit ${provider.name} website`}
-            >
-              <Globe className="h-3 w-3" />
-            </a>
-          )}
-        </div>
+      {/* Not-enriched notice */}
+      {!isEnriched && (
+        <p className="flex items-center gap-1 text-[10px] text-muted-foreground/70 italic mt-2">
+          <Info className="h-3 w-3 shrink-0" />
+          Data from Navigator search — contact info may not be current
+        </p>
       )}
 
       {provider.notes && (
@@ -173,7 +368,7 @@ function MatchedProviderCard({ provider }: { provider: ParsedProvider }) {
   );
 }
 
-// ── Supabase Provider Card (from search) ────────────────────────────────
+// -- Supabase Provider Card (from search) ------------------------------------
 
 function SearchProviderCard({ provider }: { provider: SupabaseProvider }) {
   const services = provider.services?.length
@@ -181,6 +376,12 @@ function SearchProviderCard({ provider }: { provider: SupabaseProvider }) {
     : provider.specialties?.length
       ? provider.specialties.join(" \u2022 ")
       : null;
+
+  const fullAddress = buildFullAddress(
+    provider.location_address,
+    provider.location_city,
+    provider.location_postal
+  );
 
   return (
     <div className="bg-card border border-border border-l-[3px] border-l-status-current rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md group relative">
@@ -208,9 +409,60 @@ function SearchProviderCard({ provider }: { provider: SupabaseProvider }) {
         </p>
       )}
 
+      {/* Address */}
+      {fullAddress && (
+        <p className="flex items-start gap-1 text-[11px] text-muted-foreground mb-1">
+          <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+          <span>{fullAddress}</span>
+        </p>
+      )}
+
+      {/* Phone + Email inline */}
+      {(provider.phone || provider.email) && (
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-1">
+          {provider.phone && (
+            <a
+              href={`tel:${provider.phone.replace(/\s/g, "")}`}
+              className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>{provider.phone}</span>
+            </a>
+          )}
+          {provider.email && (
+            <a
+              href={`mailto:${provider.email}`}
+              className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate max-w-[160px]">{provider.email}</span>
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Website */}
+      {provider.website && (
+        <a
+          href={
+            provider.website.startsWith("http")
+              ? provider.website
+              : `https://${provider.website}`
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors mb-2"
+        >
+          <Globe className="h-3 w-3 shrink-0" />
+          <span className="truncate max-w-[200px]">
+            {provider.website.replace(/^https?:\/\//, "")}
+          </span>
+        </a>
+      )}
+
       {/* Meta row */}
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-2">
-        {provider.location_city && (
+        {!fullAddress && provider.location_city && (
           <span className="flex items-center gap-1">
             <MapPin className="h-3 w-3 shrink-0" /> {provider.location_city}
           </span>
@@ -253,46 +505,11 @@ function SearchProviderCard({ provider }: { provider: SupabaseProvider }) {
           ))}
         </div>
       )}
-
-      {/* Contact icons */}
-      {(provider.phone || provider.email || provider.website) && (
-        <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-border">
-          {provider.phone && (
-            <a
-              href={`tel:${provider.phone}`}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Call ${provider.name}`}
-            >
-              <Phone className="h-3 w-3" />
-            </a>
-          )}
-          {provider.email && (
-            <a
-              href={`mailto:${provider.email}`}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Email ${provider.name}`}
-            >
-              <Mail className="h-3 w-3" />
-            </a>
-          )}
-          {provider.website && (
-            <a
-              href={provider.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Visit ${provider.name} website`}
-            >
-              <Globe className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Search Filters Panel ────────────────────────────────────────────────
+// -- Search Filters Panel ----------------------------------------------------
 
 function SearchFilters({
   city,
@@ -351,7 +568,7 @@ function SearchFilters({
   );
 }
 
-// ── Search Tab Content ──────────────────────────────────────────────────
+// -- Search Tab Content ------------------------------------------------------
 
 function SearchTabContent() {
   const [searchInput, setSearchInput] = useState("");
@@ -475,7 +692,7 @@ function SearchTabContent() {
   );
 }
 
-// ── Priority Banner ─────────────────────────────────────────────────────
+// -- Priority Banner ---------------------------------------------------------
 
 function PriorityBanner({
   childName,
@@ -486,7 +703,6 @@ function PriorityBanner({
 }) {
   if (providers.highestPriority.length === 0) return null;
 
-  // Derive the top priority service from the first highest-priority provider
   const topProvider = providers.highestPriority[0];
   const topService = topProvider.services
     ? topProvider.services.split(/[,;/]/)[0].trim()
@@ -504,7 +720,7 @@ function PriorityBanner({
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────────────────
+// -- Main Page ---------------------------------------------------------------
 
 export default function ProvidersPage() {
   const { data: providers, isLoading } = useParsedProviders();
@@ -512,12 +728,12 @@ export default function ProvidersPage() {
   const [activeTab, setActiveTab] = useState<Tab>("matches");
   const [matchSearch, setMatchSearch] = useState("");
 
+  const { enrichMap, enrichLoading } = useEnrichedProviders(providers);
+
   const childName = profile?.basicInfo.name || "your child";
   const postalCode = profile?.basicInfo.postalCode || "";
 
-  const filterProviders = (
-    list: ParsedProvider[]
-  ): ParsedProvider[] =>
+  const filterProviders = (list: ParsedProvider[]): ParsedProvider[] =>
     list.filter(
       (p) =>
         p.name.toLowerCase().includes(matchSearch.toLowerCase()) ||
@@ -530,10 +746,31 @@ export default function ProvidersPage() {
       providers.other.length
     : 0;
 
+  function renderProviderGrid(list: ParsedProvider[]) {
+    const filtered = filterProviders(list);
+    if (filtered.length === 0) return null;
+    return (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((p, i) => (
+          <EnrichedProviderCard
+            key={i}
+            provider={p}
+            enriched={enrichMap.get(p.name) ?? enrichMap.get(
+              // Try matching by enriched name (Supabase name may differ slightly)
+              Array.from(enrichMap.keys()).find(
+                (k) => k.toLowerCase().includes(p.name.toLowerCase().split(",")[0].split(" ")[0])
+              ) || ""
+            )}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <WorkspaceSection
       title="Service Providers"
-      icon="🏥"
+      icon="\uD83C\uDFE5"
       lastUpdated={providers?.lastUpdated}
       isLoading={isLoading}
     >
@@ -595,46 +832,49 @@ export default function ProvidersPage() {
                 />
               </div>
 
-              {/* Highest Priority */}
-              {filterProviders(providers.highestPriority).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Highest Priority
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterProviders(providers.highestPriority).map((p, i) => (
-                      <MatchedProviderCard key={i} provider={p} />
-                    ))}
-                  </div>
-                </section>
+              {/* Loading enrichment */}
+              {enrichLoading && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: Math.min(totalCount, 6) }).map(
+                    (_, i) => (
+                      <Skeleton key={i} className="h-52 w-full rounded-xl" />
+                    )
+                  )}
+                </div>
               )}
 
-              {/* Relevant */}
-              {filterProviders(providers.relevant).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Relevant
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterProviders(providers.relevant).map((p, i) => (
-                      <MatchedProviderCard key={i} provider={p} />
-                    ))}
-                  </div>
-                </section>
-              )}
+              {!enrichLoading && (
+                <>
+                  {/* Highest Priority */}
+                  {filterProviders(providers.highestPriority).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Highest Priority
+                      </p>
+                      {renderProviderGrid(providers.highestPriority)}
+                    </section>
+                  )}
 
-              {/* Other / gap fillers */}
-              {filterProviders(providers.other).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Gap Fillers
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterProviders(providers.other).map((p, i) => (
-                      <MatchedProviderCard key={i} provider={p} />
-                    ))}
-                  </div>
-                </section>
+                  {/* Relevant */}
+                  {filterProviders(providers.relevant).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Relevant
+                      </p>
+                      {renderProviderGrid(providers.relevant)}
+                    </section>
+                  )}
+
+                  {/* Other / gap fillers */}
+                  {filterProviders(providers.other).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Gap Fillers
+                      </p>
+                      {renderProviderGrid(providers.other)}
+                    </section>
+                  )}
+                </>
               )}
 
               {/* Empty state */}

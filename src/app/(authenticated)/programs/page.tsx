@@ -15,10 +15,15 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  Info,
+  Calendar,
+  Users,
+  Tag,
+  ExternalLink,
 } from "lucide-react";
-import type { ParsedProgram, ProgramCategory } from "@/types/workspace";
+import type { ParsedProgram, ProgramCategory, ParsedPrograms } from "@/types/workspace";
 
-// ── Types ───────────────────────────────────────────────────────────────
+// -- Types -------------------------------------------------------------------
 
 interface SupabaseProgram {
   id: string;
@@ -39,9 +44,37 @@ interface SupabaseProgram {
   created_at: string | null;
 }
 
+interface EnrichedProgram {
+  name: string;
+  category?: string;
+  whyGapFiller?: string;
+  isGapFiller?: boolean;
+  status?: string;
+  type?: string;
+  schedule?: string;
+  supabase_id?: string;
+  description?: string | null;
+  provider_name?: string | null;
+  location?: string | null;
+  date_start?: string | null;
+  date_end?: string | null;
+  eligibility?: string | null;
+  age_min?: number | null;
+  age_max?: number | null;
+  ages?: string;
+  cost?: string | null;
+  registration_url?: string | null;
+  tags?: string[] | null;
+  url?: string;
+  phone?: string;
+  email?: string;
+  register?: string;
+  enriched: boolean;
+}
+
 type Tab = "matches" | "search";
 
-// ── Helpers ─────────────────────────────────────────────────────────────
+// -- Helpers -----------------------------------------------------------------
 
 function getBorderColor(program: ParsedProgram): string {
   if (program.category === "gap_filler") return "border-l-status-gap-filler";
@@ -65,7 +98,7 @@ function formatTypeDots(program: ParsedProgram): string {
   else if (program.category === "educational") parts.push("Educational");
   if (
     program.cost &&
-    program.cost !== "—" &&
+    program.cost !== "\u2014" &&
     !parts.some((p) => p.toLowerCase() === program.cost.toLowerCase())
   ) {
     parts.push(program.cost);
@@ -92,12 +125,125 @@ const categoryTagMap: Record<
   },
 };
 
-// ── Matched Program Card (from workspace) ───────────────────────────────
+// -- Enrichment hook ---------------------------------------------------------
 
-function MatchedProgramCard({ program }: { program: ParsedProgram }) {
+function useEnrichedPrograms(programs: ParsedPrograms | undefined) {
+  const allWorkspace = useMemo(() => {
+    if (!programs) return [];
+    return [
+      ...programs.gapFillers,
+      ...programs.government,
+      ...programs.educational,
+    ];
+  }, [programs]);
+
+  const { data: enriched, isLoading: enrichLoading } = useQuery<{
+    programs: EnrichedProgram[];
+  }>({
+    queryKey: [
+      "programs-enrich",
+      allWorkspace.map((p) => p.name).join("|"),
+    ],
+    queryFn: async () => {
+      const res = await fetch("/api/programs/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          programs: allWorkspace.map((p) => ({
+            name: p.name,
+            category: p.category,
+            type: p.type,
+            cost: p.cost,
+            ages: p.ages,
+            schedule: p.schedule,
+            location: p.location,
+            whyGapFiller: p.whyGapFiller,
+            register: p.register,
+            status: p.status,
+            url: p.url,
+            phone: p.phone,
+            email: p.email,
+            isGapFiller: p.isGapFiller,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("Enrich failed");
+      return res.json();
+    },
+    enabled: allWorkspace.length > 0,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const enrichMap = useMemo(() => {
+    const map = new Map<string, EnrichedProgram>();
+    if (enriched?.programs) {
+      for (const ep of enriched.programs) {
+        map.set(ep.name, ep);
+      }
+    }
+    return map;
+  }, [enriched]);
+
+  return { enrichMap, enrichLoading };
+}
+
+// -- Enriched Program Card ---------------------------------------------------
+
+function EnrichedProgramCard({
+  program,
+  enriched,
+}: {
+  program: ParsedProgram;
+  enriched?: EnrichedProgram;
+}) {
+  const isEnriched = enriched?.enriched === true;
   const borderColor = getBorderColor(program);
   const tag = categoryTagMap[program.category];
 
+  // Resolve fields
+  const name = enriched?.name || program.name;
+  const cost = enriched?.cost || program.cost;
+  const hasCost = cost && cost !== "\u2014";
+  const location = enriched?.location || program.location;
+  const hasLocation = location && location !== "\u2014";
+  const description = isEnriched ? enriched?.description : null;
+
+  // Ages: prefer enriched min/max, fall back to agent text
+  const ageDisplay = isEnriched && (enriched?.age_min != null || enriched?.age_max != null)
+    ? `${enriched.age_min ?? "?"}\u2013${enriched.age_max ?? "?"}`
+    : program.ages && program.ages !== "\u2014"
+      ? program.ages
+      : null;
+
+  // Dates
+  const dateRange =
+    isEnriched && (enriched?.date_start || enriched?.date_end)
+      ? [enriched.date_start, enriched.date_end].filter(Boolean).join(" \u2013 ")
+      : null;
+
+  // Schedule (agent only)
+  const schedule = program.schedule && program.schedule !== "\u2014" ? program.schedule : null;
+
+  // Tags
+  const tags = isEnriched && enriched?.tags?.length ? enriched.tags : null;
+
+  // Eligibility
+  const eligibility = isEnriched ? enriched?.eligibility : null;
+
+  // Provider name
+  const providerName = isEnriched ? enriched?.provider_name : null;
+
+  // Registration URL
+  const registrationUrl = enriched?.registration_url || program.register;
+  const hasRegUrl = registrationUrl && registrationUrl !== "\u2014" && registrationUrl.startsWith("http");
+
+  // Contact
+  const phone = enriched?.phone || program.phone;
+  const email = enriched?.email || program.email;
+  const url = enriched?.url || program.url;
+
+  // Why text
   const whyText =
     program.category === "gap_filler"
       ? program.whyGapFiller ||
@@ -114,11 +260,11 @@ function MatchedProgramCard({ program }: { program: ParsedProgram }) {
       {/* Top row: name + cost */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="text-[14px] font-semibold text-foreground leading-snug">
-          {program.name}
+          {name}
         </h3>
-        {program.cost && program.cost !== "—" && (
+        {hasCost && (
           <span className="text-[11px] text-muted-foreground font-medium shrink-0">
-            {program.cost}
+            {cost}
           </span>
         )}
       </div>
@@ -128,24 +274,64 @@ function MatchedProgramCard({ program }: { program: ParsedProgram }) {
         {formatTypeDots(program)}
       </p>
 
-      {/* Meta row: age, schedule, location */}
+      {/* Provider name */}
+      {providerName && (
+        <p className="text-[11px] text-muted-foreground mb-1">
+          By {providerName}
+        </p>
+      )}
+
+      {/* Description (from Supabase) */}
+      {description && (
+        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-2">
+          {description}
+        </p>
+      )}
+
+      {/* Meta row: age, schedule/dates, location */}
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-3">
-        {program.ages && program.ages !== "—" && (
+        {ageDisplay && (
           <span className="flex items-center gap-1">
-            <span className="shrink-0">👶</span> Ages {program.ages}
+            <Users className="h-3 w-3 shrink-0" /> Ages {ageDisplay}
           </span>
         )}
-        {program.schedule && program.schedule !== "—" && (
+        {dateRange && (
           <span className="flex items-center gap-1">
-            <span className="shrink-0">📅</span> {program.schedule}
+            <Calendar className="h-3 w-3 shrink-0" /> {dateRange}
           </span>
         )}
-        {program.location && program.location !== "—" && (
+        {!dateRange && schedule && (
           <span className="flex items-center gap-1">
-            <MapPin className="h-3 w-3 shrink-0" /> {program.location}
+            <Calendar className="h-3 w-3 shrink-0" /> {schedule}
+          </span>
+        )}
+        {hasLocation && (
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3 shrink-0" /> {location}
           </span>
         )}
       </div>
+
+      {/* Tags */}
+      {tags && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {tags.slice(0, 5).map((t) => (
+            <span
+              key={t}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Eligibility */}
+      {eligibility && (
+        <p className="text-[10px] text-muted-foreground italic mb-2">
+          Eligibility: {eligibility}
+        </p>
+      )}
 
       {/* Why line */}
       <p className="text-[11px] text-primary leading-relaxed">
@@ -166,56 +352,63 @@ function MatchedProgramCard({ program }: { program: ParsedProgram }) {
         </div>
       )}
 
-      {/* Contact links */}
-      {(program.phone || program.email || program.url) && (
+      {/* Contact links + registration */}
+      {(phone || email || url || hasRegUrl) && (
         <div className="flex flex-wrap items-center gap-3 mt-3 pt-2 border-t border-border">
-          {program.phone && (
+          {phone && (
             <a
-              href={`tel:${program.phone}`}
+              href={`tel:${phone.replace(/\s/g, "")}`}
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Call ${program.name}`}
+              aria-label={`Call ${name}`}
             >
               <Phone className="h-3 w-3" />
+              <span>{phone}</span>
             </a>
           )}
-          {program.email && (
+          {email && (
             <a
-              href={`mailto:${program.email}`}
+              href={`mailto:${email}`}
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Email ${program.name}`}
+              aria-label={`Email ${name}`}
             >
               <Mail className="h-3 w-3" />
+              <span className="truncate max-w-[140px]">{email}</span>
             </a>
           )}
-          {program.url && (
+          {url && (
             <a
-              href={program.url}
+              href={url}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-              aria-label={`Visit ${program.name} website`}
+              aria-label={`Visit ${name} website`}
             >
               <Globe className="h-3 w-3" />
             </a>
           )}
-          {program.register && program.register !== "—" && (
+          {hasRegUrl && (
             <a
-              href={
-                program.register.startsWith("http")
-                  ? program.register
-                  : undefined
-              }
+              href={registrationUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium transition-colors ml-auto"
             >
+              <ExternalLink className="h-3 w-3" />
               Register
             </a>
           )}
         </div>
       )}
 
-      {program.status && program.status !== "—" && (
+      {/* Not-enriched notice */}
+      {!isEnriched && (
+        <p className="flex items-center gap-1 text-[10px] text-muted-foreground/70 italic mt-2">
+          <Info className="h-3 w-3 shrink-0" />
+          Data from Navigator search — details may not be current
+        </p>
+      )}
+
+      {program.status && program.status !== "\u2014" && (
         <p className="text-[11px] text-muted-foreground italic mt-2">
           Status: {program.status}
         </p>
@@ -224,19 +417,19 @@ function MatchedProgramCard({ program }: { program: ParsedProgram }) {
   );
 }
 
-// ── Supabase Program Card (from search) ─────────────────────────────────
+// -- Supabase Program Card (from search) -------------------------------------
 
 function SearchProgramCard({ program }: { program: SupabaseProgram }) {
   const borderColor = getSearchBorderColor(program.category);
 
   const ageRange =
     program.age_min != null || program.age_max != null
-      ? `${program.age_min ?? "?"}–${program.age_max ?? "?"}`
+      ? `${program.age_min ?? "?"}\u2013${program.age_max ?? "?"}`
       : null;
 
   const dateRange =
     program.date_start || program.date_end
-      ? [program.date_start, program.date_end].filter(Boolean).join(" – ")
+      ? [program.date_start, program.date_end].filter(Boolean).join(" \u2013 ")
       : null;
 
   return (
@@ -268,12 +461,12 @@ function SearchProgramCard({ program }: { program: SupabaseProgram }) {
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mb-2">
         {ageRange && (
           <span className="flex items-center gap-1">
-            <span className="shrink-0">👶</span> Ages {ageRange}
+            <Users className="h-3 w-3 shrink-0" /> Ages {ageRange}
           </span>
         )}
         {dateRange && (
           <span className="flex items-center gap-1">
-            <span className="shrink-0">📅</span> {dateRange}
+            <Calendar className="h-3 w-3 shrink-0" /> {dateRange}
           </span>
         )}
         {program.location && (
@@ -321,7 +514,7 @@ function SearchProgramCard({ program }: { program: SupabaseProgram }) {
   );
 }
 
-// ── Search Filters Panel ────────────────────────────────────────────────
+// -- Search Filters Panel ----------------------------------------------------
 
 function SearchFilters({
   category,
@@ -420,7 +613,7 @@ function SearchFilters({
   );
 }
 
-// ── Search Tab Content ──────────────────────────────────────────────────
+// -- Search Tab Content ------------------------------------------------------
 
 function SearchTabContent() {
   const [searchInput, setSearchInput] = useState("");
@@ -546,7 +739,7 @@ function SearchTabContent() {
   );
 }
 
-// ── Priority Banner ─────────────────────────────────────────────────────
+// -- Priority Banner ---------------------------------------------------------
 
 function PriorityBanner({
   childName,
@@ -571,12 +764,12 @@ function PriorityBanner({
     <div className="bg-primary/5 border border-primary/15 rounded-xl px-4 py-3 mb-2">
       <p className="text-[13px] text-foreground leading-relaxed">
         <span className="font-semibold text-primary">
-          🎯 Your Navigator found {totalCount} program
+          Your Navigator found {totalCount} program
           {totalCount !== 1 ? "s" : ""} that match {childName}&apos;s needs
         </span>
         {gapFillerCount > 0 && (
           <>
-            {" — "}
+            {" \u2014 "}
             <span className="font-medium">
               {gapFillerCount} {gapFillerCount === 1 ? "is a" : "are"} gap
               filler{gapFillerCount !== 1 ? "s" : ""} to use while waiting for
@@ -589,13 +782,15 @@ function PriorityBanner({
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────────────────
+// -- Main Page ---------------------------------------------------------------
 
 export default function ProgramsPage() {
   const { data: programs, isLoading } = useParsedPrograms();
   const { data: profile } = useParsedProfile();
   const [activeTab, setActiveTab] = useState<Tab>("matches");
   const [matchSearch, setMatchSearch] = useState("");
+
+  const { enrichMap, enrichLoading } = useEnrichedPrograms(programs);
 
   const childName = profile?.basicInfo.name || "your child";
 
@@ -619,10 +814,30 @@ export default function ProgramsPage() {
 
   const totalCount = allPrograms.length;
 
+  function renderProgramGrid(list: ParsedProgram[]) {
+    const filtered = filterPrograms(list);
+    if (filtered.length === 0) return null;
+    return (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((p, i) => (
+          <EnrichedProgramCard
+            key={i}
+            program={p}
+            enriched={enrichMap.get(p.name) ?? enrichMap.get(
+              Array.from(enrichMap.keys()).find(
+                (k) => k.toLowerCase().includes(p.name.toLowerCase().split(" ")[0])
+              ) || ""
+            )}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <WorkspaceSection
       title="Programs"
-      icon="📚"
+      icon="\uD83D\uDCDA"
       lastUpdated={programs?.lastUpdated}
       isLoading={isLoading}
     >
@@ -641,7 +856,7 @@ export default function ProgramsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              🧭 Matched Programs
+              Matched Programs
               {activeTab === "matches" && (
                 <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-t" />
               )}
@@ -654,7 +869,7 @@ export default function ProgramsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              🔍 Search All Programs
+              Search All Programs
               {activeTab === "search" && (
                 <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-t" />
               )}
@@ -683,46 +898,49 @@ export default function ProgramsPage() {
                 />
               </div>
 
-              {/* Gap Fillers */}
-              {filterPrograms(programs.gapFillers).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    🏷️ Gap Fillers
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterPrograms(programs.gapFillers).map((p, i) => (
-                      <MatchedProgramCard key={i} program={p} />
-                    ))}
-                  </div>
-                </section>
+              {/* Loading enrichment */}
+              {enrichLoading && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: Math.min(totalCount, 6) }).map(
+                    (_, i) => (
+                      <Skeleton key={i} className="h-52 w-full rounded-xl" />
+                    )
+                  )}
+                </div>
               )}
 
-              {/* Government */}
-              {filterPrograms(programs.government).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    📘 Government Programs
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterPrograms(programs.government).map((p, i) => (
-                      <MatchedProgramCard key={i} program={p} />
-                    ))}
-                  </div>
-                </section>
-              )}
+              {!enrichLoading && (
+                <>
+                  {/* Gap Fillers */}
+                  {filterPrograms(programs.gapFillers).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Gap Fillers
+                      </p>
+                      {renderProgramGrid(programs.gapFillers)}
+                    </section>
+                  )}
 
-              {/* Educational */}
-              {filterPrograms(programs.educational).length > 0 && (
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    📗 Educational / Courses
-                  </p>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filterPrograms(programs.educational).map((p, i) => (
-                      <MatchedProgramCard key={i} program={p} />
-                    ))}
-                  </div>
-                </section>
+                  {/* Government */}
+                  {filterPrograms(programs.government).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Government Programs
+                      </p>
+                      {renderProgramGrid(programs.government)}
+                    </section>
+                  )}
+
+                  {/* Educational */}
+                  {filterPrograms(programs.educational).length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Educational / Courses
+                      </p>
+                      {renderProgramGrid(programs.educational)}
+                    </section>
+                  )}
+                </>
               )}
 
               {/* Empty state */}
