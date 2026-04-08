@@ -116,7 +116,9 @@ export async function POST(request: NextRequest) {
       location_address: body.locationAddress?.trim() || null,
       location_city: locationCity,
       location_postal: body.postalCode?.trim() || null,
-      website: body.website?.trim() || null,
+      website: body.website?.trim()
+        ? (body.website.trim().startsWith("http") ? body.website.trim() : `https://${body.website.trim()}`)
+        : null,
       accepts_funding: acceptsFunding,
       waitlist_estimate: body.waitTimeEstimate || null,
       is_verified: false,

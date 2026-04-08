@@ -262,10 +262,10 @@ export default function ProviderRegisterPage() {
               <Input
                 id="website"
                 name="website"
-                type="url"
+                type="text"
                 value={formData.website}
                 onChange={handleInputChange}
-                placeholder="https://yourpractice.ca"
+                placeholder="www.yourpractice.ca"
               />
             </div>
 

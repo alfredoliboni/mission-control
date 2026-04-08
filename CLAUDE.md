@@ -147,12 +147,19 @@ Format drift breaks parsers — always test after changing parser logic.
 - Deploy on Vercel with all env vars configured
 
 ### Pending
+- **Agent heartbeat/cron automation** — agents need to proactively:
+  - Read Supabase providers table for new registrations → match with child needs → update providers.md
+  - Read uploaded documents from Supabase Storage → extract text → update workspace files
+  - Monitor deadlines from alerts.md → send notifications when approaching
+  - Currently: agent chat works but does NOT write to workspace files via Gateway API
+  - Needed: configure OpenClaw heartbeat tasks to run these jobs periodically (every 2-4h)
 - Agent ↔ Supabase loop (agent reads provider DB, processes uploads)
 - Real-time notifications (email/SMS via Resend/Twilio)
-- Employer Portal (for adolescent job matching)
-- University Portal (accommodation listings)
+- Share Packet (export multiple documents as PDF)
 - Multi-child support (one family, multiple children)
 - PWA (installable on mobile)
+- Provider Portal dashboard (analytics, waitlist management for registered providers)
+- Calendar view (appointments, deadlines)
 
 ## Rules
 
