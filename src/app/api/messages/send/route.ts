@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
   } else {
     // Existing thread — update last_message_at
-    await supabase
+    await admin
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", threadId);
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   // Look up thread subject from existing messages if adding to thread
   let finalSubject = threadSubject;
   if (body.thread_id) {
-    const { data: existingMsg } = await supabase
+    const { data: existingMsg } = await admin
       .from("messages")
       .select("thread_subject")
       .eq("thread_id", body.thread_id)
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Insert the message
-  const { data: message, error } = await supabase
+  const { data: message, error } = await admin
     .from("messages")
     .insert({
       family_id: familyId,
