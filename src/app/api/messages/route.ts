@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface MessageRow {
   id: string;
@@ -195,8 +196,9 @@ export async function GET() {
   }
 
   const familyId = user.id;
+  const admin = createAdminClient();
 
-  const { data: messages, error } = await supabase
+  const { data: messages, error } = await admin
     .from("messages")
     .select("*")
     .eq("family_id", familyId)

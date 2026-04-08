@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 interface SendMessageBody {
   thread_id?: string;
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
 
   // Authenticated mode
   const supabase = await createClient();
+  const admin = createAdminClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     threadId = crypto.randomUUID();
 
     // Create conversation record
-    const { error: convError } = await supabase.from("conversations").insert({
+    const { error: convError } = await admin.from("conversations").insert({
       id: threadId,
       child_id: familyId,
       participant_ids: [familyId],
