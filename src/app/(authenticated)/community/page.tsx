@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, ArrowLeft, MessageSquare, Heart, Pin, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -25,7 +27,20 @@ interface Post {
   upvotes: number;
   upvotedByUser: boolean;
   pinned: boolean;
-  comments: Comment[];
+  commentCount: number;
+}
+
+interface PostDetail {
+  id: string;
+  title: string;
+  content: string;
+  category: CategoryKey;
+  tags: string[];
+  author: string;
+  createdAt: string;
+  upvotes: number;
+  upvotedByUser: boolean;
+  pinned: boolean;
 }
 
 type CategoryKey =
@@ -98,10 +113,6 @@ const CATEGORY_KEYS = Object.keys(CATEGORIES) as CategoryKey[];
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 function timeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -120,298 +131,136 @@ function timeAgo(dateStr: string): string {
   return `${years} year${years !== 1 ? "s" : ""} ago`;
 }
 
-// ── Seed Data ───────────────────────────────────────────────────────────
+// ── API Helpers ─────────────────────────────────────────────────────────
 
-function createSeedPosts(): Post[] {
-  const now = Date.now();
-  const day = 86400000;
+async function fetchPosts(params: {
+  category: CategoryKey | null;
+  sort: SortMode;
+  search: string;
+}): Promise<Post[]> {
+  const searchParams = new URLSearchParams();
+  if (params.category) searchParams.set("category", params.category);
+  if (params.sort) searchParams.set("sort", params.sort);
+  if (params.search) searchParams.set("search", params.search);
 
-  return [
-    {
-      id: "seed-1",
-      title: "IEP meeting tips for first-timers \u2014 everything I wish I knew",
-      content: `After going through three IEP meetings now, here's what I wish someone had told me before the first one:\n\n1. **Bring your own notes.** Don't rely on the school's agenda. Write down every concern, every goal you want discussed, and every question.\n\n2. **You can bring someone with you.** A friend, advocate, or even your child's therapist. Having another set of ears is invaluable.\n\n3. **Record the meeting** (with permission). You'll forget half of what was said otherwise.\n\n4. **Don't sign anything on the spot.** You have the right to take the IEP home, review it, and come back with questions.\n\n5. **Use "I" statements.** Instead of "you're not providing enough support," try "I've noticed my child needs more support in..." It keeps things collaborative.\n\n6. **Ask for everything in writing.** Verbal promises don't count.\n\nThe first meeting is always the hardest. It gets easier, I promise. You know your child best \u2014 don't let anyone make you feel otherwise.`,
-      category: "school",
-      tags: ["IEP", "first-time", "advocacy"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 90 * day).toISOString(),
-      upvotes: 89,
-      upvotedByUser: false,
-      pinned: true,
-      comments: [
-        {
-          id: "c1-1",
-          author: "Anonymous Parent",
-          content: "This is gold. I wish I had this list before our first meeting. The 'don't sign on the spot' advice alone would have saved us months of frustration.",
-          createdAt: new Date(now - 89 * day).toISOString(),
-          upvotes: 12,
-        },
-        {
-          id: "c1-2",
-          author: "Anonymous Parent",
-          content: "I'd add: bring snacks and water. These meetings can run 2+ hours and you need to stay sharp. Also, ask for a copy of the draft IEP before the meeting if possible.",
-          createdAt: new Date(now - 88 * day).toISOString(),
-          upvotes: 8,
-        },
-        {
-          id: "c1-3",
-          author: "Anonymous Parent",
-          content: "Recording the meeting was a game-changer for us. My husband couldn't attend and being able to share the recording helped us make decisions together.",
-          createdAt: new Date(now - 85 * day).toISOString(),
-          upvotes: 15,
-        },
-        {
-          id: "c1-4",
-          author: "Anonymous Parent",
-          content: "One more tip: request a 'parent concerns' section be added to the IEP. It becomes part of the legal document and they have to address your concerns.",
-          createdAt: new Date(now - 80 * day).toISOString(),
-          upvotes: 21,
-        },
-      ],
-    },
-    {
-      id: "seed-2",
-      title: "Getting my child to swallow pills \u2014 what finally worked for us",
-      content: `We struggled with pill-swallowing for over a year. Our son (7, ASD) would gag, spit out, or refuse entirely. Here's the progression that finally worked:\n\n**Phase 1: Tiny candy sprinkles.** We started with the smallest sprinkles we could find. Just practice swallowing them with water. No pressure, no medication involved. We did this for 2 weeks.\n\n**Phase 2: Mini M&Ms.** Slightly bigger. Same routine. Practiced at dinner time when he was relaxed.\n\n**Phase 3: Tic Tacs.** These are pill-shaped, which helped bridge the gap. He could also taste them, which made it feel like a treat.\n\n**Phase 4: Actual medication.** We started with his smallest pill and used the same routine. Sip of water, pill on tongue, big gulp.\n\n**Key things that helped:**\n- Never forcing it. If he said no, we stopped.\n- Making it a "skill" he was learning, not a chore\n- Celebrating every success (high fives, sticker chart)\n- Consistent time of day\n- Using a straw to drink (something about the suction helped)\n\nIt took about 6 weeks total. Now he takes his pills like a champ.`,
-      category: "daily-life",
-      tags: ["medication", "tips", "routine"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 45 * day).toISOString(),
-      upvotes: 47,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c2-1",
-          author: "Anonymous Parent",
-          content: "The sprinkles idea is genius! We've been crushing pills into applesauce but he's starting to notice the taste. Going to try this progression.",
-          createdAt: new Date(now - 44 * day).toISOString(),
-          upvotes: 6,
-        },
-        {
-          id: "c2-2",
-          author: "Anonymous Parent",
-          content: "Thank you for sharing! Our OT also recommended practicing with cake decorating pearls \u2014 they dissolve quickly if they get stuck, which reduces anxiety.",
-          createdAt: new Date(now - 42 * day).toISOString(),
-          upvotes: 9,
-        },
-      ],
-    },
-    {
-      id: "seed-3",
-      title: "Our OT journey \u2014 6 months in and here's what changed",
-      content: `When we started OT, I honestly didn't know what to expect. Our daughter (5, ASD + SPD) was having meltdowns 4-5 times a day, couldn't tolerate certain textures, and getting dressed was a 45-minute battle.\n\n**6 months later:**\n- Meltdowns are down to maybe 1-2 per day, and they're shorter\n- She can wear jeans now (!!!) \u2014 this was unthinkable before\n- She's started tolerating hair brushing with a specific brush our OT recommended\n- Her body awareness has improved dramatically \u2014 fewer bumps and crashes\n- She can sit through a meal without falling off her chair\n\n**What our OT focuses on:**\n- Sensory diet (specific activities throughout the day)\n- Heavy work before transitions\n- Brushing protocol (Wilbarger)\n- Interoception activities\n- Zone of regulation concepts adapted for her level\n\n**What I wish I knew earlier:**\n- Progress is slow but real. The first 2 months I thought nothing was working.\n- A good OT will teach YOU how to support your child at home. It's not just about the 1-hour session.\n- Insurance coverage varies wildly. Fight for it.\n\nHappy to answer questions if anyone is considering OT or just starting out.`,
-      category: "therapy",
-      tags: ["OT", "sensory", "progress"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 30 * day).toISOString(),
-      upvotes: 35,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c3-1",
-          author: "Anonymous Parent",
-          content: "This gives me so much hope. We're 2 months in and I was starting to wonder if it's worth the drive and cost. Thank you for sharing your timeline.",
-          createdAt: new Date(now - 29 * day).toISOString(),
-          upvotes: 5,
-        },
-        {
-          id: "c3-2",
-          author: "Anonymous Parent",
-          content: "Can you share more about the sensory diet? Our OT gave us one but I'm struggling to fit it into our daily routine.",
-          createdAt: new Date(now - 28 * day).toISOString(),
-          upvotes: 3,
-        },
-        {
-          id: "c3-3",
-          author: "Anonymous Parent",
-          content: "The jeans victory is HUGE. We celebrated when our son wore a new shirt without cutting out the tag first. These wins matter so much.",
-          createdAt: new Date(now - 25 * day).toISOString(),
-          upvotes: 11,
-        },
-      ],
-    },
-    {
-      id: "seed-4",
-      title: "Sensory-friendly birthday party ideas that actually worked",
-      content: `My daughter turned 6 last month and for the first time, she actually ENJOYED her birthday party. Here's what we did differently:\n\n**Environment:**\n- Held it at home (familiar space = less anxiety)\n- Kept the guest list to 6 kids (smaller group, manageable noise)\n- Set up a "quiet room" with noise-canceling headphones, weighted blanket, and dim lighting\n- No balloons (popping = meltdown trigger)\n- Used battery-operated candles on the cake\n\n**Activities:**\n- Structured schedule posted on the wall with pictures\n- Sensory bins (kinetic sand, water beads) instead of chaotic party games\n- Individual art stations instead of group activities\n- Optional participation for everything\n\n**Food:**\n- "Build your own" stations (pizza, sundae) so each kid controls what touches their food\n- Her safe foods available alongside party food\n- Paper plates and cups she picked out herself\n\n**What worked best:**\n- Sending a visual schedule to all parents beforehand\n- Having a designated "break buddy" (my sister) who could take her to the quiet room if needed\n- Ending the party after 2 hours (short and sweet)\n\nShe said it was "the best day ever" and I cried happy tears.`,
-      category: "sensory",
-      tags: ["birthday", "sensory-friendly", "party"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 20 * day).toISOString(),
-      upvotes: 52,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c4-1",
-          author: "Anonymous Parent",
-          content: "The 'no balloons' tip is so important. We learned this the hard way at a family gathering. Battery candles are brilliant too.",
-          createdAt: new Date(now - 19 * day).toISOString(),
-          upvotes: 7,
-        },
-        {
-          id: "c4-2",
-          author: "Anonymous Parent",
-          content: "I'm saving this entire post. My son's birthday is next month and I've been dreading it. The 'build your own' food station idea is perfect for picky eaters.",
-          createdAt: new Date(now - 18 * day).toISOString(),
-          upvotes: 4,
-        },
-        {
-          id: "c4-3",
-          author: "Anonymous Parent",
-          content: "The quiet room idea is wonderful. We did something similar \u2014 set up a tent with fairy lights as the 'recharge station.' All the kids ended up wanting to use it!",
-          createdAt: new Date(now - 15 * day).toISOString(),
-          upvotes: 13,
-        },
-      ],
-    },
-    {
-      id: "seed-5",
-      title: "My son just said his first full sentence at age 5",
-      content: `I'm sitting here crying as I type this. My son, who was diagnosed at 2.5 and has been mostly non-verbal, just looked at me during dinner and said: "Mommy, I want more chicken please."\n\nA full sentence. Subject, verb, object, AND a polite word.\n\nWe've been doing speech therapy twice a week for 2.5 years. We use AAC (his tablet) daily. There were so many times I wondered if he'd ever speak verbally.\n\nHis speech therapist told us early on: "Communication is the goal, not necessarily speech." And I held onto that. We celebrated every sign, every picture exchange, every tablet request.\n\nBut hearing his voice string those words together... I can't describe the feeling.\n\nTo every parent waiting for that moment \u2014 whether it comes through speech, signs, AAC, or any other way \u2014 your child IS communicating. And you are doing an amazing job supporting them.\n\nI just needed to share this with people who truly understand.`,
-      category: "celebrations",
-      tags: ["speech", "milestone", "non-verbal"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 14 * day).toISOString(),
-      upvotes: 128,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c5-1",
-          author: "Anonymous Parent",
-          content: "I'm crying reading this. Our daughter is 4 and mostly uses her AAC device. Posts like these give me so much hope. Congratulations to your son and to you for never giving up.",
-          createdAt: new Date(now - 13 * day).toISOString(),
-          upvotes: 18,
-        },
-        {
-          id: "c5-2",
-          author: "Anonymous Parent",
-          content: "\"Communication is the goal, not necessarily speech\" \u2014 this is so important. Thank you for sharing this reminder along with your beautiful news.",
-          createdAt: new Date(now - 12 * day).toISOString(),
-          upvotes: 24,
-        },
-        {
-          id: "c5-3",
-          author: "Anonymous Parent",
-          content: "MORE CHICKEN PLEASE! What a perfect first sentence. That boy knows what he wants! So happy for your family.",
-          createdAt: new Date(now - 10 * day).toISOString(),
-          upvotes: 32,
-        },
-      ],
-    },
-    {
-      id: "seed-6",
-      title: "Transitioning from ABA to school \u2014 what to expect",
-      content: `Our son did intensive ABA (30 hours/week) from ages 3-5 and just transitioned to full-day kindergarten. Here's what the transition looked like for us:\n\n**3 months before school started:**\n- Met with the school team (teacher, resource teacher, principal)\n- Shared his behavior support plan from ABA\n- Arranged a series of school visits during quiet hours\n- Created a social story about his new school\n\n**1 month before:**\n- Practiced the morning routine (getting dressed, bus simulation)\n- Visited the actual classroom, met his EA\n- Set up a communication book between home and school\n\n**First month of school:**\n- Started with half days for 2 weeks\n- His BCBA consulted with the school team (this was invaluable)\n- We had weekly check-ins with his teacher\n\n**Challenges we didn't expect:**\n- The noise level in the cafeteria was overwhelming\n- Less 1:1 attention than ABA (obviously, but the adjustment was hard)\n- Different behavior expectations than the ABA center\n- Making friends was harder than anticipated\n\n**What helped:**\n- The EA was open to learning from his ABA team\n- We kept some ABA hours after school for the first semester\n- Visual schedule in the classroom\n- A designated quiet space he could request\n\nHe's now in Grade 1 and thriving. The transition was rough but absolutely the right call.`,
-      category: "transitions",
-      tags: ["ABA", "school", "kindergarten"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 10 * day).toISOString(),
-      upvotes: 29,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c6-1",
-          author: "Anonymous Parent",
-          content: "We're about to start this exact transition. The timeline you laid out is so helpful. Did your ABA center help coordinate with the school?",
-          createdAt: new Date(now - 9 * day).toISOString(),
-          upvotes: 4,
-        },
-        {
-          id: "c6-2",
-          author: "Anonymous Parent",
-          content: "The BCBA consulting with the school team is key. Our center offered this as part of the transition plan. If yours doesn't, ask \u2014 many will do it.",
-          createdAt: new Date(now - 8 * day).toISOString(),
-          upvotes: 6,
-        },
-      ],
-    },
-    {
-      id: "seed-7",
-      title: "Weighted blanket vs compression vest \u2014 our experience with both",
-      content: `We've tried both weighted blankets and compression vests for our son (8, ASD + ADHD) and here's our honest comparison:\n\n**Weighted Blanket (15% of body weight):**\n- Great for: Bedtime, calm-down time, TV time\n- Helped with: Falling asleep faster (went from 45min to ~15min), reducing nighttime waking\n- Downsides: Can't use it everywhere, gets hot in summer, needs to be washed carefully\n- Our pick: The Bearaby knitted one (breathable, machine washable)\n\n**Compression Vest:**\n- Great for: School, outings, transitions, grocery store trips\n- Helped with: Focus during seated work, reducing stimming in overwhelming environments, body awareness\n- Downsides: He outgrew it quickly (sizing is tricky), some days he refuses to wear it\n- Our pick: SPIO vest (recommended by our OT)\n\n**Our takeaway:**\nThey serve different purposes. The weighted blanket is our nighttime hero. The compression vest is our "out in the world" tool. We use both.\n\n**Tips:**\n- Always consult your OT for the right weight/compression level\n- Let your child try before you buy (our OT had samples)\n- Some kids prefer deep pressure from a bear hug or being rolled in a blanket \u2014 start there before investing\n- Watch for signs they've had enough (pulling at it, skin redness)\n\nHappy to answer specific questions about either one.`,
-      category: "sensory",
-      tags: ["weighted-blanket", "compression", "sensory-tools"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 7 * day).toISOString(),
-      upvotes: 41,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c7-1",
-          author: "Anonymous Parent",
-          content: "This is the comparison I've been looking for! Our OT recommended a weighted blanket but I was wondering about compression vests for school. Sounds like we need both!",
-          createdAt: new Date(now - 6 * day).toISOString(),
-          upvotes: 5,
-        },
-        {
-          id: "c7-2",
-          author: "Anonymous Parent",
-          content: "The Bearaby knitted blanket is amazing. So much better than the ones with beads. And +1 on the SPIO vest \u2014 it's the only one our daughter will tolerate.",
-          createdAt: new Date(now - 5 * day).toISOString(),
-          upvotes: 7,
-        },
-      ],
-    },
-    {
-      id: "seed-8",
-      title: "How I organized all our documents for the IEP review",
-      content: `After fumbling through our first IEP review with papers everywhere, I created a system that has made every meeting since so much smoother:\n\n**The Binder System:**\nI use a 2-inch binder with the following tabs:\n\n1. **Current IEP** \u2014 the active IEP with my highlighted notes\n2. **Progress Reports** \u2014 all report cards and progress updates from this year\n3. **Assessments** \u2014 psychological, speech, OT assessments (most recent first)\n4. **Communication Log** \u2014 printouts of important emails with the school\n5. **My Notes** \u2014 dated observations of my child at home\n6. **Medical** \u2014 relevant medical reports, medication changes\n7. **Rights & Resources** \u2014 parent rights handbook, relevant policy documents\n\n**Digital backup:**\n- I scan everything into Google Drive with the same folder structure\n- I created a shared folder with our advocate\n- Photos of my child's work that show progress go in a "portfolio" folder\n\n**Before each meeting:**\n- I review the current IEP goals and note which ones are met/not met\n- I prepare a one-page summary of my concerns and requests\n- I share this with the school 3 days before the meeting\n\nThis might seem like overkill, but when the school says "we don't have that assessment on file" and you can pull it out immediately... it's worth every minute of organization.\n\nThe Companion app has been great for tracking some of this too \u2014 the document section is really helpful.`,
-      category: "school",
-      tags: ["documents", "organization", "IEP"],
-      author: "Anonymous Parent",
-      createdAt: new Date(now - 3 * day).toISOString(),
-      upvotes: 33,
-      upvotedByUser: false,
-      pinned: false,
-      comments: [
-        {
-          id: "c8-1",
-          author: "Anonymous Parent",
-          content: "This is exactly what I needed. I've been keeping everything in a messy folder and it's so stressful before meetings. Ordering a binder today!",
-          createdAt: new Date(now - 2 * day).toISOString(),
-          upvotes: 3,
-        },
-        {
-          id: "c8-2",
-          author: "Anonymous Parent",
-          content: "The 'share concerns 3 days before' tip is smart. It gives the team time to prepare answers instead of being caught off guard, which makes the meeting more productive for everyone.",
-          createdAt: new Date(now - 1 * day).toISOString(),
-          upvotes: 8,
-        },
-      ],
-    },
-  ];
+  const res = await fetch(`/api/community/posts?${searchParams.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch posts");
+  const data = await res.json();
+  return data.posts;
 }
 
-// ── localStorage helpers ────────────────────────────────────────────────
+async function fetchPost(id: string): Promise<{ post: PostDetail; comments: Comment[] }> {
+  const res = await fetch(`/api/community/posts/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch post");
+  return res.json();
+}
 
-const STORAGE_KEY = "companion-community-posts";
-
-function loadPosts(): Post[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {
-    // ignore
+async function createPost(body: {
+  title: string;
+  content: string;
+  category: CategoryKey;
+  tags: string[];
+  isAnonymous: boolean;
+}): Promise<Post> {
+  const res = await fetch("/api/community/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to create post");
   }
-  const seed = createSeedPosts();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-  return seed;
+  const data = await res.json();
+  return data.post;
 }
 
-function savePosts(posts: Post[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+async function addComment(
+  postId: string,
+  body: { content: string; isAnonymous: boolean }
+): Promise<Comment> {
+  const res = await fetch(`/api/community/posts/${postId}/comment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to add comment");
+  }
+  const data = await res.json();
+  return data.comment;
+}
+
+async function toggleUpvote(postId: string): Promise<{ upvoted: boolean; upvotes: number }> {
+  const res = await fetch(`/api/community/posts/${postId}/upvote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to toggle upvote");
+  }
+  return res.json();
+}
+
+// ── Skeleton Components ────────────────────────────────────────────────
+
+function PostCardSkeleton() {
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 animate-pulse">
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center shrink-0 pt-0.5 gap-1">
+          <div className="h-9 w-9 rounded-lg bg-warm-100" />
+          <div className="h-3 w-5 rounded bg-warm-100" />
+        </div>
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex gap-2">
+            <div className="h-5 w-20 rounded-full bg-warm-100" />
+          </div>
+          <div className="h-4 w-3/4 rounded bg-warm-100" />
+          <div className="h-3 w-full rounded bg-warm-100" />
+          <div className="h-3 w-1/2 rounded bg-warm-100" />
+          <div className="flex gap-2 mt-1">
+            <div className="h-3 w-16 rounded bg-warm-100" />
+            <div className="h-3 w-12 rounded bg-warm-100" />
+            <div className="h-3 w-20 rounded bg-warm-100" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PostDetailSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="bg-card border border-border rounded-xl p-5 animate-pulse space-y-3">
+        <div className="flex gap-2">
+          <div className="h-5 w-20 rounded-full bg-warm-100" />
+        </div>
+        <div className="h-6 w-2/3 rounded bg-warm-100" />
+        <div className="flex gap-2">
+          <div className="h-3 w-24 rounded bg-warm-100" />
+          <div className="h-3 w-16 rounded bg-warm-100" />
+        </div>
+        <div className="space-y-2 pt-2">
+          <div className="h-3 w-full rounded bg-warm-100" />
+          <div className="h-3 w-full rounded bg-warm-100" />
+          <div className="h-3 w-3/4 rounded bg-warm-100" />
+          <div className="h-3 w-full rounded bg-warm-100" />
+          <div className="h-3 w-1/2 rounded bg-warm-100" />
+        </div>
+      </div>
+      <div className="bg-card border border-border rounded-xl p-5 animate-pulse space-y-3">
+        <div className="h-4 w-32 rounded bg-warm-100" />
+        <div className="space-y-3">
+          <div className="h-3 w-full rounded bg-warm-100" />
+          <div className="h-3 w-2/3 rounded bg-warm-100" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Category Card ───────────────────────────────────────────────────────
@@ -575,7 +424,7 @@ function PostCard({
             <span className="text-warm-200">&middot;</span>
             <span className="inline-flex items-center gap-1">
               <MessageSquare className="h-3 w-3" />
-              {post.comments.length} comment{post.comments.length !== 1 ? "s" : ""}
+              {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
             </span>
           </div>
         </div>
@@ -589,9 +438,17 @@ function PostCard({
 function CreatePostForm({
   onSubmit,
   onCancel,
+  isSubmitting,
 }: {
-  onSubmit: (post: Omit<Post, "id" | "createdAt" | "upvotes" | "upvotedByUser" | "pinned" | "comments">) => void;
+  onSubmit: (post: {
+    title: string;
+    content: string;
+    category: CategoryKey;
+    tags: string[];
+    isAnonymous: boolean;
+  }) => void;
   onCancel: () => void;
+  isSubmitting: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<CategoryKey>("daily-life");
@@ -613,7 +470,7 @@ function CreatePostForm({
       content: content.trim(),
       category,
       tags,
-      author: anonymous ? "Anonymous Parent" : "You",
+      isAnonymous: anonymous,
     });
   };
 
@@ -732,10 +589,10 @@ function CreatePostForm({
           </button>
           <button
             type="submit"
-            disabled={!title.trim() || !content.trim()}
+            disabled={!title.trim() || !content.trim() || isSubmitting}
             className="h-11 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Post
+            {isSubmitting ? "Posting..." : "Post"}
           </button>
         </div>
       </form>
@@ -746,25 +603,49 @@ function CreatePostForm({
 // ── Single Post View ────────────────────────────────────────────────────
 
 function SinglePostView({
-  post,
+  postId,
   onBack,
-  onUpvotePost,
-  onUpvoteComment,
-  onAddComment,
 }: {
-  post: Post;
+  postId: string;
   onBack: () => void;
-  onUpvotePost: () => void;
-  onUpvoteComment: (commentId: string) => void;
-  onAddComment: (content: string) => void;
 }) {
   const [commentInput, setCommentInput] = useState("");
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["community-post", postId],
+    queryFn: () => fetchPost(postId),
+  });
+
+  const upvoteMutation = useMutation({
+    mutationFn: () => toggleUpvote(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    },
+    onError: () => {
+      toast.error("Failed to update upvote");
+    },
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: (content: string) =>
+      addComment(postId, { content, isAnonymous: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      setCommentInput("");
+      toast.success("Comment added");
+    },
+    onError: () => {
+      toast.error("Failed to add comment");
+    },
+  });
 
   const handleSubmitComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentInput.trim()) return;
-    onAddComment(commentInput.trim());
-    setCommentInput("");
+    if (!commentInput.trim() || commentMutation.isPending) return;
+    commentMutation.mutate(commentInput.trim());
   };
 
   // Render content with basic markdown bold support
@@ -808,6 +689,23 @@ function SinglePostView({
       );
     });
   };
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-sm text-warm-400 hover:text-foreground transition-colors p-2 -ml-2 min-h-[44px] rounded-lg hover:bg-warm-100"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to posts
+        </button>
+        <PostDetailSkeleton />
+      </div>
+    );
+  }
+
+  const { post, comments } = data;
 
   return (
     <div className="space-y-4">
@@ -862,7 +760,7 @@ function SinglePostView({
         {/* Upvote */}
         <div className="flex items-center gap-3 pt-3 border-t border-border">
           <button
-            onClick={onUpvotePost}
+            onClick={() => upvoteMutation.mutate()}
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors",
               post.upvotedByUser
@@ -878,7 +776,7 @@ function SinglePostView({
           </button>
           <span className="text-xs text-muted-foreground">
             <MessageSquare className="h-3.5 w-3.5 inline mr-1" />
-            {post.comments.length} comment{post.comments.length !== 1 ? "s" : ""}
+            {comments.length} comment{comments.length !== 1 ? "s" : ""}
           </span>
         </div>
       </article>
@@ -886,12 +784,12 @@ function SinglePostView({
       {/* Comments */}
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-heading text-sm font-semibold text-foreground mb-4">
-          Comments ({post.comments.length})
+          Comments ({comments.length})
         </h3>
 
-        {post.comments.length > 0 ? (
+        {comments.length > 0 ? (
           <div className="space-y-4">
-            {post.comments.map((comment) => (
+            {comments.map((comment) => (
               <div
                 key={comment.id}
                 className="border-b border-border pb-4 last:border-0 last:pb-0"
@@ -904,14 +802,10 @@ function SinglePostView({
                     <span className="text-warm-200">&middot;</span>
                     <span>{timeAgo(comment.createdAt)}</span>
                   </div>
-                  <button
-                    onClick={() => onUpvoteComment(comment.id)}
-                    className="inline-flex items-center gap-1 text-[11px] text-warm-300 hover:text-status-blocked transition-colors p-1"
-                    aria-label="Upvote comment"
-                  >
+                  <span className="inline-flex items-center gap-1 text-[11px] text-warm-300 p-1">
                     <Heart className="h-3 w-3" />
                     {comment.upvotes}
-                  </button>
+                  </span>
                 </div>
                 <p className="text-sm text-foreground leading-relaxed">
                   {comment.content}
@@ -947,10 +841,10 @@ function SinglePostView({
             />
             <button
               type="submit"
-              disabled={!commentInput.trim()}
+              disabled={!commentInput.trim() || commentMutation.isPending}
               className="self-end h-11 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
             >
-              Reply
+              {commentMutation.isPending ? "Sending..." : "Reply"}
             </button>
           </div>
         </form>
@@ -962,26 +856,50 @@ function SinglePostView({
 // ── Main Page ───────────────────────────────────────────────────────────
 
 export default function CommunityPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const queryClient = useQueryClient();
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    setPosts(loadPosts());
-    setLoaded(true);
-  }, []);
+  // Fetch posts
+  const {
+    data: posts = [],
+    isLoading,
+  } = useQuery({
+    queryKey: ["community-posts", activeCategory, sortMode, searchQuery],
+    queryFn: () =>
+      fetchPosts({
+        category: activeCategory,
+        sort: sortMode,
+        search: searchQuery,
+      }),
+  });
 
-  // Persist whenever posts change
-  useEffect(() => {
-    if (loaded) {
-      savePosts(posts);
-    }
-  }, [posts, loaded]);
+  // Create post mutation
+  const createPostMutation = useMutation({
+    mutationFn: createPost,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      setShowCreateForm(false);
+      toast.success("Post created successfully");
+    },
+    onError: () => {
+      toast.error("Failed to create post");
+    },
+  });
+
+  // Upvote mutation (from list view)
+  const upvoteMutation = useMutation({
+    mutationFn: toggleUpvote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    },
+    onError: () => {
+      toast.error("Failed to update upvote");
+    },
+  });
 
   // Category post counts
   const categoryCounts = useMemo(() => {
@@ -991,138 +909,8 @@ export default function CommunityPage() {
     return counts;
   }, [posts]);
 
-  // Filtered + sorted posts
-  const filteredPosts = useMemo(() => {
-    let result = [...posts];
-
-    // Category filter
-    if (activeCategory) {
-      result = result.filter((p) => p.category === activeCategory);
-    }
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.content.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q))
-      );
-    }
-
-    // Sort: pinned always first, then by mode
-    result.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      if (sortMode === "popular") return b.upvotes - a.upvotes;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-
-    return result;
-  }, [posts, activeCategory, searchQuery, sortMode]);
-
-  // Handlers
-  const handleUpvotePost = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              upvotes: p.upvotedByUser ? p.upvotes - 1 : p.upvotes + 1,
-              upvotedByUser: !p.upvotedByUser,
-            }
-          : p
-      )
-    );
-  }, []);
-
-  const handleUpvoteComment = useCallback(
-    (postId: string, commentId: string) => {
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                comments: p.comments.map((c) =>
-                  c.id === commentId ? { ...c, upvotes: c.upvotes + 1 } : c
-                ),
-              }
-            : p
-        )
-      );
-    },
-    []
-  );
-
-  const handleAddComment = useCallback(
-    (postId: string, content: string) => {
-      const newComment: Comment = {
-        id: generateId(),
-        author: "Anonymous Parent",
-        content,
-        createdAt: new Date().toISOString(),
-        upvotes: 0,
-      };
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? { ...p, comments: [...p.comments, newComment] }
-            : p
-        )
-      );
-    },
-    []
-  );
-
-  const handleCreatePost = useCallback(
-    (
-      postData: Omit<
-        Post,
-        "id" | "createdAt" | "upvotes" | "upvotedByUser" | "pinned" | "comments"
-      >
-    ) => {
-      const newPost: Post = {
-        ...postData,
-        id: generateId(),
-        createdAt: new Date().toISOString(),
-        upvotes: 0,
-        upvotedByUser: false,
-        pinned: false,
-        comments: [],
-      };
-      setPosts((prev) => [newPost, ...prev]);
-      setShowCreateForm(false);
-    },
-    []
-  );
-
-  // Selected post
-  const selectedPost = selectedPostId
-    ? posts.find((p) => p.id === selectedPostId) ?? null
-    : null;
-
-  // Don't render until localStorage is loaded
-  if (!loaded) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden="true">
-            👥
-          </span>
-          <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
-            Community
-          </h1>
-        </div>
-        <div className="bg-card border border-border rounded-xl h-64 flex items-center justify-center">
-          <span className="text-sm text-warm-300">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
   // ── Single Post View ──────────────────────────────────────────────────
-  if (selectedPost) {
+  if (selectedPostId) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
@@ -1135,15 +923,8 @@ export default function CommunityPage() {
         </div>
 
         <SinglePostView
-          post={selectedPost}
+          postId={selectedPostId}
           onBack={() => setSelectedPostId(null)}
-          onUpvotePost={() => handleUpvotePost(selectedPost.id)}
-          onUpvoteComment={(commentId) =>
-            handleUpvoteComment(selectedPost.id, commentId)
-          }
-          onAddComment={(content) =>
-            handleAddComment(selectedPost.id, content)
-          }
         />
       </div>
     );
@@ -1190,8 +971,9 @@ export default function CommunityPage() {
       {/* Create Post Form */}
       {showCreateForm && (
         <CreatePostForm
-          onSubmit={handleCreatePost}
+          onSubmit={(data) => createPostMutation.mutate(data)}
           onCancel={() => setShowCreateForm(false)}
+          isSubmitting={createPostMutation.isPending}
         />
       )}
 
@@ -1262,7 +1044,14 @@ export default function CommunityPage() {
 
       {/* Post List */}
       <div className="space-y-3">
-        {filteredPosts.length === 0 ? (
+        {isLoading ? (
+          <>
+            <PostCardSkeleton />
+            <PostCardSkeleton />
+            <PostCardSkeleton />
+            <PostCardSkeleton />
+          </>
+        ) : posts.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-10 text-center">
             <MessageSquare className="h-10 w-10 text-warm-200 mx-auto mb-3" />
             <p className="text-sm font-medium text-foreground mb-1">
@@ -1277,21 +1066,24 @@ export default function CommunityPage() {
             </p>
           </div>
         ) : (
-          filteredPosts.map((post) => (
+          posts.map((post) => (
             <PostCard
               key={post.id}
               post={post}
               onSelect={() => setSelectedPostId(post.id)}
-              onUpvote={() => handleUpvotePost(post.id)}
+              onUpvote={(e) => {
+                e.stopPropagation();
+                upvoteMutation.mutate(post.id);
+              }}
             />
           ))
         )}
       </div>
 
       {/* Post count */}
-      {filteredPosts.length > 0 && (
+      {!isLoading && posts.length > 0 && (
         <p className="text-center text-[11px] text-warm-300 pb-4">
-          Showing {filteredPosts.length} of {posts.length} post
+          Showing {posts.length} post
           {posts.length !== 1 ? "s" : ""}
         </p>
       )}
