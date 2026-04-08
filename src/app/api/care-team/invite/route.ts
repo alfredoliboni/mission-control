@@ -55,9 +55,22 @@ export async function POST(request: NextRequest) {
     stakeholderId = newUser.user.id;
   }
 
-  // Set user_metadata so the account is identifiable as a stakeholder
+  // Check for duplicate invite
+  const { data: existingLink } = await supabaseAdmin
+    .from("stakeholder_links")
+    .select("id")
+    .eq("family_id", user.id)
+    .eq("stakeholder_id", stakeholderId)
+    .limit(1);
+
+  if (existingLink && existingLink.length > 0) {
+    return NextResponse.json({ error: "This person has already been invited to your care team" }, { status: 400 });
+  }
+
+  // Merge metadata (preserve existing role like "provider" if they registered)
+  const existingMetadata = existingUser?.user_metadata || {};
   await supabaseAdmin.auth.admin.updateUserById(stakeholderId, {
-    user_metadata: { role: "stakeholder", stakeholder_role: role },
+    user_metadata: { ...existingMetadata, stakeholder_role: role, is_stakeholder: true },
   });
 
   // Insert stakeholder link

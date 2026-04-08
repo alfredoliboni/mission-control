@@ -53,8 +53,20 @@ interface TeamMessage {
   thread_subject: string;
   sender_id: string;
   sender_role: string;
+  sender_name?: string;
+  recipient_id?: string;
+  recipient_name?: string;
   content: string;
   created_at: string;
+}
+
+interface TeamContact {
+  id: string;
+  stakeholder_id: string;
+  family_id: string;
+  name: string;
+  role: string;
+  organization?: string;
 }
 
 interface TeamThread {
@@ -97,6 +109,8 @@ async function fetchTeamMessages(): Promise<TeamThread[]> {
 async function sendTeamMessage(body: {
   thread_id?: string;
   new_thread_subject?: string;
+  recipient_id?: string;
+  recipient_name?: string;
   content: string;
 }): Promise<void> {
   const res = await fetch("/api/team/messages", {
@@ -108,6 +122,26 @@ async function sendTeamMessage(body: {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Failed to send message");
   }
+}
+
+async function fetchTeamContacts(): Promise<TeamContact[]> {
+  const res = await fetch("/api/team/messages?contacts=true");
+  // The contacts endpoint doesn't exist yet separately, but we can derive
+  // contacts from the team profile's family info. For now, the family
+  // is always available as a contact, plus other stakeholders.
+  // We'll use the care-team endpoint scoped to the team side.
+  const profileRes = await fetch("/api/team/profile");
+  if (!profileRes.ok) return [];
+  const profile = await profileRes.json();
+  const familyContact: TeamContact = {
+    id: "family",
+    stakeholder_id: "family",
+    family_id: "",
+    name: `${profile.familyName} Family`,
+    role: "Family",
+    organization: undefined,
+  };
+  return [familyContact];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -585,6 +619,7 @@ function MessagesSection() {
   const [newMessage, setNewMessage] = useState("");
   const [newSubject, setNewSubject] = useState("");
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [selectedContactId, setSelectedContactId] = useState<string>("family");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -596,6 +631,17 @@ function MessagesSection() {
     staleTime: 15_000,
     refetchInterval: 15_000,
   });
+
+  // Fetch contacts (family + other linked stakeholders)
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["team-contacts"],
+    queryFn: fetchTeamContacts,
+    staleTime: 60_000,
+  });
+
+  const selectedContact = contacts.find(
+    (c) => c.stakeholder_id === selectedContactId
+  );
 
   const sendMutation = useMutation({
     mutationFn: sendTeamMessage,
@@ -629,6 +675,8 @@ function MessagesSection() {
     } else {
       sendMutation.mutate({
         new_thread_subject: newSubject.trim() || "New Message",
+        recipient_id: selectedContact?.stakeholder_id,
+        recipient_name: selectedContact?.name,
         content,
       });
     }
@@ -701,7 +749,11 @@ function MessagesSection() {
                       {thread.subject}
                     </p>
                     <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                      {thread.lastMessage.content.slice(0, 50)}...
+                      {thread.lastMessage.sender_name
+                        ? `${thread.lastMessage.sender_name}: `
+                        : ""}
+                      {thread.lastMessage.content.slice(0, 50)}
+                      {thread.lastMessage.content.length > 50 ? "..." : ""}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDate(thread.lastMessage.created_at)}
@@ -732,6 +784,9 @@ function MessagesSection() {
                 <div className="space-y-3">
                   {activeThread.messages.map((msg) => {
                     const isStakeholder = msg.sender_role !== "parent";
+                    const senderLabel =
+                      msg.sender_name ||
+                      (msg.sender_role === "parent" ? "Family" : msg.sender_role);
                     return (
                       <div
                         key={msg.id}
@@ -745,9 +800,7 @@ function MessagesSection() {
                           }`}
                         >
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            {msg.sender_role === "parent"
-                              ? "Family"
-                              : msg.sender_role}
+                            {senderLabel}
                           </p>
                           <p className="text-[13px] text-foreground leading-relaxed">
                             {msg.content}
@@ -765,26 +818,76 @@ function MessagesSection() {
             </>
           ) : (
             <>
-              {/* New conversation */}
+              {/* New conversation with contact picker */}
               <div className="px-4 py-2.5 border-b border-border bg-muted/20">
                 <p className="text-[13px] font-semibold text-foreground">
                   New Conversation
                 </p>
               </div>
-              <div className="flex-1 flex flex-col items-center justify-center px-4">
-                <MessageSquare className="h-8 w-8 text-muted-foreground/30 mb-3" />
-                <p className="text-[13px] text-muted-foreground text-center max-w-xs mb-4">
-                  Start a new conversation with the family. Add a subject and
-                  your message below.
-                </p>
-                <div className="w-full max-w-sm">
+              <div className="flex-1 flex flex-col px-4 py-3 overflow-y-auto">
+                {/* Contact picker */}
+                <div className="mb-3">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    To
+                  </label>
+                  {contacts.length === 0 ? (
+                    <p className="text-[12px] text-muted-foreground">
+                      Loading contacts...
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {contacts.map((contact) => {
+                        const isSelected = selectedContactId === contact.stakeholder_id;
+                        return (
+                          <button
+                            key={contact.stakeholder_id}
+                            type="button"
+                            onClick={() => setSelectedContactId(contact.stakeholder_id)}
+                            className={`
+                              w-full text-left px-3 py-2 rounded-lg border transition-colors flex items-center gap-2.5
+                              ${
+                                isSelected
+                                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                                  : "border-border hover:border-primary/30 hover:bg-muted/30"
+                              }
+                            `}
+                          >
+                            <div className="shrink-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[11px] font-semibold text-white">
+                              {contact.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-semibold text-foreground truncate">
+                                {contact.name}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {contact.role}
+                                {contact.organization ? ` — ${contact.organization}` : ""}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <svg className="h-4 w-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Subject */}
+                <div className="mb-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    Subject
+                  </label>
                   <Input
                     value={newSubject}
                     onChange={(e) =>
                       setNewSubject((e.target as HTMLInputElement).value)
                     }
-                    placeholder="Subject (e.g. Assessment Follow-up)"
-                    className="h-8 text-[13px] mb-2"
+                    placeholder="e.g., Assessment Follow-up"
+                    className="h-8 text-[13px]"
                   />
                 </div>
               </div>

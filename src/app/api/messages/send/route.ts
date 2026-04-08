@@ -7,6 +7,8 @@ interface SendMessageBody {
   thread_id?: string;
   new_thread_subject?: string;
   recipient_role?: string;
+  recipient_id?: string;
+  recipient_name?: string;
   content: string;
 }
 
@@ -93,6 +95,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Look up sender name from user metadata or default to "Family"
+  let senderName = "Family";
+  const { data: userData } = await admin.auth.admin.getUserById(familyId);
+  if (userData?.user?.user_metadata?.name) {
+    senderName = userData.user.user_metadata.name;
+  } else if (userData?.user?.email) {
+    // Use email prefix as fallback
+    senderName = userData.user.email.split("@")[0];
+  }
+
   // Insert the message
   const { data: message, error } = await admin
     .from("messages")
@@ -102,6 +114,9 @@ export async function POST(request: NextRequest) {
       thread_subject: finalSubject,
       sender_id: familyId,
       sender_role: "parent",
+      sender_name: senderName,
+      recipient_id: body.recipient_id || null,
+      recipient_name: body.recipient_name || null,
       content: body.content.trim(),
       attachments: null,
     })

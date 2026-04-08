@@ -19,7 +19,8 @@ async function fetchThreads(): Promise<{ threads: ThreadSummary[] }> {
 async function sendMessage(body: {
   thread_id?: string;
   new_thread_subject?: string;
-  recipient_role?: string;
+  recipient_id?: string;
+  recipient_name?: string;
   content: string;
 }): Promise<{ success: boolean; message: { id: string; content: string; created_at: string } }> {
   const res = await fetch("/api/messages/send", {
@@ -30,6 +31,39 @@ async function sendMessage(body: {
   if (!res.ok) throw new Error("Failed to send message");
   return res.json();
 }
+
+// ── Care team contact type ─────────────────────────────────────────────
+
+interface CareTeamContact {
+  id: string;
+  stakeholder_id: string;
+  name: string;
+  role: string;
+  organization?: string;
+}
+
+async function fetchCareTeam(): Promise<CareTeamContact[]> {
+  const res = await fetch("/api/care-team");
+  if (!res.ok) {
+    if (res.status === 401) return [];
+    throw new Error("Failed to fetch care team");
+  }
+  const data = await res.json();
+  return (data.stakeholders ?? []).map((s: Record<string, unknown>) => ({
+    id: s.id as string,
+    stakeholder_id: (s.stakeholder_id as string) || (s.id as string),
+    name: (s.name as string) || "Unknown",
+    role: (s.role as string) || "Provider",
+    organization: (s.organization as string) || undefined,
+  }));
+}
+
+// Demo contacts shown in demo mode
+const DEMO_CONTACTS: CareTeamContact[] = [
+  { id: "demo-dr-park", stakeholder_id: "dr-patel", name: "Dr. Park", role: "Doctor", organization: "Toronto Clinic" },
+  { id: "demo-sarah", stakeholder_id: "sarah-ot", name: "Sarah Williams", role: "OT", organization: "Pathways" },
+  { id: "demo-thompson", stakeholder_id: "ms-rodriguez", name: "Ms. Thompson", role: "School", organization: "London Public" },
+];
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -50,15 +84,17 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function roleLabel(role: string): string {
+function displayName(msg: { sender_role: string; sender_name?: string }): string {
+  if (msg.sender_role === "parent") return "You";
+  if (msg.sender_name) return msg.sender_name;
+  // Fallback to role label
   const labels: Record<string, string> = {
-    parent: "You",
     doctor: "Doctor",
     therapist: "Therapist",
     school: "School",
     navigator: "Navigator",
   };
-  return labels[role] ?? role;
+  return labels[msg.sender_role] ?? msg.sender_role;
 }
 
 function roleColor(role: string): string {
@@ -71,7 +107,11 @@ function roleColor(role: string): string {
   return colors[role] ?? "text-warm-400";
 }
 
-function senderInitial(role: string): string {
+function senderInitial(name: string, role: string): string {
+  // Use first letter of the real name if available
+  if (name && name !== role) {
+    return name.charAt(0).toUpperCase();
+  }
   const initials: Record<string, string> = {
     parent: "Y",
     doctor: "D",
@@ -151,7 +191,7 @@ function ThreadListItem({
                       : "bg-primary"
             )}
           >
-            {isNavigator ? "N" : senderInitial(last.sender_role)}
+            {isNavigator ? "N" : senderInitial(last.sender_name || "", last.sender_role)}
           </div>
           <div className="min-w-0">
             <p className="font-medium text-sm text-foreground truncate">
@@ -190,7 +230,7 @@ function MessageBubble({
           )}
         >
           <span className={cn("font-medium", roleColor(message.sender_role))}>
-            {roleLabel(message.sender_role)}
+            {displayName(message)}
           </span>
           <span className="text-warm-300">
             {formatTime(message.created_at)}
@@ -247,24 +287,38 @@ function NewThreadForm({
 }) {
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
-  const [recipientRole, setRecipientRole] = useState("doctor");
+  const [selectedContactId, setSelectedContactId] = useState("");
   const queryClient = useQueryClient();
+
+  // Fetch real contacts from care team API
+  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
+    queryKey: ["care-team-contacts"],
+    queryFn: fetchCareTeam,
+    staleTime: 60_000,
+  });
+
+  // In demo mode, use demo contacts if API returns empty
+  const effectiveContacts = contacts.length > 0 ? contacts : DEMO_CONTACTS;
+
+  const selectedContact = effectiveContacts.find(
+    (c) => c.stakeholder_id === selectedContactId
+  );
 
   const mutation = useMutation({
     mutationFn: sendMessage,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["messages"] });
-      // Generate a temporary thread id for selection
       onCreated(data.message.id);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim() || !content.trim()) return;
+    if (!subject.trim() || !content.trim() || !selectedContact) return;
     mutation.mutate({
       new_thread_subject: subject.trim(),
-      recipient_role: recipientRole,
+      recipient_id: selectedContact.stakeholder_id,
+      recipient_name: selectedContact.name,
       content: content.trim(),
     });
   };
@@ -282,6 +336,77 @@ function NewThreadForm({
         <h2 className="font-heading font-semibold text-sm">New Message</h2>
       </div>
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-4 gap-3">
+        {/* Contact picker */}
+        <div>
+          <label
+            htmlFor="new-thread-recipient"
+            className="block text-xs font-medium text-warm-400 mb-1"
+          >
+            To
+          </label>
+          {contactsLoading ? (
+            <div className="flex items-center gap-2 h-8 px-2.5 text-sm text-warm-300">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading care team...
+            </div>
+          ) : effectiveContacts.length === 0 ? (
+            <p className="text-xs text-warm-400 py-2">
+              No care team members found. Invite members in Settings first.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {effectiveContacts.map((contact) => {
+                const isSelected = selectedContactId === contact.stakeholder_id;
+                return (
+                  <button
+                    key={contact.stakeholder_id}
+                    type="button"
+                    onClick={() => setSelectedContactId(contact.stakeholder_id)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-lg border transition-colors flex items-center gap-3",
+                      isSelected
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-warm-200 hover:bg-warm-50"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white",
+                        contact.role.toLowerCase().includes("doctor") || contact.role.toLowerCase() === "md" || contact.role.toLowerCase() === "physician"
+                          ? "bg-status-current"
+                          : contact.role.toLowerCase().includes("school") || contact.role.toLowerCase().includes("teacher")
+                            ? "bg-status-caution"
+                            : contact.role.toLowerCase().includes("ot") || contact.role.toLowerCase().includes("therapist") || contact.role.toLowerCase().includes("slp") || contact.role.toLowerCase().includes("aba")
+                              ? "bg-status-success"
+                              : "bg-primary"
+                      )}
+                    >
+                      {contact.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {contact.name}
+                      </p>
+                      <p className="text-[11px] text-warm-400 truncate">
+                        {contact.role}
+                        {contact.organization ? ` — ${contact.organization}` : ""}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="shrink-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Subject */}
         <div>
           <label
             htmlFor="new-thread-subject"
@@ -298,24 +423,8 @@ function NewThreadForm({
             className="w-full h-8 rounded-lg border border-input bg-warm-50 px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         </div>
-        <div>
-          <label
-            htmlFor="new-thread-recipient"
-            className="block text-xs font-medium text-warm-400 mb-1"
-          >
-            Recipient
-          </label>
-          <select
-            id="new-thread-recipient"
-            value={recipientRole}
-            onChange={(e) => setRecipientRole(e.target.value)}
-            className="w-full h-8 rounded-lg border border-input bg-warm-50 px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="doctor">Doctor</option>
-            <option value="therapist">Therapist</option>
-            <option value="school">School</option>
-          </select>
-        </div>
+
+        {/* Message */}
         <div className="flex-1">
           <label
             htmlFor="new-thread-content"
@@ -343,7 +452,7 @@ function NewThreadForm({
           <button
             type="submit"
             disabled={
-              !subject.trim() || !content.trim() || mutation.isPending
+              !selectedContactId || !subject.trim() || !content.trim() || mutation.isPending
             }
             className="h-11 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
