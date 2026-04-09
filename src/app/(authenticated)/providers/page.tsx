@@ -23,7 +23,8 @@ import {
   CreditCard,
   Info,
 } from "lucide-react";
-import type { ParsedProvider, ParsedProviders } from "@/types/workspace";
+import type { ParsedProvider, ParsedProviders, ParsedProfile } from "@/types/workspace";
+import { extractNeeds, buildRecommendationSummary } from "@/lib/needs";
 
 // -- Types -------------------------------------------------------------------
 
@@ -697,24 +698,38 @@ function SearchTabContent() {
 function PriorityBanner({
   childName,
   providers,
+  profile,
 }: {
   childName: string;
   providers: { highestPriority: ParsedProvider[] };
+  profile: ParsedProfile | undefined;
 }) {
   if (providers.highestPriority.length === 0) return null;
 
-  const topProvider = providers.highestPriority[0];
-  const topService = topProvider.services
-    ? topProvider.services.split(/[,;/]/)[0].trim()
-    : "specialist support";
+  const needs = profile ? extractNeeds(profile) : [];
+  const recommendation = profile ? buildRecommendationSummary(needs) : "";
 
   return (
-    <div className="bg-primary/5 border border-primary/15 rounded-xl px-4 py-3 mb-2">
+    <div className="bg-[#fdf3ee] border border-[#e8a882]/30 rounded-xl px-4 py-3 mb-2">
       <p className="text-[13px] text-foreground leading-relaxed">
         <span className="font-semibold text-primary">Priority Now</span>
-        {" \u2014 "}Based on {childName}&apos;s needs:{" "}
-        <span className="font-medium">{topService}</span> is the highest
-        priority. Assessment recommends targeted support in this area.
+        {" \u2014 "}
+        {needs.length > 0 ? (
+          <>
+            Based on {childName}&apos;s needs:{" "}
+            <span className="font-semibold">
+              {needs.map((n) => `${n.label}${n.detail ? ` (${n.detail})` : ""}`).join(", ")}
+            </span>
+            .{recommendation && (
+              <> Assessment recommends {recommendation}.</>
+            )}
+          </>
+        ) : (
+          <>
+            Based on {childName}&apos;s profile, matched providers are shown
+            below. Assessment recommends targeted support.
+          </>
+        )}
       </p>
     </div>
   );
@@ -777,7 +792,7 @@ export default function ProvidersPage() {
       {providers && (
         <div className="space-y-5">
           {/* Priority Banner */}
-          <PriorityBanner childName={childName} providers={providers} />
+          <PriorityBanner childName={childName} providers={providers} profile={profile} />
 
           {/* Tabs */}
           <div className="flex items-center gap-0 border-b border-border">

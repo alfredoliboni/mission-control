@@ -6,6 +6,7 @@ interface UploadedDocument {
   id: string;
   family_id: string;
   child_nickname: string | null;
+  child_name: string | null;
   uploaded_by: string;
   uploader_role: string;
   title: string;

@@ -16,6 +16,7 @@ import type {
   Supplement,
   Doctor,
 } from "@/types/workspace";
+import { extractNeeds } from "@/lib/needs";
 import {
   Pencil,
   Check,
@@ -364,6 +365,35 @@ export default function ProfilePage() {
               <LabelValue label="Diagnosis" value={data.basicInfo.diagnosis} isEditing={editingSection === "basic"} onChange={(v) => updateBasicInfo("diagnosis", v)} />
             </dl>
           </div>
+
+          {/* ── Priority Needs Card ──────────────────────────────────── */}
+          {(() => {
+            const needs = extractNeeds(data);
+            if (needs.length === 0) return null;
+            return (
+              <div className="bg-card border border-border rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <h2 className="text-[15px] font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <span aria-hidden="true">&#127919;</span> Priority Needs
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {needs.map((need) => (
+                    <span
+                      key={need.label}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold bg-primary/8 text-primary border border-primary/15"
+                      title={need.detail}
+                    >
+                      {need.label}
+                      {need.detail && (
+                        <span className="font-normal text-primary/70">
+                          &middot; {need.detail}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Two-Column Grid ──────────────────────────────────────── */}
           <div className="grid gap-4 lg:grid-cols-2">

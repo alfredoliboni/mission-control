@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const title = formData.get("title") as string | null;
     const docType = formData.get("doc_type") as string | null;
     const childNickname = (formData.get("child_nickname") as string) || null;
+    const childName = (formData.get("child_name") as string) || childNickname;
 
     if (!file || !title || !docType) {
       return NextResponse.json(
@@ -102,22 +103,29 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Insert record into documents table
+    const insertPayload: Record<string, unknown> = {
+      family_id: familyId,
+      child_nickname: childNickname,
+      uploaded_by: user.id,
+      uploader_role: uploaderRole,
+      title,
+      doc_type: docType,
+      file_path: storagePath,
+      metadata: {
+        original_filename: file.name,
+        content_type: file.type,
+        size_bytes: file.size,
+      },
+    };
+
+    // Include child_name if provided (column may not exist yet — handled gracefully)
+    if (childName) {
+      insertPayload.child_name = childName;
+    }
+
     const { data: document, error: insertError } = await admin
       .from("documents")
-      .insert({
-        family_id: familyId,
-        child_nickname: childNickname,
-        uploaded_by: user.id,
-        uploader_role: uploaderRole,
-        title,
-        doc_type: docType,
-        file_path: storagePath,
-        metadata: {
-          original_filename: file.name,
-          content_type: file.type,
-          size_bytes: file.size,
-        },
-      })
+      .insert(insertPayload)
       .select("id, title, file_path")
       .single();
 

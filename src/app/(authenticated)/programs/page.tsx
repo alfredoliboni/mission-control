@@ -18,10 +18,10 @@ import {
   Info,
   Calendar,
   Users,
-  Tag,
   ExternalLink,
 } from "lucide-react";
-import type { ParsedProgram, ProgramCategory, ParsedPrograms } from "@/types/workspace";
+import type { ParsedProgram, ProgramCategory, ParsedPrograms, ParsedProfile } from "@/types/workspace";
+import { extractNeeds, buildRecommendationSummary } from "@/lib/needs";
 
 // -- Types -------------------------------------------------------------------
 
@@ -744,6 +744,7 @@ function SearchTabContent() {
 function PriorityBanner({
   childName,
   programs,
+  profile,
 }: {
   childName: string;
   programs: {
@@ -751,6 +752,7 @@ function PriorityBanner({
     government: ParsedProgram[];
     educational: ParsedProgram[];
   };
+  profile: ParsedProfile | undefined;
 }) {
   const totalCount =
     programs.gapFillers.length +
@@ -760,21 +762,48 @@ function PriorityBanner({
 
   if (totalCount === 0) return null;
 
+  const needs = profile ? extractNeeds(profile) : [];
+  const recommendation = profile ? buildRecommendationSummary(needs) : "";
+
   return (
-    <div className="bg-primary/5 border border-primary/15 rounded-xl px-4 py-3 mb-2">
+    <div className="bg-[#fdf3ee] border border-[#e8a882]/30 rounded-xl px-4 py-3 mb-2">
       <p className="text-[13px] text-foreground leading-relaxed">
-        <span className="font-semibold text-primary">
-          Your Navigator found {totalCount} program
-          {totalCount !== 1 ? "s" : ""} that match {childName}&apos;s needs
-        </span>
-        {gapFillerCount > 0 && (
+        <span className="font-semibold text-primary">Priority Now</span>
+        {" \u2014 "}
+        {needs.length > 0 ? (
           <>
-            {" \u2014 "}
-            <span className="font-medium">
-              {gapFillerCount} {gapFillerCount === 1 ? "is a" : "are"} gap
-              filler{gapFillerCount !== 1 ? "s" : ""} to use while waiting for
-              funded services
+            Based on {childName}&apos;s needs:{" "}
+            <span className="font-semibold">
+              {needs.map((n) => `${n.label}${n.detail ? ` (${n.detail})` : ""}`).join(", ")}
             </span>
+            .{recommendation && (
+              <> Assessment recommends {recommendation}.</>
+            )}{" "}
+            Your Navigator found {totalCount} matching program
+            {totalCount !== 1 ? "s" : ""}
+            {gapFillerCount > 0 && (
+              <>
+                {" \u2014 "}
+                {gapFillerCount} gap filler{gapFillerCount !== 1 ? "s" : ""} to
+                use while waiting for funded services
+              </>
+            )}
+            .
+          </>
+        ) : (
+          <>
+            Your Navigator found {totalCount} program
+            {totalCount !== 1 ? "s" : ""} that match {childName}&apos;s needs
+            {gapFillerCount > 0 && (
+              <>
+                {" \u2014 "}
+                <span className="font-medium">
+                  {gapFillerCount} {gapFillerCount === 1 ? "is a" : "are"} gap
+                  filler{gapFillerCount !== 1 ? "s" : ""} to use while waiting for
+                  funded services
+                </span>
+              </>
+            )}
           </>
         )}
       </p>
@@ -844,7 +873,7 @@ export default function ProgramsPage() {
       {programs && (
         <div className="space-y-5">
           {/* Priority Banner */}
-          <PriorityBanner childName={childName} programs={programs} />
+          <PriorityBanner childName={childName} programs={programs} profile={profile} />
 
           {/* Tabs */}
           <div className="flex items-center gap-0 border-b border-border">

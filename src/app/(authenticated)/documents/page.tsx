@@ -36,6 +36,7 @@ import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPop
 import { useAppStore } from "@/store/appStore";
 import { useChat } from "@/hooks/useChat";
 import { useParsedProfile } from "@/hooks/useWorkspace";
+import { useFamily } from "@/hooks/useActiveAgent";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -117,6 +118,7 @@ interface UploadedDoc {
   file_path: string;
   uploaded_at: string;
   child_nickname: string | null;
+  child_name: string | null;
   uploader_role: string;
   download_url: string | null;
   metadata: {
@@ -216,7 +218,10 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
     formData.append("file", file);
     formData.append("title", title);
     formData.append("doc_type", docType);
-    if (childNickname) formData.append("child_nickname", childNickname);
+    if (childNickname) {
+      formData.append("child_nickname", childNickname);
+      formData.append("child_name", childNickname);
+    }
 
     try {
       const res = await fetch("/api/documents/upload", {
@@ -1053,11 +1058,14 @@ export default function DocumentsPage() {
 
   const { data: profile } = useParsedProfile();
   const childName = profile?.basicInfo?.name || "your child";
+  const family = useFamily();
+  const isMultiChild = family.children.length > 1;
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryValue>("all");
+  const [childFilter, setChildFilter] = useState<string>("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
@@ -1079,9 +1087,14 @@ export default function DocumentsPage() {
 
       const matchesCat = matchesCategory(doc.doc_type, activeCategory);
 
-      return matchesSearch && matchesCat;
+      const matchesChild =
+        childFilter === "all" ||
+        (doc.child_name && doc.child_name.toLowerCase().includes(childFilter.toLowerCase())) ||
+        (doc.child_nickname && doc.child_nickname.toLowerCase().includes(childFilter.toLowerCase()));
+
+      return matchesSearch && matchesCat && matchesChild;
     });
-  }, [docs, searchQuery, activeCategory]);
+  }, [docs, searchQuery, activeCategory, childFilter]);
 
   const selectedDoc = useMemo(
     () => docs.find((d) => d.id === selectedId) || null,
@@ -1310,6 +1323,46 @@ export default function DocumentsPage() {
                 </button>
               ))}
             </div>
+
+            {/* Child filter (multi-child families only) */}
+            {isMultiChild && (
+              <div className="px-3 pb-2 flex gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setChildFilter("all")}
+                  className={`
+                    px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all
+                    ${
+                      childFilter === "all"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }
+                  `}
+                >
+                  All
+                </button>
+                {family.children.map((child) => {
+                  const firstName = child.childName.split(" ")[0];
+                  return (
+                    <button
+                      key={child.childName}
+                      type="button"
+                      onClick={() => setChildFilter(firstName)}
+                      className={`
+                        px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all
+                        ${
+                          childFilter === firstName
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }
+                      `}
+                    >
+                      {firstName}&apos;s Docs
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Divider */}
             <div className="border-t border-border" />
