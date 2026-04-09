@@ -35,11 +35,11 @@ export async function GET() {
 
     const familyIds = links.map((l) => l.family_id);
 
-    // Fetch documents: uploaded by this stakeholder OR belonging to linked families
-    const { data: documents, error: queryError } = await admin
+    // Fetch documents belonging to linked families
+    const { data: allDocuments, error: queryError } = await admin
       .from("documents")
       .select("*")
-      .or(`uploaded_by.eq.${user.id},family_id.in.(${familyIds.join(",")})`)
+      .in("family_id", familyIds)
       .order("uploaded_at", { ascending: false });
 
     if (queryError) {
@@ -49,6 +49,25 @@ export async function GET() {
         { status: 500 }
       );
     }
+
+    // Filter: only return documents uploaded by this user OR explicitly shared with them
+    const docIds = (allDocuments ?? []).map((d) => d.id);
+    let permittedDocIds = new Set<string>();
+
+    if (docIds.length > 0) {
+      const { data: perms } = await admin
+        .from("document_permissions")
+        .select("document_id")
+        .eq("stakeholder_id", user.id)
+        .eq("can_view", true)
+        .in("document_id", docIds);
+
+      permittedDocIds = new Set((perms ?? []).map((p) => p.document_id));
+    }
+
+    const documents = (allDocuments ?? []).filter(
+      (doc) => doc.uploaded_by === user.id || permittedDocIds.has(doc.id)
+    );
 
     // Generate signed URLs
     const documentsWithUrls = await Promise.all(

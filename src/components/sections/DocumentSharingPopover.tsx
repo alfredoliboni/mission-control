@@ -3,82 +3,129 @@
 import { useState, useEffect, useCallback } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Switch } from "@/components/ui/switch";
-import { Lock, LockOpen } from "lucide-react";
+import { Lock, LockOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-// ── Sharing roles ───────────────────────────────────────────────────────
-const SHARING_ROLES = [
-  { key: "doctor", emoji: "\uD83D\uDC68\u200D\u2695\uFE0F", label: "Doctor", name: "Dr. Park" },
-  { key: "school", emoji: "\uD83C\uDFEB", label: "School", name: "School" },
-  { key: "therapist", emoji: "\uD83E\uDDD1\u200D\u2695\uFE0F", label: "Therapist", name: "Therapist" },
-] as const;
+// ── Types ──────────────────────────────────────────────────────────────
+interface StakeholderPermission {
+  stakeholder_id: string;
+  stakeholder_name: string;
+  role: string;
+  can_view: boolean;
+}
 
-type RoleKey = (typeof SHARING_ROLES)[number]["key"];
-type SharingState = Record<RoleKey, boolean>;
-
-const DEFAULT_SHARING: SharingState = {
-  doctor: false,
-  school: false,
-  therapist: false,
+// ── Role emoji map ─────────────────────────────────────────────────────
+const ROLE_EMOJI: Record<string, string> = {
+  doctor: "\uD83D\uDC68\u200D\u2695\uFE0F",
+  therapist: "\uD83E\uDDD1\u200D\u2695\uFE0F",
+  school: "\uD83C\uDFEB",
+  specialist: "\uD83E\uDE7A",
+  employer: "\uD83D\uDCBC",
 };
 
-// ── localStorage helpers ────────────────────────────────────────────────
-const STORAGE_PREFIX = "doc_sharing_";
-
-function loadSharing(docId: string): SharingState {
-  if (typeof window === "undefined") return DEFAULT_SHARING;
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${docId}`);
-    if (raw) return { ...DEFAULT_SHARING, ...JSON.parse(raw) };
-  } catch {
-    // ignore corrupt data
-  }
-  return DEFAULT_SHARING;
+function getEmoji(role: string): string {
+  return ROLE_EMOJI[role.toLowerCase()] ?? "\uD83D\uDC64";
 }
 
-function saveSharing(docId: string, state: SharingState) {
-  try {
-    localStorage.setItem(`${STORAGE_PREFIX}${docId}`, JSON.stringify(state));
-  } catch {
-    // storage full — fail silently
-  }
-}
-
-// ── Component ───────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────
 interface DocumentSharingPopoverProps {
   docId: string;
   docTitle: string;
 }
 
 export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopoverProps) {
-  const [sharing, setSharing] = useState<SharingState>(DEFAULT_SHARING);
+  const [permissions, setPermissions] = useState<StakeholderPermission[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
-  // Load from localStorage on mount / when docId changes
-  useEffect(() => {
-    setSharing(loadSharing(docId));
+  // Fetch permissions from Supabase when popover opens
+  const fetchPermissions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/documents/permissions?document_id=${encodeURIComponent(docId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPermissions(data.permissions ?? []);
+      } else {
+        console.error("Failed to fetch permissions:", res.status);
+      }
+    } catch (err) {
+      console.error("Error fetching permissions:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [docId]);
 
-  const hasAnySharing = sharing.doctor || sharing.school || sharing.therapist;
+  // Reload permissions when popover opens or docId changes
+  useEffect(() => {
+    if (open) {
+      fetchPermissions();
+    }
+  }, [open, fetchPermissions]);
+
+  const hasAnySharing = permissions.some((p) => p.can_view);
 
   const handleToggle = useCallback(
-    (roleKey: RoleKey, checked: boolean) => {
-      const role = SHARING_ROLES.find((r) => r.key === roleKey)!;
-      const next = { ...sharing, [roleKey]: checked };
-      setSharing(next);
-      saveSharing(docId, next);
+    async (stakeholder: StakeholderPermission, checked: boolean) => {
+      // Optimistic update
+      setPermissions((prev) =>
+        prev.map((p) =>
+          p.stakeholder_id === stakeholder.stakeholder_id
+            ? { ...p, can_view: checked }
+            : p
+        )
+      );
+      setToggling(stakeholder.stakeholder_id);
 
       const shortTitle =
         docTitle.length > 30 ? docTitle.slice(0, 30) + "\u2026" : docTitle;
 
-      toast(
-        checked
-          ? `${role.name} can now view "${shortTitle}"`
-          : `${role.name} can no longer view "${shortTitle}"`,
-        { duration: 2500 }
-      );
+      try {
+        const res = await fetch("/api/documents/permissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            document_id: docId,
+            stakeholder_id: stakeholder.stakeholder_id,
+            can_view: checked,
+          }),
+        });
+
+        if (!res.ok) {
+          // Revert optimistic update
+          setPermissions((prev) =>
+            prev.map((p) =>
+              p.stakeholder_id === stakeholder.stakeholder_id
+                ? { ...p, can_view: !checked }
+                : p
+            )
+          );
+          toast("Failed to update sharing permission", { duration: 2500 });
+          return;
+        }
+
+        toast(
+          checked
+            ? `${stakeholder.stakeholder_name} can now view "${shortTitle}"`
+            : `${stakeholder.stakeholder_name} can no longer view "${shortTitle}"`,
+          { duration: 2500 }
+        );
+      } catch {
+        // Revert optimistic update
+        setPermissions((prev) =>
+          prev.map((p) =>
+            p.stakeholder_id === stakeholder.stakeholder_id
+              ? { ...p, can_view: !checked }
+              : p
+          )
+        );
+        toast("Failed to update sharing permission", { duration: 2500 });
+      } finally {
+        setToggling(null);
+      }
     },
-    [sharing, docId, docTitle]
+    [docId, docTitle]
   );
 
   return (
@@ -105,26 +152,40 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
               Share with care team
             </Popover.Title>
 
-            <div className="space-y-2.5">
-              {SHARING_ROLES.map((role) => (
-                <label
-                  key={role.key}
-                  className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-primary/4 transition-colors cursor-pointer"
-                >
-                  <span className="flex items-center gap-2 text-[13px] text-foreground">
-                    <span>{role.emoji}</span>
-                    <span className="font-medium">{role.label}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      — can view
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-[12px] text-muted-foreground">
+                  Loading care team...
+                </span>
+              </div>
+            ) : permissions.length === 0 ? (
+              <p className="py-3 text-[12px] text-muted-foreground text-center">
+                No care team members yet. Invite someone in Settings.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {permissions.map((perm) => (
+                  <label
+                    key={perm.stakeholder_id}
+                    className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-primary/4 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 text-[13px] text-foreground">
+                      <span>{getEmoji(perm.role)}</span>
+                      <span className="font-medium">{perm.stakeholder_name}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        — can view
+                      </span>
                     </span>
-                  </span>
-                  <Switch
-                    checked={sharing[role.key]}
-                    onCheckedChange={(checked) => handleToggle(role.key, checked)}
-                  />
-                </label>
-              ))}
-            </div>
+                    <Switch
+                      checked={perm.can_view}
+                      onCheckedChange={(checked) => handleToggle(perm, checked)}
+                      disabled={toggling === perm.stakeholder_id}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
 
             <p className="mt-3 text-[10px] text-muted-foreground leading-relaxed">
               Controls who on your care team can access this document.
