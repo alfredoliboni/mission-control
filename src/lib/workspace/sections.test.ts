@@ -27,19 +27,15 @@ describe("discoverSections", () => {
     });
   });
 
-  // documents.md and messages.md are hardcoded in Sidebar — not in knownSections
-  it("treats documents.md as dynamic (not in knownSections)", () => {
+  // documents.md and messages.md are hardcoded in Sidebar — filtered out entirely
+  it("excludes documents.md (hardcoded in sidebar)", () => {
     const sections = discoverSections(["documents.md"]);
-    expect(sections[0]).toMatchObject({
-      group: "dynamic",
-    });
+    expect(sections).toHaveLength(0);
   });
 
-  it("treats messages.md as dynamic (not in knownSections)", () => {
+  it("excludes messages.md (hardcoded in sidebar)", () => {
     const sections = discoverSections(["messages.md"]);
-    expect(sections[0]).toMatchObject({
-      group: "dynamic",
-    });
+    expect(sections).toHaveLength(0);
   });
 
   it("maps ontario-system.md correctly", () => {
@@ -122,8 +118,7 @@ describe("getSectionGroups", () => {
     expect(groups.organize.map((s) => s.label)).toContain("Benefits");
     expect(groups.organize.map((s) => s.label)).toContain("Alerts");
 
-    // messages.md is now dynamic (hardcoded in sidebar), gap-fillers too
-    expect(groups.dynamic.map((s) => s.label)).toContain("Messages");
+    // messages.md is excluded (hardcoded in sidebar), gap-fillers is dynamic
     expect(groups.dynamic.map((s) => s.label)).toContain("Gap Fillers");
   });
 
