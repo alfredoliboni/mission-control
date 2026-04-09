@@ -28,6 +28,8 @@ import {
   Heart,
   Loader2,
 } from "lucide-react";
+import { useFamily } from "@/hooks/useActiveAgent";
+import { useAppStore } from "@/store/appStore";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,8 @@ interface Partner {
   status: "active" | "pending" | "revoked";
   lastAccess: string;
   permissions: string[];
+  childName?: string;
+  childAgentId?: string;
 }
 
 interface PrivacySettings {
@@ -143,6 +147,9 @@ function PartnerRow({
           </div>
           <p className="text-[12px] text-muted-foreground">
             {partner.role} · {partner.organization}
+            {partner.childName && (
+              <span className="text-primary font-medium"> — for {partner.childName}</span>
+            )}
           </p>
           <p className="text-[12px] text-muted-foreground mt-0.5">{partner.email}</p>
           {partner.lastAccess !== "—" && (
@@ -209,6 +216,8 @@ async function fetchCareTeam(): Promise<Partner[]> {
     status: (s.status as Partner["status"]) || "active",
     lastAccess: (s.last_access as string) || "—",
     permissions: (s.permissions as string[]) || ["View profile"],
+    childName: (s.child_name as string) || undefined,
+    childAgentId: (s.child_agent_id as string) || undefined,
   }));
 }
 
@@ -217,6 +226,8 @@ async function inviteCareTeamMember(body: {
   name: string;
   role: string;
   organization?: string;
+  child_name?: string;
+  child_agent_id?: string;
 }): Promise<void> {
   const res = await fetch("/api/care-team/invite", {
     method: "POST",
@@ -241,6 +252,8 @@ async function removeCareTeamMember(id: string): Promise<void> {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const family = useFamily();
+  const activeChildIndex = useAppStore((s) => s.activeChildIndex);
   const [parent, setParent] = useState(DEMO_PARENT);
   const [privacy, setPrivacy] = useState(DEMO_PRIVACY);
   const [editingParent, setEditingParent] = useState(false);
@@ -248,6 +261,13 @@ export default function SettingsPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState("Provider");
   const [inviteOrg, setInviteOrg] = useState("");
+
+  // Multi-child support: default to the currently active child
+  const isMultiChild = family.children.length > 1;
+  const safeChildIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
+    ? activeChildIndex
+    : 0;
+  const [selectedChildIndex, setSelectedChildIndex] = useState(safeChildIndex);
 
   // ── Care Team: fetch from API ──
   const {
@@ -270,6 +290,7 @@ export default function SettingsPage() {
       setInviteName("");
       setInviteRole("Provider");
       setInviteOrg("");
+      setSelectedChildIndex(safeChildIndex);
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to send invitation");
@@ -411,11 +432,18 @@ export default function SettingsPage() {
                 className="h-9 shrink-0"
                 disabled={!inviteEmail || !inviteName || !inviteRole || inviteMutation.isPending}
                 onClick={() => {
+                  const selectedChild = family.children[selectedChildIndex];
                   inviteMutation.mutate({
                     email: inviteEmail,
                     name: inviteName,
                     role: inviteRole,
                     organization: inviteOrg || undefined,
+                    ...(isMultiChild && selectedChild
+                      ? {
+                          child_name: selectedChild.childName,
+                          child_agent_id: selectedChild.agentId,
+                        }
+                      : {}),
                   });
                 }}
               >
@@ -427,6 +455,33 @@ export default function SettingsPage() {
                 Invite
               </Button>
             </div>
+            {/* Child selector — only shown for multi-child families */}
+            {isMultiChild && (
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[12px] font-medium text-muted-foreground shrink-0">
+                  For which child?
+                </span>
+                <div className="flex gap-2">
+                  {family.children.map((child, index) => (
+                    <button
+                      key={child.agentId}
+                      type="button"
+                      onClick={() => setSelectedChildIndex(index)}
+                      className={`
+                        text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-colors
+                        ${
+                          selectedChildIndex === index
+                            ? "border-primary bg-primary/8 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                        }
+                      `}
+                    >
+                      {child.childName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Loading state */}

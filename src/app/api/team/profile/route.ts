@@ -129,29 +129,66 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Fetch ALL stakeholder links for this user
+  // Fetch ALL stakeholder links for this user (include child columns if available)
   const { data: links, error: linkError } = await admin
     .from("stakeholder_links")
-    .select("family_id")
+    .select("family_id, child_name, child_agent_id")
     .eq("stakeholder_id", user.id);
 
-  if (linkError || !links || links.length === 0) {
+  // Fallback: if the query fails (child columns don't exist yet), try without them
+  let resolvedLinks: Array<{ family_id: string; child_name?: string | null; child_agent_id?: string | null }> | null = links;
+  if (linkError) {
+    const fallback = await admin
+      .from("stakeholder_links")
+      .select("family_id")
+      .eq("stakeholder_id", user.id);
+    resolvedLinks = (fallback.data || []).map((r: { family_id: string }) => ({
+      family_id: r.family_id,
+      child_name: null,
+      child_agent_id: null,
+    }));
+    if (fallback.error || !fallback.data || fallback.data.length === 0) {
+      return NextResponse.json(
+        { error: "No linked family found" },
+        { status: 404 }
+      );
+    }
+  }
+
+  if (!resolvedLinks || resolvedLinks.length === 0) {
     return NextResponse.json(
       { error: "No linked family found" },
       { status: 404 }
     );
   }
 
-  // For each linked family, fetch family user info and build profile
+  // For each linked family (per-child if child_name is set), fetch profile
   const families = await Promise.all(
-    links.map(async (link) => {
+    resolvedLinks.map(async (link) => {
       const { data: familyUser } = await admin.auth.admin.getUserById(
         link.family_id
       );
 
       const email = familyUser?.user?.email || "";
-      const agent = getFamilyAgentFlat(email);
 
+      // If this link is for a specific child, resolve that child's agent
+      if (link.child_name && link.child_agent_id) {
+        const family = getFamilyAgentFlat(email);
+        // Use the child-specific profile fetch with the child's agent workspace
+        const profile = await fetchChildProfile(email);
+
+        return {
+          familyId: link.family_id,
+          childName: link.child_name,
+          familyName: family.familyName,
+          agentId: link.child_agent_id,
+          age: profile.age,
+          diagnosis: profile.diagnosis,
+        };
+      }
+
+      // Legacy: no child_name means linked to whole family (first child)
+      const agent = getFamilyAgentFlat(email);
       const profile = await fetchChildProfile(email);
 
       return {

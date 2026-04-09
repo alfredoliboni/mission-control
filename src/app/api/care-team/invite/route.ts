@@ -19,11 +19,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { email, name, role, organization } = body as {
+  const { email, name, role, organization, child_name, child_agent_id } = body as {
     email: string;
     name: string;
     role: string;
     organization?: string;
+    child_name?: string;
+    child_agent_id?: string;
   };
 
   if (!email || !name || !role) {
@@ -55,16 +57,24 @@ export async function POST(request: NextRequest) {
     stakeholderId = newUser.user.id;
   }
 
-  // Check for duplicate invite
-  const { data: existingLink } = await supabaseAdmin
+  // Check for duplicate invite (per family + stakeholder + child)
+  let duplicateQuery = supabaseAdmin
     .from("stakeholder_links")
     .select("id")
     .eq("family_id", user.id)
-    .eq("stakeholder_id", stakeholderId)
-    .limit(1);
+    .eq("stakeholder_id", stakeholderId);
+
+  if (child_name) {
+    duplicateQuery = duplicateQuery.eq("child_name", child_name);
+  } else {
+    duplicateQuery = duplicateQuery.is("child_name", null);
+  }
+
+  const { data: existingLink } = await duplicateQuery.limit(1);
 
   if (existingLink && existingLink.length > 0) {
-    return NextResponse.json({ error: "This person has already been invited to your care team" }, { status: 400 });
+    const forChild = child_name ? ` for ${child_name}` : "";
+    return NextResponse.json({ error: `This person has already been invited to your care team${forChild}` }, { status: 400 });
   }
 
   // Merge metadata (preserve existing role like "provider" if they registered)
@@ -73,19 +83,46 @@ export async function POST(request: NextRequest) {
     user_metadata: { ...existingMetadata, stakeholder_role: role, is_stakeholder: true },
   });
 
-  // Insert stakeholder link
-  const { data: link, error: linkError } = await supabaseAdmin
+  // Insert stakeholder link (include child fields if provided — columns may not exist yet)
+  const insertPayload: Record<string, unknown> = {
+    family_id: user.id,
+    stakeholder_id: stakeholderId,
+    role,
+    name,
+    organization: organization || null,
+    linked_by: user.id,
+  };
+
+  if (child_name) insertPayload.child_name = child_name;
+  if (child_agent_id) insertPayload.child_agent_id = child_agent_id;
+
+  let link;
+  let linkError;
+
+  const result = await supabaseAdmin
     .from("stakeholder_links")
-    .insert({
-      family_id: user.id,
-      stakeholder_id: stakeholderId,
-      role,
-      name,
-      organization: organization || null,
-      linked_by: user.id,
-    })
+    .insert(insertPayload)
     .select()
     .single();
+
+  link = result.data;
+  linkError = result.error;
+
+  // If the insert failed because child columns don't exist yet, retry without them
+  if (linkError && (child_name || child_agent_id)) {
+    const fallbackPayload = { ...insertPayload };
+    delete fallbackPayload.child_name;
+    delete fallbackPayload.child_agent_id;
+
+    const fallbackResult = await supabaseAdmin
+      .from("stakeholder_links")
+      .insert(fallbackPayload)
+      .select()
+      .single();
+
+    link = fallbackResult.data;
+    linkError = fallbackResult.error;
+  }
 
   if (linkError) {
     return NextResponse.json({ error: linkError.message }, { status: 500 });
