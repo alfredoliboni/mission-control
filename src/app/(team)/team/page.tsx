@@ -19,9 +19,29 @@ import {
   AlertCircle,
   Send,
   X,
+  ChevronDown,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────
+
+interface FamilyInfo {
+  familyId: string;
+  childName: string;
+  familyName: string;
+  agentId: string;
+  age: string;
+  diagnosis: string;
+}
+
+interface TeamProfileResponse {
+  families: FamilyInfo[];
+  activeFamily: FamilyInfo;
+  // Legacy flat fields
+  name: string;
+  age: string;
+  diagnosis: string;
+  familyName: string;
+}
 
 interface ChildProfile {
   name: string;
@@ -80,14 +100,20 @@ type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 // ── Fetch helpers ────────────────────────────────────────────────────────
 
-async function fetchTeamProfile(): Promise<ChildProfile> {
-  const res = await fetch("/api/team/profile");
+async function fetchTeamProfile(familyId?: string): Promise<TeamProfileResponse> {
+  const url = familyId
+    ? `/api/team/profile?family_id=${encodeURIComponent(familyId)}`
+    : "/api/team/profile";
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch child profile");
   return res.json();
 }
 
-async function fetchTeamDocuments(): Promise<TeamDocument[]> {
-  const res = await fetch("/api/team/documents");
+async function fetchTeamDocuments(familyId?: string): Promise<TeamDocument[]> {
+  const url = familyId
+    ? `/api/team/documents?family_id=${encodeURIComponent(familyId)}`
+    : "/api/team/documents";
+  const res = await fetch(url);
   if (!res.ok) {
     if (res.status === 401) return [];
     throw new Error("Failed to fetch documents");
@@ -96,8 +122,11 @@ async function fetchTeamDocuments(): Promise<TeamDocument[]> {
   return data.documents ?? [];
 }
 
-async function fetchTeamMessages(): Promise<TeamThread[]> {
-  const res = await fetch("/api/team/messages");
+async function fetchTeamMessages(familyId?: string): Promise<TeamThread[]> {
+  const url = familyId
+    ? `/api/team/messages?family_id=${encodeURIComponent(familyId)}`
+    : "/api/team/messages";
+  const res = await fetch(url);
   if (!res.ok) {
     if (res.status === 401) return [];
     throw new Error("Failed to fetch messages");
@@ -112,6 +141,7 @@ async function sendTeamMessage(body: {
   recipient_id?: string;
   recipient_name?: string;
   content: string;
+  family_id?: string;
 }): Promise<void> {
   const res = await fetch("/api/team/messages", {
     method: "POST",
@@ -124,20 +154,19 @@ async function sendTeamMessage(body: {
   }
 }
 
-async function fetchTeamContacts(): Promise<TeamContact[]> {
-  const res = await fetch("/api/team/messages?contacts=true");
-  // The contacts endpoint doesn't exist yet separately, but we can derive
-  // contacts from the team profile's family info. For now, the family
-  // is always available as a contact, plus other stakeholders.
-  // We'll use the care-team endpoint scoped to the team side.
-  const profileRes = await fetch("/api/team/profile");
+async function fetchTeamContacts(familyId?: string): Promise<TeamContact[]> {
+  const url = familyId
+    ? `/api/team/profile?family_id=${encodeURIComponent(familyId)}`
+    : "/api/team/profile";
+  const profileRes = await fetch(url);
   if (!profileRes.ok) return [];
   const profile = await profileRes.json();
+  const activeFamily = profile.activeFamily || profile;
   const familyContact: TeamContact = {
     id: "family",
     stakeholder_id: "family",
-    family_id: "",
-    name: `${profile.familyName} Family`,
+    family_id: activeFamily.familyId || "",
+    name: `${activeFamily.familyName} Family`,
     role: "Family",
     organization: undefined,
   };
@@ -187,6 +216,11 @@ function getTypeEmoji(type: string): string {
   return "\uD83D\uDCC4";
 }
 
+function getChildEmoji(index: number): string {
+  const emojis = ["\uD83E\uDDD2", "\uD83D\uDC66", "\uD83D\uDC67", "\uD83D\uDC76", "\uD83E\uDDD1"];
+  return emojis[index % emojis.length];
+}
+
 // ── DOC TYPES for upload ─────────────────────────────────────────────────
 
 const DOC_TYPES = [
@@ -196,6 +230,112 @@ const DOC_TYPES = [
   { value: "prescription", label: "Prescription" },
   { value: "other", label: "Other" },
 ] as const;
+
+// ── Patient Switcher ────────────────────────────────────────────────────
+
+function PatientSwitcher({
+  families,
+  activeFamilyId,
+  onSwitch,
+}: {
+  families: FamilyInfo[];
+  activeFamilyId: string;
+  onSwitch: (familyId: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const activeFamily = families.find((f) => f.familyId === activeFamilyId) || families[0];
+
+  // Close dropdown when clicking outside
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+      setIsOpen(false);
+    }
+  }, []);
+
+  if (families.length < 2) return null;
+
+  return (
+    <div className="relative" ref={dropdownRef} onBlur={handleBlur}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="
+          flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border
+          bg-card hover:bg-muted/40 transition-all cursor-pointer w-full sm:w-auto
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+        "
+      >
+        <span className="text-lg" aria-hidden="true">
+          {getChildEmoji(families.indexOf(activeFamily))}
+        </span>
+        <div className="text-left min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-foreground truncate">
+            {activeFamily.childName}
+          </p>
+          <p className="text-[10px] text-muted-foreground truncate">
+            {activeFamily.familyName} Family
+          </p>
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1.5 w-full sm:w-72 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+          <div className="px-3 py-2 border-b border-border">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Switch Patient
+            </p>
+          </div>
+          <div className="py-1">
+            {families.map((family, index) => {
+              const isActive = family.familyId === activeFamilyId;
+              return (
+                <button
+                  key={family.familyId}
+                  type="button"
+                  onClick={() => {
+                    onSwitch(family.familyId);
+                    setIsOpen(false);
+                  }}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
+                    ${isActive
+                      ? "bg-primary/5 border-l-2 border-l-primary"
+                      : "hover:bg-muted/30 border-l-2 border-l-transparent"
+                    }
+                  `}
+                >
+                  <span className="text-lg shrink-0" aria-hidden="true">
+                    {getChildEmoji(index)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-foreground truncate">
+                      {family.childName}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {family.familyName} Family
+                    </p>
+                  </div>
+                  {isActive && (
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                      Active
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Child Overview Section ───────────────────────────────────────────────
 
@@ -285,7 +425,13 @@ function ChildOverview({
 
 // ── Upload Form ──────────────────────────────────────────────────────────
 
-function TeamUploadForm({ onSuccess }: { onSuccess: () => void }) {
+function TeamUploadForm({
+  onSuccess,
+  activeFamilyId,
+}: {
+  onSuccess: () => void;
+  activeFamilyId?: string;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [docType, setDocType] = useState("other");
@@ -337,6 +483,9 @@ function TeamUploadForm({ onSuccess }: { onSuccess: () => void }) {
     formData.append("file", file);
     formData.append("title", title);
     formData.append("doc_type", docType);
+    if (activeFamilyId) {
+      formData.append("family_id", activeFamilyId);
+    }
 
     try {
       const res = await fetch("/api/team/documents", {
@@ -508,19 +657,19 @@ function TeamUploadForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ── Documents Section ────────────────────────────────────────────────────
 
-function DocumentsSection() {
+function DocumentsSection({ activeFamilyId }: { activeFamilyId?: string }) {
   const queryClient = useQueryClient();
   const {
     data: documents = [],
     isLoading,
   } = useQuery({
-    queryKey: ["team-documents"],
-    queryFn: fetchTeamDocuments,
+    queryKey: ["team-documents", activeFamilyId],
+    queryFn: () => fetchTeamDocuments(activeFamilyId),
     staleTime: 30_000,
   });
 
   const handleUploadSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["team-documents"] });
+    queryClient.invalidateQueries({ queryKey: ["team-documents", activeFamilyId] });
   };
 
   return (
@@ -543,7 +692,7 @@ function DocumentsSection() {
         <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
           Upload a Document
         </h3>
-        <TeamUploadForm onSuccess={handleUploadSuccess} />
+        <TeamUploadForm onSuccess={handleUploadSuccess} activeFamilyId={activeFamilyId} />
       </div>
 
       {/* Document list */}
@@ -614,7 +763,7 @@ function DocumentsSection() {
 
 // ── Messages Section ─────────────────────────────────────────────────────
 
-function MessagesSection() {
+function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [newSubject, setNewSubject] = useState("");
@@ -626,16 +775,16 @@ function MessagesSection() {
     data: threads = [],
     isLoading,
   } = useQuery({
-    queryKey: ["team-messages"],
-    queryFn: fetchTeamMessages,
+    queryKey: ["team-messages", activeFamilyId],
+    queryFn: () => fetchTeamMessages(activeFamilyId),
     staleTime: 15_000,
     refetchInterval: 15_000,
   });
 
   // Fetch contacts (family + other linked stakeholders)
   const { data: contacts = [] } = useQuery({
-    queryKey: ["team-contacts"],
-    queryFn: fetchTeamContacts,
+    queryKey: ["team-contacts", activeFamilyId],
+    queryFn: () => fetchTeamContacts(activeFamilyId),
     staleTime: 60_000,
   });
 
@@ -648,7 +797,7 @@ function MessagesSection() {
     onSuccess: () => {
       setNewMessage("");
       setNewSubject("");
-      queryClient.invalidateQueries({ queryKey: ["team-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["team-messages", activeFamilyId] });
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 200);
@@ -671,6 +820,7 @@ function MessagesSection() {
       sendMutation.mutate({
         thread_id: activeThread.id,
         content,
+        family_id: activeFamilyId,
       });
     } else {
       sendMutation.mutate({
@@ -678,6 +828,7 @@ function MessagesSection() {
         recipient_id: selectedContact?.stakeholder_id,
         recipient_name: selectedContact?.name,
         content,
+        family_id: activeFamilyId,
       });
     }
   };
@@ -928,38 +1079,77 @@ function MessagesSection() {
 // ── Main Page ────────────────────────────────────────────────────────────
 
 export default function TeamPortalPage() {
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["team-profile"],
-    queryFn: fetchTeamProfile,
+  const [activeFamilyId, setActiveFamilyId] = useState<string | undefined>(undefined);
+
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ["team-profile", activeFamilyId],
+    queryFn: () => fetchTeamProfile(activeFamilyId),
     staleTime: 60_000,
     retry: 1,
   });
 
+  // Derive active family and profile from the response
+  const families = profileData?.families ?? [];
+  const activeFamily = profileData?.activeFamily;
+  const profile: ChildProfile | undefined = activeFamily
+    ? {
+        name: activeFamily.childName,
+        age: activeFamily.age,
+        diagnosis: activeFamily.diagnosis,
+        familyName: activeFamily.familyName,
+      }
+    : profileData
+      ? {
+          name: profileData.name,
+          age: profileData.age,
+          diagnosis: profileData.diagnosis,
+          familyName: profileData.familyName,
+        }
+      : undefined;
+
+  // Set initial active family once loaded
+  const resolvedFamilyId = activeFamilyId || activeFamily?.familyId;
+
+  const handleFamilySwitch = (familyId: string) => {
+    setActiveFamilyId(familyId);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground flex items-center gap-2">
-          <span className="text-2xl" aria-hidden="true">
-            🤝
-          </span>
-          Care Team Portal
-        </h1>
-        <p className="text-[13px] text-muted-foreground mt-1">
-          {profile
-            ? `You have been invited to support ${profile.name}'s care team by the ${profile.familyName} family.`
-            : "Loading your care team access..."}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[22px] font-bold tracking-tight text-foreground flex items-center gap-2">
+            <span className="text-2xl" aria-hidden="true">
+              🤝
+            </span>
+            Care Team Portal
+          </h1>
+          <p className="text-[13px] text-muted-foreground mt-1">
+            {profile
+              ? `You have been invited to support ${profile.name}'s care team by the ${profile.familyName} family.`
+              : "Loading your care team access..."}
+          </p>
+        </div>
+
+        {/* Patient Switcher — only shown for multi-family stakeholders */}
+        {families.length >= 2 && resolvedFamilyId && (
+          <PatientSwitcher
+            families={families}
+            activeFamilyId={resolvedFamilyId}
+            onSwitch={handleFamilySwitch}
+          />
+        )}
       </div>
 
       {/* Child Overview */}
       <ChildOverview profile={profile} isLoading={profileLoading} />
 
       {/* Documents */}
-      <DocumentsSection />
+      <DocumentsSection activeFamilyId={resolvedFamilyId} />
 
       {/* Messages */}
-      <MessagesSection />
+      <MessagesSection activeFamilyId={resolvedFamilyId} />
     </div>
   );
 }

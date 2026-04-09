@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgent } from "@/lib/family-agents";
+import { getFamilyAgentFlat } from "@/lib/family-agents";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
@@ -8,58 +8,18 @@ const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
 const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
 /**
- * GET /api/team/profile
- * Returns the child profile for the stakeholder's linked family.
- * Reads stakeholder_links to find family_id, then fetches child-profile.md.
+ * Fetch a single family's child profile from the agent workspace.
  */
-export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+async function fetchChildProfile(familyEmail: string) {
+  const family = getFamilyAgentFlat(familyEmail);
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Find the stakeholder's linked family
-  const admin = createAdminClient();
-  const { data: links, error: linkError } = await admin
-    .from("stakeholder_links")
-    .select("family_id")
-    .eq("stakeholder_id", user.id)
-    .limit(1);
-
-  if (linkError || !links || links.length === 0) {
-    return NextResponse.json(
-      { error: "No linked family found" },
-      { status: 404 }
-    );
-  }
-
-  const familyId = links[0].family_id;
-
-  // Look up the family's email to find their agent workspace
-  const { data: familyUser } = await admin.auth.admin.getUserById(familyId);
-
-  if (!familyUser?.user?.email) {
-    return NextResponse.json(
-      { error: "Family account not found" },
-      { status: 404 }
-    );
-  }
-
-  const family = getFamilyAgent(familyUser.user.email);
-
-  // Attempt to read child-profile.md from the agent workspace
   if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
-    // Fallback: return basic info from the family agent mapping
-    return NextResponse.json({
+    return {
       name: family.childName,
       age: "N/A",
       diagnosis: "Information not available",
       familyName: family.familyName,
-    });
+    };
   }
 
   const filepath = `/root/.openclaw/workspace-${family.familyName.toLowerCase()}/memory/child-profile.md`;
@@ -82,16 +42,14 @@ export async function GET() {
     const content = result.output || "";
 
     if (content.trim() === "FILE_NOT_FOUND") {
-      return NextResponse.json({
+      return {
         name: family.childName,
         age: "N/A",
         diagnosis: "Profile not yet created by family",
         familyName: family.familyName,
-      });
+      };
     }
 
-    // Parse limited fields from child-profile.md
-    // Format: "**Key:** Value" or "| Key | Value |"
     const lines = content.split("\n");
     let name = family.childName;
     let age = "N/A";
@@ -100,7 +58,6 @@ export async function GET() {
     for (const line of lines) {
       const trimmed = line.trim();
 
-      // Match "**Name:** Alex Santos" format
       const kvMatch = trimmed.match(/^\*\*(.+?):\*\*\s*(.+)$/);
       if (kvMatch) {
         const key = kvMatch[1].toLowerCase().trim();
@@ -119,7 +76,6 @@ export async function GET() {
         }
       }
 
-      // Match "| Name | Alex Santos |" table format
       const tableMatch = trimmed.match(/^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$/);
       if (tableMatch) {
         const key = tableMatch[1].toLowerCase().trim();
@@ -143,20 +99,86 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      name,
-      age,
-      diagnosis,
-      familyName: family.familyName,
-    });
+    return { name, age, diagnosis, familyName: family.familyName };
   } catch (err) {
     console.error("Team profile error:", err);
-    // Fallback
-    return NextResponse.json({
+    return {
       name: family.childName,
       age: "N/A",
       diagnosis: "Unable to load at this time",
       familyName: family.familyName,
-    });
+    };
   }
+}
+
+/**
+ * GET /api/team/profile
+ * Returns ALL linked families for the stakeholder with child profiles.
+ * Accepts optional ?family_id= to specify which family is active.
+ * Response: { families: [...], activeFamily: {...} }
+ */
+export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+
+  // Fetch ALL stakeholder links for this user
+  const { data: links, error: linkError } = await admin
+    .from("stakeholder_links")
+    .select("family_id")
+    .eq("stakeholder_id", user.id);
+
+  if (linkError || !links || links.length === 0) {
+    return NextResponse.json(
+      { error: "No linked family found" },
+      { status: 404 }
+    );
+  }
+
+  // For each linked family, fetch family user info and build profile
+  const families = await Promise.all(
+    links.map(async (link) => {
+      const { data: familyUser } = await admin.auth.admin.getUserById(
+        link.family_id
+      );
+
+      const email = familyUser?.user?.email || "";
+      const agent = getFamilyAgentFlat(email);
+
+      const profile = await fetchChildProfile(email);
+
+      return {
+        familyId: link.family_id,
+        childName: profile.name,
+        familyName: profile.familyName,
+        agentId: agent.agentId,
+        age: profile.age,
+        diagnosis: profile.diagnosis,
+      };
+    })
+  );
+
+  // Determine active family from query param, default to first
+  const requestedFamilyId = request.nextUrl.searchParams.get("family_id");
+  const activeFamily =
+    families.find((f) => f.familyId === requestedFamilyId) || families[0];
+
+  // For backwards compatibility, also return flat fields from activeFamily
+  return NextResponse.json({
+    // New multi-family response
+    families,
+    activeFamily,
+    // Legacy flat fields (so existing components don't break)
+    name: activeFamily.childName,
+    age: activeFamily.age,
+    diagnosis: activeFamily.diagnosis,
+    familyName: activeFamily.familyName,
+  });
 }

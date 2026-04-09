@@ -8,8 +8,9 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 /**
  * GET /api/team/documents
  * Returns documents that this stakeholder has uploaded or been shared.
+ * Accepts optional ?family_id= to filter by a specific family.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -33,7 +34,16 @@ export async function GET() {
       return NextResponse.json({ documents: [] });
     }
 
-    const familyIds = links.map((l) => l.family_id);
+    // If family_id is specified, filter to that family (must be in linked set)
+    const requestedFamilyId = request.nextUrl.searchParams.get("family_id");
+    let familyIds = links.map((l) => l.family_id);
+
+    if (requestedFamilyId) {
+      if (!familyIds.includes(requestedFamilyId)) {
+        return NextResponse.json({ error: "Unauthorized family access" }, { status: 403 });
+      }
+      familyIds = [requestedFamilyId];
+    }
 
     // Fetch documents belonging to linked families
     const { data: allDocuments, error: queryError } = await admin
@@ -111,12 +121,11 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Verify stakeholder and get family_id
+    // Verify stakeholder and get family_id(s)
     const { data: links } = await admin
       .from("stakeholder_links")
       .select("family_id, role")
-      .eq("stakeholder_id", user.id)
-      .limit(1);
+      .eq("stakeholder_id", user.id);
 
     if (!links || links.length === 0) {
       return NextResponse.json(
@@ -125,11 +134,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const familyId = links[0].family_id;
-    const uploaderRole = links[0].role || "stakeholder";
-
-    // Parse form data
+    // Parse form data (once — includes file, title, doc_type, and optional family_id)
     const formData = await request.formData();
+
+    // Allow specifying which family to upload to (for multi-family stakeholders)
+    const requestedFamilyId = formData.get("family_id") as string | null;
+    const linkedFamilyIds = links.map((l) => l.family_id);
+
+    let familyId: string;
+    let uploaderRole: string;
+
+    if (requestedFamilyId && linkedFamilyIds.includes(requestedFamilyId)) {
+      familyId = requestedFamilyId;
+      uploaderRole = links.find((l) => l.family_id === requestedFamilyId)?.role || "stakeholder";
+    } else {
+      familyId = links[0].family_id;
+      uploaderRole = links[0].role || "stakeholder";
+    }
     const file = formData.get("file") as File | null;
     const title = formData.get("title") as string | null;
     const docType = formData.get("doc_type") as string | null;
