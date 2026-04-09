@@ -29,12 +29,15 @@ import {
   User,
   Tag,
   HardDrive,
+  Package,
+  Check,
 } from "lucide-react";
 import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPopover";
 import { useAppStore } from "@/store/appStore";
 import { useChat } from "@/hooks/useChat";
 import { useParsedProfile } from "@/hooks/useWorkspace";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 // ── Category filters ──────────────────────────────────────────────────
 const CATEGORIES = [
@@ -400,26 +403,48 @@ function DocumentListCard({
   doc,
   isSelected,
   onSelect,
+  selectionMode,
+  isChecked,
+  onToggleCheck,
 }: {
   doc: UploadedDoc;
   isSelected: boolean;
   onSelect: () => void;
+  selectionMode: boolean;
+  isChecked: boolean;
+  onToggleCheck: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={selectionMode ? onToggleCheck : onSelect}
       className={`
         w-full text-left px-4 py-3 transition-all cursor-pointer
         border-l-[3px] hover:bg-muted/40
         ${
-          isSelected
+          isSelected && !selectionMode
             ? "border-l-primary bg-primary/4"
-            : "border-l-transparent hover:border-l-primary/30"
+            : isChecked && selectionMode
+              ? "border-l-primary bg-primary/4"
+              : "border-l-transparent hover:border-l-primary/30"
         }
       `}
     >
       <div className="flex items-start gap-3">
+        {selectionMode && (
+          <div
+            className={`
+              shrink-0 mt-1 flex items-center justify-center w-5 h-5 rounded-md border-2 transition-all
+              ${
+                isChecked
+                  ? "bg-primary border-primary"
+                  : "border-border hover:border-primary/50"
+              }
+            `}
+          >
+            {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
+          </div>
+        )}
         <span className="text-xl shrink-0 mt-0.5" aria-hidden="true">
           {getTypeEmoji(doc.doc_type)}
         </span>
@@ -448,6 +473,185 @@ function DocumentListCard({
   );
 }
 
+// ── Analysis state type ──────────────────────────────────────────────
+type AnalysisState = "idle" | "extracting" | "analyzing" | "done" | "error";
+
+// ── Simple markdown renderer ─────────────────────────────────────────
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let listKey = 0;
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      nodes.push(
+        <ul key={`list-${listKey++}`} className="list-disc list-inside space-y-1 text-[13px] text-foreground/90 ml-1">
+          {listItems.map((item, i) => (
+            <li key={i} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
+          ))}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  const inlineFormat = (str: string): string => {
+    return str
+      .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-muted text-[12px] font-mono">$1</code>');
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushList();
+      continue;
+    }
+
+    // Headers
+    if (trimmed.startsWith("## ")) {
+      flushList();
+      nodes.push(
+        <h3 key={i} className="text-[14px] font-bold text-foreground mt-4 mb-1.5 first:mt-0">
+          {trimmed.slice(3)}
+        </h3>
+      );
+      continue;
+    }
+
+    // Checkbox items
+    if (trimmed.startsWith("- [ ] ") || trimmed.startsWith("- [x] ")) {
+      flushList();
+      const checked = trimmed.startsWith("- [x] ");
+      const content = trimmed.slice(6);
+      nodes.push(
+        <label key={i} className="flex items-start gap-2 text-[13px] text-foreground/90 py-0.5">
+          <input type="checkbox" defaultChecked={checked} className="mt-0.5 accent-primary" readOnly />
+          <span dangerouslySetInnerHTML={{ __html: inlineFormat(content) }} />
+        </label>
+      );
+      continue;
+    }
+
+    // List items (- or numbered)
+    const bulletMatch = trimmed.match(/^[-*]\s+(.*)$/);
+    const numberedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1]);
+      continue;
+    }
+    if (numberedMatch) {
+      listItems.push(numberedMatch[1]);
+      continue;
+    }
+
+    // Regular paragraph
+    flushList();
+    nodes.push(
+      <p key={i} className="text-[13px] text-foreground/90 leading-relaxed" dangerouslySetInnerHTML={{ __html: inlineFormat(trimmed) }} />
+    );
+  }
+
+  flushList();
+  return nodes;
+}
+
+// ── Analysis Result Display ──────────────────────────────────────────
+function AnalysisResult({
+  analysis,
+  analysisState,
+  analysisError,
+  onRetry,
+}: {
+  analysis: string | null;
+  analysisState: AnalysisState;
+  analysisError: string | null;
+  onRetry: () => void;
+}) {
+  if (analysisState === "idle") return null;
+
+  if (analysisState === "extracting" || analysisState === "analyzing") {
+    return (
+      <div className="bg-primary/3 border border-primary/15 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="relative">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+          <div>
+            <h3 className="text-[13px] font-semibold text-foreground">
+              {analysisState === "extracting"
+                ? "Reading document..."
+                : "Navigator is analyzing..."}
+            </h3>
+            <p className="text-[11px] text-muted-foreground">
+              {analysisState === "extracting"
+                ? "Extracting text content from the file"
+                : "Your Navigator agent is reviewing the document content"}
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="h-1.5 bg-primary/10 rounded-full overflow-hidden">
+            <div
+              className={`h-full bg-primary/40 rounded-full transition-all duration-1000 ${
+                analysisState === "extracting" ? "w-1/3" : "w-2/3"
+              } animate-pulse`}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (analysisState === "error") {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[13px] font-semibold text-red-800">
+              Analysis failed
+            </h3>
+            <p className="text-[12px] text-red-600 mt-0.5">
+              {analysisError || "Something went wrong. Please try again."}
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-red-200 text-red-700 hover:bg-red-50 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Done — show the analysis
+  if (analysisState === "done" && analysis) {
+    return (
+      <div className="bg-gradient-to-br from-primary/3 to-primary/6 border border-primary/15 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-primary/10 flex items-center gap-2">
+          <Compass className="h-4 w-4 text-primary" />
+          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-primary">
+            Navigator Analysis
+          </h3>
+        </div>
+        <div className="px-5 py-4 space-y-2">
+          {renderMarkdown(analysis)}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── Document Detail View (right panel) ────────────────────────────────
 function DocumentDetail({
   doc,
@@ -459,15 +663,82 @@ function DocumentDetail({
   const setChatOpen = useAppStore((s) => s.setChatOpen);
   const { sendMessage } = useChat();
 
-  const handleAskNavigator = () => {
-    setChatOpen(true);
-    sendMessage(`I have a document called "${doc.title}" (type: ${doc.doc_type}, uploaded on ${new Date(doc.uploaded_at).toLocaleDateString()}). What can you tell me about this document? What are the key takeaways for our family?`);
-  };
+  // Analysis state
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState<"summary" | "insights" | null>(null);
 
-  const handleGetSummary = () => {
+  const runAnalysis = useCallback(
+    async (action: "summary" | "insights") => {
+      setLastAction(action);
+      setAnalysisState("extracting");
+      setAnalysis(null);
+      setAnalysisError(null);
+
+      try {
+        // Brief delay then move to "analyzing" to show progress
+        const progressTimer = setTimeout(() => {
+          setAnalysisState((prev) =>
+            prev === "extracting" ? "analyzing" : prev
+          );
+        }, 2000);
+
+        const res = await fetch("/api/documents/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: doc.id, action }),
+        });
+
+        clearTimeout(progressTimer);
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Analysis failed (${res.status})`);
+        }
+
+        const data = await res.json();
+        setAnalysis(data.analysis);
+        setAnalysisState("done");
+
+        toast.success(
+          action === "summary"
+            ? "Document summary ready"
+            : "Navigator insights ready"
+        );
+      } catch (err) {
+        setAnalysisError(
+          err instanceof Error ? err.message : "Analysis failed"
+        );
+        setAnalysisState("error");
+      }
+    },
+    [doc.id]
+  );
+
+  const handleGetSummary = useCallback(() => {
+    runAnalysis("summary");
+  }, [runAnalysis]);
+
+  const handleAskNavigator = useCallback(() => {
+    runAnalysis("insights");
+  }, [runAnalysis]);
+
+  const handleRetry = useCallback(() => {
+    if (lastAction) {
+      runAnalysis(lastAction);
+    }
+  }, [lastAction, runAnalysis]);
+
+  const handleChatFollowUp = useCallback(() => {
     setChatOpen(true);
-    sendMessage(`Please summarize the document "${doc.title}" (type: ${doc.doc_type}). Give me the key findings, recommendations, and any action items we should follow up on.`);
-  };
+    sendMessage(
+      `I just analyzed the document "${doc.title}" (type: ${doc.doc_type}). I'd like to discuss the findings and next steps.`
+    );
+  }, [setChatOpen, sendMessage, doc.title, doc.doc_type]);
+
+  const isAnalyzing =
+    analysisState === "extracting" || analysisState === "analyzing";
 
   const tags = doc.metadata?.tags;
 
@@ -562,20 +833,74 @@ function DocumentDetail({
           </div>
         </div>
 
-        {/* Key Recommendations — on demand */}
-        <div className="bg-muted/30 border border-border rounded-xl p-4">
-          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            Key Recommendations
-          </h3>
-          <button
-            type="button"
-            onClick={handleAskNavigator}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-primary/30 bg-primary/3 hover:bg-primary/6 hover:border-primary/50 transition-all text-[13px] font-medium text-primary"
-          >
-            <Compass className="h-4 w-4" />
-            Ask Navigator for insights
-          </button>
-        </div>
+        {/* Analysis Result — shown inline when analysis is running or done */}
+        <AnalysisResult
+          analysis={analysis}
+          analysisState={analysisState}
+          analysisError={analysisError}
+          onRetry={handleRetry}
+        />
+
+        {/* AI Document Analysis — on demand (hidden when analysis is showing) */}
+        {analysisState === "idle" && (
+          <div className="bg-muted/30 border border-border rounded-xl p-4">
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+              AI Document Analysis
+            </h3>
+            <p className="text-[12px] text-muted-foreground mb-3">
+              Your Navigator can read this document and provide a detailed analysis with key findings and action items.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={handleGetSummary}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-primary/30 bg-primary/3 hover:bg-primary/6 hover:border-primary/50 transition-all text-[13px] font-medium text-primary"
+              >
+                <FileSearch className="h-4 w-4" />
+                Get Summary
+              </button>
+              <button
+                type="button"
+                onClick={handleAskNavigator}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-primary/30 bg-primary/3 hover:bg-primary/6 hover:border-primary/50 transition-all text-[13px] font-medium text-primary"
+              >
+                <Compass className="h-4 w-4" />
+                Get Insights
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Follow-up actions after analysis is done */}
+        {analysisState === "done" && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => runAnalysis(lastAction === "summary" ? "insights" : "summary")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-primary/6 border border-primary/15 text-primary hover:bg-primary/10 transition-colors"
+            >
+              {lastAction === "summary" ? (
+                <>
+                  <Compass className="h-3.5 w-3.5" />
+                  Now Get Insights
+                </>
+              ) : (
+                <>
+                  <FileSearch className="h-3.5 w-3.5" />
+                  Now Get Summary
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleChatFollowUp}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              Discuss with Navigator
+            </button>
+          </div>
+        )}
 
         {/* Tags */}
         {tags && tags.length > 0 && (
@@ -618,18 +943,28 @@ function DocumentDetail({
           <button
             type="button"
             onClick={handleAskNavigator}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors"
+            disabled={isAnalyzing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Compass className="h-3.5 w-3.5" />
+            {isAnalyzing && lastAction === "insights" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Compass className="h-3.5 w-3.5" />
+            )}
             Ask Navigator
           </button>
 
           <button
             type="button"
             onClick={handleGetSummary}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors"
+            disabled={isAnalyzing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileSearch className="h-3.5 w-3.5" />
+            {isAnalyzing && lastAction === "summary" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileSearch className="h-3.5 w-3.5" />
+            )}
             Get Summary
           </button>
         </div>
@@ -709,6 +1044,7 @@ function LoadingSkeleton() {
 
 // ── Page ──────────────────────────────────────────────────────────────
 export default function DocumentsPage() {
+  const router = useRouter();
   const {
     data: uploadedDocs,
     isLoading: uploadsLoading,
@@ -722,6 +1058,8 @@ export default function DocumentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryValue>("all");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
   const docs = useMemo(
     () => (uploadedDocs ?? []) as UploadedDoc[],
@@ -763,6 +1101,48 @@ export default function DocumentsPage() {
     setSelectedId(null);
   };
 
+  const handleToggleCheck = useCallback((id: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleEnterSelectionMode = useCallback(() => {
+    setSelectionMode(true);
+    setCheckedIds(new Set());
+  }, []);
+
+  const handleExitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setCheckedIds(new Set());
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setCheckedIds(new Set(filteredDocs.map((d) => d.id)));
+  }, [filteredDocs]);
+
+  const handleGeneratePacket = useCallback(() => {
+    if (checkedIds.size === 0) {
+      toast("Select at least one document to create a packet.");
+      return;
+    }
+    try {
+      localStorage.setItem(
+        "packet_selected_ids",
+        JSON.stringify(Array.from(checkedIds))
+      );
+    } catch {
+      // storage full
+    }
+    router.push("/documents/packet");
+  }, [checkedIds, router]);
+
   if (uploadsLoading) {
     return (
       <div className="space-y-4">
@@ -787,14 +1167,55 @@ export default function DocumentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setUploadOpen(!uploadOpen)}
-          >
-            <Upload className="h-3.5 w-3.5 mr-1" />
-            Upload
-          </Button>
+          {selectionMode ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+              >
+                <Check className="h-3.5 w-3.5 mr-1" />
+                Select All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExitSelectionMode}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleGeneratePacket}
+                disabled={checkedIds.size === 0}
+              >
+                <Package className="h-3.5 w-3.5 mr-1" />
+                Generate Packet{checkedIds.size > 0 ? ` (${checkedIds.size})` : ""}
+              </Button>
+            </>
+          ) : (
+            <>
+              {docs.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEnterSelectionMode}
+                >
+                  <Package className="h-3.5 w-3.5 mr-1" />
+                  Share Packet
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUploadOpen(!uploadOpen)}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                Upload
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -822,6 +1243,22 @@ export default function DocumentsPage() {
             </CollapsibleContent>
           </div>
         </Collapsible>
+      )}
+
+      {/* Selection mode banner */}
+      {selectionMode && (
+        <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+          <Package className="h-4 w-4 text-primary shrink-0" />
+          <p className="text-[13px] text-foreground flex-1">
+            <span className="font-semibold">Selection mode:</span> Tap documents
+            to include in your shareable packet.{" "}
+            {checkedIds.size > 0 && (
+              <span className="text-primary font-medium">
+                {checkedIds.size} selected
+              </span>
+            )}
+          </p>
+        </div>
       )}
 
       {/* Two-panel layout */}
@@ -894,6 +1331,9 @@ export default function DocumentsPage() {
                       doc={doc}
                       isSelected={selectedId === doc.id}
                       onSelect={() => handleSelectDoc(doc.id)}
+                      selectionMode={selectionMode}
+                      isChecked={checkedIds.has(doc.id)}
+                      onToggleCheck={() => handleToggleCheck(doc.id)}
                     />
                   ))}
                 </div>
