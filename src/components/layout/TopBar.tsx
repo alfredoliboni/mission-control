@@ -1,20 +1,32 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Menu } from "lucide-react";
+import { Menu, ChevronDown } from "lucide-react";
 import { useParsedAlerts, useParsedProfile } from "@/hooks/useWorkspace";
 import { useAppStore } from "@/store/appStore";
+import { useFamily } from "@/hooks/useActiveAgent";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function TopBar() {
-  const { toggleSidebar } = useAppStore();
+  const { toggleSidebar, activeChildIndex, setActiveChildIndex } = useAppStore();
   const { data: alerts } = useParsedAlerts();
   const { data: profile } = useParsedProfile();
+  const family = useFamily();
+  const queryClient = useQueryClient();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const hasMultipleChildren = family.children.length > 1;
+  const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
+    ? activeChildIndex
+    : 0;
 
   const activeAlertCount = alerts
     ? alerts.filter((a) => a.status === "active").length
     : 0;
 
-  const childName = profile?.basicInfo.name || "Loading...";
+  const childName = profile?.basicInfo.name || family.children[safeIndex]?.childName || "Loading...";
   const initials = childName
     .split(" ")
     .map((n) => n[0])
@@ -25,6 +37,26 @@ export function TopBar() {
   const stageLabel = currentStage
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [dropdownOpen]);
+
+  function handleChildSwitch(index: number) {
+    setActiveChildIndex(index);
+    setDropdownOpen(false);
+    // Invalidate all workspace queries so data refetches for the new child
+    queryClient.invalidateQueries({ queryKey: ["workspace"] });
+  }
 
   return (
     <header className="flex items-center justify-between h-14 px-7 border-b border-border bg-card">
@@ -44,9 +76,45 @@ export function TopBar() {
           >
             {initials}
           </div>
-          <span className="text-sm font-semibold text-foreground">
-            {childName}
-          </span>
+
+          {/* Child name with optional switcher dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            {hasMultipleChildren ? (
+              <button
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1 text-sm font-semibold text-foreground hover:text-foreground/80 transition-colors"
+                aria-label="Switch child"
+                aria-expanded={dropdownOpen}
+              >
+                {childName}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+            ) : (
+              <span className="text-sm font-semibold text-foreground">
+                {childName}
+              </span>
+            )}
+
+            {/* Dropdown menu */}
+            {hasMultipleChildren && dropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 min-w-[180px] bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+                {family.children.map((child, index) => (
+                  <button
+                    key={child.agentId}
+                    onClick={() => handleChildSwitch(index)}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      index === safeIndex
+                        ? "bg-warm-50 font-semibold text-foreground"
+                        : "text-muted-foreground hover:bg-warm-50 hover:text-foreground"
+                    }`}
+                  >
+                    {child.childName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {stageLabel && (
             <span className="text-[11px] font-medium text-muted-foreground bg-warm-50 px-2 py-0.5 rounded">
               {stageLabel}

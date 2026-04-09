@@ -27,22 +27,18 @@ describe("discoverSections", () => {
     });
   });
 
-  it("maps documents.md to organize group", () => {
+  // documents.md and messages.md are hardcoded in Sidebar — not in knownSections
+  it("treats documents.md as dynamic (not in knownSections)", () => {
     const sections = discoverSections(["documents.md"]);
     expect(sections[0]).toMatchObject({
-      label: "Documents",
-      group: "organize",
-      icon: "\u{1F4C4}",
-      order: 8,
+      group: "dynamic",
     });
   });
 
-  it("maps messages.md to connect group", () => {
+  it("treats messages.md as dynamic (not in knownSections)", () => {
     const sections = discoverSections(["messages.md"]);
     expect(sections[0]).toMatchObject({
-      label: "Messages",
-      group: "connect",
-      order: 9,
+      group: "dynamic",
     });
   });
 
@@ -126,11 +122,9 @@ describe("getSectionGroups", () => {
     expect(groups.organize.map((s) => s.label)).toContain("Benefits");
     expect(groups.organize.map((s) => s.label)).toContain("Alerts");
 
-    expect(groups.connect).toHaveLength(1);
-    expect(groups.connect[0].label).toBe("Messages");
-
-    expect(groups.dynamic).toHaveLength(1);
-    expect(groups.dynamic[0].label).toBe("Gap Fillers");
+    // messages.md is now dynamic (hardcoded in sidebar), gap-fillers too
+    expect(groups.dynamic.map((s) => s.label)).toContain("Messages");
+    expect(groups.dynamic.map((s) => s.label)).toContain("Gap Fillers");
   });
 
   it("returns empty arrays for groups with no sections", () => {

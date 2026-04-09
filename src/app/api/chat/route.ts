@@ -124,8 +124,18 @@ export async function POST(request: NextRequest) {
   const { getFamilyAgent } = await import("@/lib/family-agents");
   const family = getFamilyAgent(user?.email ?? undefined);
 
+  // Support ?agent= param for multi-child routing
+  const agentParam = request.nextUrl.searchParams.get("agent");
+  let agentId = family.children[0].agentId;
+  if (agentParam) {
+    const isValidAgent = family.children.some((c) => c.agentId === agentParam);
+    if (isValidAgent) {
+      agentId = agentParam;
+    }
+  }
+
   try {
-    const agentResponse = await sendToGateway(message, family.agentId);
+    const agentResponse = await sendToGateway(message, agentId);
     return NextResponse.json({ response: agentResponse });
   } catch (err) {
     console.error("Gateway chat error:", err);

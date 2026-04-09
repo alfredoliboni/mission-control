@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgent } from "@/lib/family-agents";
+import { getFamilyAgentFlat } from "@/lib/family-agents";
 
 const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
 const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const family = getFamilyAgent(user?.email ?? undefined);
+  const family = getFamilyAgentFlat(user?.email ?? undefined);
 
   if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
     return NextResponse.json({

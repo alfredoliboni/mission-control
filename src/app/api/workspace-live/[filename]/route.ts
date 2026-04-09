@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgent } from "@/lib/family-agents";
+import { getFamilyAgent, getAgentWorkspacePath } from "@/lib/family-agents";
 
 const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
 const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
 const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
 /**
- * GET /api/workspace-live/[filename]
+ * Resolves the workspace memory path from the request.
+ * If ?agent= is provided and belongs to the user's family, use it.
+ * Otherwise fall back to the family's first child.
+ */
+function resolveWorkspacePath(agentParam: string | null, userEmail: string | undefined): string {
+  const family = getFamilyAgent(userEmail);
+
+  if (agentParam) {
+    const isValidAgent = family.children.some((c) => c.agentId === agentParam);
+    if (isValidAgent) {
+      return getAgentWorkspacePath(agentParam);
+    }
+  }
+
+  return getAgentWorkspacePath(family.children[0].agentId);
+}
+
+/**
+ * GET /api/workspace-live/[filename]?agent=navigator-santos-sofia
  * Reads a raw .md file from the logged-in user's agent workspace on Orgo.ai VM.
+ * Optional ?agent= param routes to a specific child's workspace.
  */
 export async function GET(
   request: NextRequest,
@@ -22,13 +41,13 @@ export async function GET(
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const family = getFamilyAgent(user?.email ?? undefined);
+  const agentParam = request.nextUrl.searchParams.get("agent");
+  const workspace = resolveWorkspacePath(agentParam, user?.email ?? undefined);
+  const filepath = `${workspace}/${filename}`;
 
   if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
     return NextResponse.json({ error: "Orgo API not configured" }, { status: 503 });
   }
-
-  const filepath = `/root/.openclaw/workspace-${family.familyName.toLowerCase()}/memory/${filename}`;
 
   try {
     const response = await fetch(ORGO_API_BASE, {

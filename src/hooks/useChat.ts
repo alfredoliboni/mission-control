@@ -2,10 +2,12 @@
 
 import { useState, useCallback } from "react";
 import type { ChatMessage } from "@/types/workspace";
+import { useActiveAgent } from "@/hooks/useActiveAgent";
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const agentId = useActiveAgent();
 
   const sendMessage = useCallback(async (content: string) => {
     const userMessage: ChatMessage = {
@@ -19,7 +21,8 @@ export function useChat() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const agentParam = agentId ? `?agent=${encodeURIComponent(agentId)}` : "";
+      const res = await fetch(`/api/chat${agentParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content }),
@@ -48,7 +51,7 @@ export function useChat() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [agentId]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
