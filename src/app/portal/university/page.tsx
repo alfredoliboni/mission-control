@@ -31,6 +31,7 @@ const ACCOMMODATION_OPTIONS = [
 export default function UniversityRegistrationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     institutionName: "",
     contactEmail: "",
@@ -38,7 +39,9 @@ export default function UniversityRegistrationPage() {
     website: "",
     department: "",
     programs: [] as string[],
+    otherPrograms: "",
     accommodations: [] as string[],
+    otherAccommodations: "",
     accessibilityOfficeContact: "",
     applicationAccommodations: "",
     transitionSupport: "",
@@ -59,19 +62,37 @@ export default function UniversityRegistrationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+
+    // Merge custom text into arrays
+    const allPrograms = [
+      ...form.programs,
+      ...form.otherPrograms.split(",").map(s => s.trim()).filter(Boolean),
+    ];
+    const allAccommodations = [
+      ...form.accommodations,
+      ...form.otherAccommodations.split(",").map(s => s.trim()).filter(Boolean),
+    ];
 
     try {
       const res = await fetch("/api/portal/university", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          programs: allPrograms,
+          accommodations: allAccommodations,
+        }),
       });
 
       if (res.ok) {
         setSubmitted(true);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Registration failed. Please try again.");
       }
     } catch {
-      // Handle error
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -196,6 +217,12 @@ export default function UniversityRegistrationPage() {
               </button>
             ))}
           </div>
+          <div>
+            <label className="text-sm font-medium text-foreground block mb-1">Other Programs (comma separated)</label>
+            <input value={form.otherPrograms} onChange={(e) => setForm({ ...form, otherPrograms: e.target.value })}
+              placeholder="e.g., Music Therapy, Kinesiology, Special Education"
+              className="w-full rounded-lg border border-border bg-warm-50 px-3 py-2 text-sm" />
+          </div>
         </div>
 
         {/* Accommodations */}
@@ -215,6 +242,12 @@ export default function UniversityRegistrationPage() {
                 {form.accommodations.includes(acc) ? "✓ " : ""}{acc}
               </button>
             ))}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground block mb-1">Other Accommodations (comma separated)</label>
+            <input value={form.otherAccommodations} onChange={(e) => setForm({ ...form, otherAccommodations: e.target.value })}
+              placeholder="e.g., Service animal policy, Exam scribing, Audio recording"
+              className="w-full rounded-lg border border-border bg-warm-50 px-3 py-2 text-sm" />
           </div>
         </div>
 
@@ -242,6 +275,12 @@ export default function UniversityRegistrationPage() {
               rows={3} className="w-full rounded-lg border border-border bg-warm-50 px-3 py-2 text-sm" />
           </div>
         </div>
+
+        {error && (
+          <p className="text-sm text-status-blocked bg-status-blocked/8 p-3 rounded-lg">
+            {error}
+          </p>
+        )}
 
         <button type="submit" disabled={loading || !form.institutionName || !form.contactEmail}
           className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
