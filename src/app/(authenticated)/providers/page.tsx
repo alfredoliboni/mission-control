@@ -770,7 +770,7 @@ export default function ProvidersPage() {
   return (
     <WorkspaceSection
       title="Service Providers"
-      icon="\uD83C\uDFE5"
+      icon="🏥"
       lastUpdated={providers?.lastUpdated}
       isLoading={isLoading}
     >
