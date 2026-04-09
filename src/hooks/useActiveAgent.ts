@@ -50,14 +50,13 @@ export function useFamily() {
 
 function getSupabaseUserEmail(): string | undefined {
   try {
-    // Supabase stores session in localStorage with a key pattern
+    // Try localStorage first (some Supabase versions store here)
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
         const raw = localStorage.getItem(key);
         if (raw) {
           const parsed = JSON.parse(raw);
-          // Supabase v2 stores { user: { email } } or nested
           const email = parsed?.user?.email
             || parsed?.currentSession?.user?.email
             || parsed?.[0]?.user?.email;
@@ -65,8 +64,61 @@ function getSupabaseUserEmail(): string | undefined {
         }
       }
     }
+
+    // Supabase SSR stores session in cookies — decode the JWT to get email
+    const cookies = document.cookie.split(";").map(c => c.trim());
+    // Look for base64-encoded session chunks
+    const authCookies = cookies
+      .filter(c => c.startsWith("sb-") && c.includes("auth-token"))
+      .sort();
+
+    if (authCookies.length > 0) {
+      // Cookies may be chunked: sb-xxx-auth-token.0, sb-xxx-auth-token.1, etc.
+      // Or a single sb-xxx-auth-token cookie with base64 value
+      let combined = "";
+      for (const cookie of authCookies) {
+        const value = cookie.split("=").slice(1).join("=");
+        combined += value;
+      }
+      // Try to decode — might be base64 JSON
+      if (combined.startsWith("base64-")) {
+        combined = combined.slice(7);
+      }
+      try {
+        const decoded = atob(combined);
+        const session = JSON.parse(decoded);
+        const email = session?.user?.email || session?.access_token;
+        if (email && email.includes("@")) return email;
+
+        // Try decoding the access_token JWT payload
+        if (session?.access_token) {
+          const payload = session.access_token.split(".")[1];
+          if (payload) {
+            const jwtData = JSON.parse(atob(payload));
+            if (jwtData?.email) return jwtData.email;
+          }
+        }
+      } catch {
+        // Not valid base64/JSON — try JWT decode on raw cookie chunks
+      }
+    }
+
+    // Last resort: decode any JWT-looking cookie
+    for (const cookie of cookies) {
+      if (cookie.includes("auth-token")) {
+        const value = cookie.split("=").slice(1).join("=");
+        // JWT has 3 parts separated by dots
+        const parts = value.split(".");
+        if (parts.length === 3) {
+          try {
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload?.email) return payload.email;
+          } catch { /* not a valid JWT */ }
+        }
+      }
+    }
   } catch {
-    // localStorage may not be available or JSON parse may fail
+    // Silently fail
   }
   return undefined;
 }
