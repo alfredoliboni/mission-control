@@ -298,31 +298,77 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 5. Create signed URL for the document
-    const { data: signedUrlData, error: urlError } = await admin.storage
-      .from("documents")
-      .createSignedUrl(doc.file_path, 300); // 5 minutes
-
-    if (urlError || !signedUrlData?.signedUrl) {
-      return NextResponse.json(
-        { error: "Could not access document file" },
-        { status: 500 },
-      );
-    }
-
-    // 6. Extract text from document via Orgo VM
+    // 5. Download document directly with service key
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const downloadUrl = `${SUPABASE_URL}/storage/v1/object/documents/${doc.file_path}`;
     const contentType = doc.metadata?.content_type || "application/pdf";
-    let extractedText: string;
+    let extractedText = "";
 
     try {
-      extractedText = await extractTextViaVM(
-        signedUrlData.signedUrl,
-        contentType,
-      );
+      // Download the file
+      const fileRes = await fetch(downloadUrl, {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+        },
+      });
+
+      if (!fileRes.ok) {
+        throw new Error(`Download failed: ${fileRes.status}`);
+      }
+
+      const fileBuffer = Buffer.from(await fileRes.arrayBuffer());
+      const b64File = fileBuffer.toString("base64");
+
+      // Send to VM for text extraction
+      const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
+      const isPdf = contentType.includes("pdf");
+
+      const pythonCode = isPdf
+        ? [
+            "import json, base64, os",
+            `data = base64.b64decode("${b64File}")`,
+            'with open("/tmp/doc.pdf", "wb") as f: f.write(data)',
+            "text = ''",
+            "try:",
+            "    import PyPDF2",
+            '    reader = PyPDF2.PdfReader("/tmp/doc.pdf")',
+            '    text = "\\n".join(page.extract_text() or "" for page in reader.pages)',
+            "except Exception as e:",
+            '    text = f"[PDF extraction error: {e}]"',
+            'text = text.strip()[:8000]',
+            'print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
+          ].join("\n")
+        : [
+            "import json, base64",
+            `data = base64.b64decode("${b64File}")`,
+            'text = data.decode("utf-8", errors="replace").strip()[:8000]',
+            'print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
+          ].join("\n");
+
+      const vmRes = await fetch(ORGO_EXEC_BASE, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ORGO_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: pythonCode }),
+      });
+
+      if (vmRes.ok) {
+        const vmResult = await vmRes.json();
+        const output = (vmResult.output || "").trim();
+        try {
+          const parsed = JSON.parse(output);
+          if (parsed.ok && parsed.text) {
+            extractedText = parsed.text;
+          }
+        } catch {
+          if (output.length > 10) extractedText = output.slice(0, 8000);
+        }
+      }
     } catch (err) {
       console.error("Text extraction failed:", err);
-      // Fallback: send just metadata to the agent
-      extractedText = "";
     }
 
     // 7. Build the prompt for the Navigator agent

@@ -50,20 +50,7 @@ const knownSections: Record<string, SectionConfig> = {
     route: "/alerts",
     group: "organize",
   },
-  "documents.md": {
-    icon: "📄",
-    label: "Documents",
-    order: 8,
-    route: "/documents",
-    group: "organize",
-  },
-  "messages.md": {
-    icon: "💬",
-    label: "Messages",
-    order: 9,
-    route: "/messages",
-    group: "connect",
-  },
+  // documents.md and messages.md are hardcoded in Sidebar — not listed here to avoid duplicates
   "gap-fillers.md": {
     icon: "🔍",
     label: "Gap Fillers",
