@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/** Simple trigram similarity (same algorithm as PostgreSQL pg_trgm) */
+function trigrams(s: string): Set<string> {
+  const padded = `  ${s} `;
+  const set = new Set<string>();
+  for (let i = 0; i < padded.length - 2; i++) {
+    set.add(padded.slice(i, i + 3));
+  }
+  return set;
+}
+
+function trigramSimilarity(a: string, b: string): number {
+  const ta = trigrams(a);
+  const tb = trigrams(b);
+  let intersection = 0;
+  for (const t of ta) {
+    if (tb.has(t)) intersection++;
+  }
+  const union = ta.size + tb.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
 /**
  * GET /api/providers/search?q=occupational+therapy&city=London&type=clinic
  * Searches the Supabase `providers` table.
@@ -72,56 +93,59 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // If we have a query term, also do a second pass for array column matches
-  // (services and specialties are text[] — ilike doesn't work on arrays)
+  // Second pass: match array columns (services[], specialties[]) via substring
+  // PostgreSQL array contains (cs) requires exact element match, so we fetch all
+  // providers and do client-side substring matching on array elements
   let results = data ?? [];
 
-  if (q && results.length < 50) {
+  if (q && results.length < limit) {
+    const searchTerms = new Set<string>();
+    searchTerms.add(q.toLowerCase());
+    // Add expansion variants for substring matching
+    const expansions: Record<string, string[]> = {
+      "ot": ["occupational"],
+      "slp": ["speech"],
+      "aba": ["behavior", "behaviour", "aba"],
+      "ibi": ["behavioral", "intervention"],
+      "pt": ["physical", "physiotherapy"],
+    };
     const lowerQ = q.toLowerCase();
-    const upperQ = q.toUpperCase();
-    const titleQ = q.charAt(0).toUpperCase() + q.slice(1).toLowerCase();
-    // Fetch additional providers that might match via array columns
-    // Try multiple cases since PostgreSQL array contains is case-sensitive
-    const { data: arrayMatches } = await supabase
+    if (expansions[lowerQ]) {
+      expansions[lowerQ].forEach(e => searchTerms.add(e));
+    }
+
+    // Fetch all providers and filter by array column substring match
+    const { data: allProviders } = await supabase
       .from("providers")
       .select(
         "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
       )
-      .or(`services.cs.{${lowerQ}},services.cs.{${upperQ}},services.cs.{${titleQ}}`)
-      .limit(20);
+      .limit(200);
 
-    if (arrayMatches) {
+    if (allProviders) {
       const existingIds = new Set(results.map((r) => r.id));
-      for (const match of arrayMatches) {
-        if (!existingIds.has(match.id)) {
-          results.push(match);
+      const terms = Array.from(searchTerms);
+
+      for (const provider of allProviders) {
+        if (existingIds.has(provider.id)) continue;
+
+        // Check if any service or specialty contains any search term
+        const servicesText = (provider.services || []).join(" ").toLowerCase();
+        const specialtiesText = (provider.specialties || []).join(" ").toLowerCase();
+        const combined = `${servicesText} ${specialtiesText}`;
+
+        if (terms.some(term => combined.includes(term))) {
+          results.push(provider);
+          existingIds.add(provider.id);
         }
       }
     }
 
-    // Also try specialties array
-    const { data: specMatches } = await supabase
-      .from("providers")
-      .select(
-        "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
-      )
-      .or(`specialties.cs.{${lowerQ}},specialties.cs.{${upperQ}},specialties.cs.{${titleQ}}`)
-      .limit(20);
-
-    if (specMatches) {
-      const existingIds = new Set(results.map((r) => r.id));
-      for (const match of specMatches) {
-        if (!existingIds.has(match.id)) {
-          results.push(match);
-        }
-      }
-    }
-
-    // Apply city/type filters to the array matches too
+    // Apply city/type filters to the new matches too
     if (city) {
-      const lowerCity = city.toLowerCase();
+      const cityName = city.split(",")[0].trim().toLowerCase();
       results = results.filter(
-        (r) => r.location_city?.toLowerCase().includes(lowerCity)
+        (r) => r.location_city?.toLowerCase().includes(cityName)
       );
     }
     if (type) {
@@ -141,8 +165,32 @@ export async function GET(request: NextRequest) {
 
     if (fuzzyResults && fuzzyResults.length > 0) {
       results = fuzzyResults;
-    } else {
-      // Last resort: partial prefix match
+    }
+
+    // Also try fuzzy matching against array columns (services/specialties)
+    if (results.length === 0) {
+      const lowerQ = q.toLowerCase();
+      const { data: allProviders } = await supabase
+        .from("providers")
+        .select(
+          "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
+        )
+        .limit(200);
+
+      if (allProviders) {
+        for (const provider of allProviders) {
+          const words = [...(provider.services || []), ...(provider.specialties || [])]
+            .flatMap(s => s.toLowerCase().split(/\s+/));
+          // Check trigram similarity between query and each word
+          if (words.some(word => trigramSimilarity(lowerQ, word) > 0.3)) {
+            results.push(provider);
+          }
+        }
+      }
+    }
+
+    // Last resort: partial prefix match on text columns
+    if (results.length === 0) {
       const partial = q.slice(0, -1);
       const { data: partialResults } = await supabase
         .from("providers")

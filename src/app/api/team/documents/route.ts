@@ -24,11 +24,12 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Find linked families
+    // Find linked families (accepted only)
     const { data: links } = await admin
       .from("stakeholder_links")
       .select("family_id")
-      .eq("stakeholder_id", user.id);
+      .eq("stakeholder_id", user.id)
+      .or("status.eq.accepted,status.is.null");
 
     if (!links || links.length === 0) {
       return NextResponse.json({ documents: [] });
@@ -121,11 +122,12 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Verify stakeholder and get family_id(s)
+    // Verify stakeholder and get family_id(s) (accepted only)
     const { data: links } = await admin
       .from("stakeholder_links")
       .select("family_id, role")
-      .eq("stakeholder_id", user.id);
+      .eq("stakeholder_id", user.id)
+      .or("status.eq.accepted,status.is.null");
 
     if (!links || links.length === 0) {
       return NextResponse.json(

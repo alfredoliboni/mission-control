@@ -78,7 +78,7 @@ export async function PATCH(
   // Verify the invite exists
   const { data: existing, error: fetchError } = await admin
     .from("stakeholder_links")
-    .select("id, status")
+    .select("id, stakeholder_id, role, status")
     .eq("id", id)
     .single();
 
@@ -96,6 +96,19 @@ export async function PATCH(
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  // When accepted, ensure user_metadata has is_stakeholder flag
+  if (status === "accepted" && existing.stakeholder_id) {
+    const { data: userData } = await admin.auth.admin.getUserById(existing.stakeholder_id);
+    const existingMeta = userData?.user?.user_metadata || {};
+    await admin.auth.admin.updateUserById(existing.stakeholder_id, {
+      user_metadata: {
+        ...existingMeta,
+        is_stakeholder: true,
+        stakeholder_role: existing.role,
+      },
+    });
   }
 
   return NextResponse.json({ success: true, invite: updated });

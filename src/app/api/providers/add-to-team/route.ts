@@ -18,7 +18,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const family = getFamilyAgent(user?.email ?? undefined);
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const family = getFamilyAgent(user.email ?? undefined);
 
     let workspace: string;
     if (agentParam && family.children.some((c) => c.agentId === agentParam)) {
