@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { QueryProvider } from "@/components/providers/QueryProvider";
@@ -8,10 +9,12 @@ export function TeamLayoutClient({
   children,
   inviteStatus = "accepted",
   childNames = [],
+  isProvider = false,
 }: {
   children: React.ReactNode;
   inviteStatus?: "pending" | "declined" | "accepted";
   childNames?: string[];
+  isProvider?: boolean;
 }) {
   const router = useRouter();
 
@@ -43,13 +46,23 @@ export function TeamLayoutClient({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted/50"
-            >
-              Sign Out
-            </button>
+            <div className="flex items-center gap-2">
+              {isProvider && (
+                <Link
+                  href="/portal/dashboard"
+                  className="text-[13px] font-medium text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-primary/5"
+                >
+                  My Profile
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted/50"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </header>
 

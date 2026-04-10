@@ -21,11 +21,12 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Find linked families
+  // Find linked families (accepted only)
   const { data: links } = await admin
     .from("stakeholder_links")
     .select("family_id")
-    .eq("stakeholder_id", user.id);
+    .eq("stakeholder_id", user.id)
+    .or("status.eq.accepted,status.is.null");
 
   if (!links || links.length === 0) {
     return NextResponse.json({ threads: [] });
@@ -101,8 +102,14 @@ export async function GET(request: NextRequest) {
     threadMap.set(msg.thread_id, existing);
   }
 
+  // Filter: only show threads where THIS stakeholder sent or received a message
   const threads = [];
   for (const [threadId, threadMessages] of threadMap) {
+    const stakeholderInThread = threadMessages.some(
+      (m) => m.sender_id === user.id || m.recipient_id === user.id
+    );
+    if (!stakeholderInThread) continue;
+
     const lastMessage = threadMessages[threadMessages.length - 1];
     threads.push({
       id: threadId,
@@ -138,11 +145,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Verify stakeholder link
+  // Verify stakeholder link (accepted only)
   const { data: links } = await admin
     .from("stakeholder_links")
     .select("family_id, role, name")
-    .eq("stakeholder_id", user.id);
+    .eq("stakeholder_id", user.id)
+    .or("status.eq.accepted,status.is.null");
 
   if (!links || links.length === 0) {
     return NextResponse.json(

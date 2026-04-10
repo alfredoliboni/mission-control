@@ -1,113 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgentFlat } from "@/lib/family-agents";
+import { getFamilyAgentFlat, getAgentWorkspacePath } from "@/lib/family-agents";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
-const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
-const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
+import fs from "fs";
 
 /**
- * Fetch a single family's child profile from the agent workspace.
+ * Read child profile from local workspace filesystem.
  */
-async function fetchChildProfile(familyEmail: string) {
-  const family = getFamilyAgentFlat(familyEmail);
+function readChildProfile(agentId: string, familyName: string, childName: string) {
+  const workspace = getAgentWorkspacePath(agentId);
+  const filepath = `${workspace}/child-profile.md`;
 
-  if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
-    return {
-      name: family.childName,
-      age: "N/A",
-      diagnosis: "Information not available",
-      familyName: family.familyName,
-    };
-  }
-
-  const filepath = `/root/.openclaw/workspace-${family.familyName.toLowerCase()}/memory/child-profile.md`;
+  const fallback = {
+    name: childName,
+    age: "N/A",
+    diagnosis: "Information not available",
+    familyName,
+  };
 
   try {
-    const response = await fetch(ORGO_API_BASE, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${ORGO_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        command: `cat ${filepath} 2>/dev/null || echo "FILE_NOT_FOUND"`,
-      }),
-    });
+    if (!fs.existsSync(filepath)) return fallback;
 
-    if (!response.ok) throw new Error(`Orgo API error: ${response.status}`);
-
-    const result = await response.json();
-    const content = result.output || "";
-
-    if (content.trim() === "FILE_NOT_FOUND") {
-      return {
-        name: family.childName,
-        age: "N/A",
-        diagnosis: "Profile not yet created by family",
-        familyName: family.familyName,
-      };
-    }
-
+    const content = fs.readFileSync(filepath, "utf-8");
     const lines = content.split("\n");
-    let name = family.childName;
+
+    let name = childName;
     let age = "N/A";
     let diagnosis = "N/A";
 
     for (const line of lines) {
       const trimmed = line.trim();
-
-      const kvMatch = trimmed.match(/^\*\*(.+?):\*\*\s*(.+)$/);
+      // Match "- Key: Value" format
+      const kvMatch = trimmed.match(/^-\s*(.+?):\s*(.+)$/);
       if (kvMatch) {
         const key = kvMatch[1].toLowerCase().trim();
         const value = kvMatch[2].trim();
-
-        if (key === "name" || key === "child name" || key === "child's name") {
-          name = value;
-        } else if (key === "age" || key === "current age") {
-          age = value;
-        } else if (
-          key === "diagnosis" ||
-          key === "primary diagnosis" ||
-          key === "diagnoses"
-        ) {
-          diagnosis = value;
-        }
+        if (key === "name" || key === "child name") name = value;
+        else if (key === "age" || key === "current age") age = value;
+        else if (key === "diagnosis" || key === "primary diagnosis" || key === "diagnoses") diagnosis = value;
       }
-
-      const tableMatch = trimmed.match(/^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$/);
-      if (tableMatch) {
-        const key = tableMatch[1].toLowerCase().trim();
-        const value = tableMatch[2].trim();
-
-        if (
-          key === "name" ||
-          key === "child name" ||
-          key === "child's name"
-        ) {
-          name = value;
-        } else if (key === "age" || key === "current age") {
-          age = value;
-        } else if (
-          key === "diagnosis" ||
-          key === "primary diagnosis" ||
-          key === "diagnoses"
-        ) {
-          diagnosis = value;
-        }
+      // Match "**Key:** Value" format
+      const boldMatch = trimmed.match(/^\*\*(.+?):\*\*\s*(.+)$/);
+      if (boldMatch) {
+        const key = boldMatch[1].toLowerCase().trim();
+        const value = boldMatch[2].trim();
+        if (key === "name" || key === "child name") name = value;
+        else if (key === "age" || key === "current age") age = value;
+        else if (key === "diagnosis" || key === "primary diagnosis" || key === "diagnoses") diagnosis = value;
       }
     }
 
-    return { name, age, diagnosis, familyName: family.familyName };
+    return { name, age, diagnosis, familyName };
   } catch (err) {
-    console.error("Team profile error:", err);
-    return {
-      name: family.childName,
-      age: "N/A",
-      diagnosis: "Unable to load at this time",
-      familyName: family.familyName,
-    };
+    console.error("Team profile read error:", err);
+    return fallback;
   }
 }
 
@@ -115,7 +61,6 @@ async function fetchChildProfile(familyEmail: string) {
  * GET /api/team/profile
  * Returns ALL linked families for the stakeholder with child profiles.
  * Accepts optional ?family_id= to specify which family is active.
- * Response: { families: [...], activeFamily: {...} }
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -129,73 +74,53 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Fetch ALL stakeholder links for this user (include child columns if available)
+  // Fetch ACCEPTED stakeholder links
   const { data: links, error: linkError } = await admin
     .from("stakeholder_links")
-    .select("family_id, child_name, child_agent_id")
-    .eq("stakeholder_id", user.id);
+    .select("family_id, child_name, child_agent_id, status")
+    .eq("stakeholder_id", user.id)
+    .or("status.eq.accepted,status.is.null");
 
-  // Fallback: if the query fails (child columns don't exist yet), try without them
-  let resolvedLinks: Array<{ family_id: string; child_name?: string | null; child_agent_id?: string | null }> | null = links;
-  if (linkError) {
-    const fallback = await admin
-      .from("stakeholder_links")
-      .select("family_id")
-      .eq("stakeholder_id", user.id);
-    resolvedLinks = (fallback.data || []).map((r: { family_id: string }) => ({
-      family_id: r.family_id,
-      child_name: null,
-      child_agent_id: null,
-    }));
-    if (fallback.error || !fallback.data || fallback.data.length === 0) {
-      return NextResponse.json(
-        { error: "No linked family found" },
-        { status: 404 }
-      );
-    }
-  }
-
-  if (!resolvedLinks || resolvedLinks.length === 0) {
+  if (linkError || !links || links.length === 0) {
     return NextResponse.json(
       { error: "No linked family found" },
       { status: 404 }
     );
   }
 
-  // For each linked family (per-child if child_name is set), fetch profile
+  // For each linked family, fetch profile from local workspace
   const families = await Promise.all(
-    resolvedLinks.map(async (link) => {
+    links.map(async (link) => {
       const { data: familyUser } = await admin.auth.admin.getUserById(
         link.family_id
       );
-
       const email = familyUser?.user?.email || "";
+      const family = getFamilyAgentFlat(email);
 
-      // If this link is for a specific child, resolve that child's agent
-      if (link.child_name && link.child_agent_id) {
-        const family = getFamilyAgentFlat(email);
-        // Use the child-specific profile fetch with the child's agent workspace
-        const profile = await fetchChildProfile(email);
+      // If this link is for a specific child, find the matching agent
+      if (link.child_name) {
+        // Try to find the child's agent ID from the link or family config
+        const agentId = link.child_agent_id || family.agentId;
+        const profile = readChildProfile(agentId, family.familyName, link.child_name);
 
         return {
           familyId: link.family_id,
           childName: link.child_name,
           familyName: family.familyName,
-          agentId: link.child_agent_id,
+          agentId,
           age: profile.age,
           diagnosis: profile.diagnosis,
         };
       }
 
       // Legacy: no child_name means linked to whole family (first child)
-      const agent = getFamilyAgentFlat(email);
-      const profile = await fetchChildProfile(email);
+      const profile = readChildProfile(family.agentId, family.familyName, family.childName);
 
       return {
         familyId: link.family_id,
         childName: profile.name,
         familyName: profile.familyName,
-        agentId: agent.agentId,
+        agentId: family.agentId,
         age: profile.age,
         diagnosis: profile.diagnosis,
       };
@@ -207,12 +132,10 @@ export async function GET(request: NextRequest) {
   const activeFamily =
     families.find((f) => f.familyId === requestedFamilyId) || families[0];
 
-  // For backwards compatibility, also return flat fields from activeFamily
   return NextResponse.json({
-    // New multi-family response
     families,
     activeFamily,
-    // Legacy flat fields (so existing components don't break)
+    // Legacy flat fields
     name: activeFamily.childName,
     age: activeFamily.age,
     diagnosis: activeFamily.diagnosis,

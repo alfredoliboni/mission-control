@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/care-team
@@ -13,7 +14,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  // Use admin client to bypass RLS
+  const admin = createAdminClient();
+
+  const { data, error } = await admin
     .from("stakeholder_links")
     .select("*")
     .eq("family_id", user.id)

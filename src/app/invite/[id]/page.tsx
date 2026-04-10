@@ -66,8 +66,8 @@ export default function InvitePage({
 
       if (action === "accepted") {
         setPageStatus("accepted");
-        // Brief delay so they can see the confirmation, then redirect to login
-        setTimeout(() => router.push("/login"), 2000);
+        // Brief delay so they can see the confirmation, then redirect to team portal
+        setTimeout(() => router.push("/team"), 2000);
       } else {
         setPageStatus("declined");
       }
@@ -211,14 +211,14 @@ export default function InvitePage({
                 Invitation Accepted
               </h2>
               <p className="text-[13px] text-muted-foreground mb-4">
-                Welcome to the care team! Redirecting you to sign in...
+                Welcome to the care team! Redirecting you to the portal...
               </p>
               <div className="inline-flex items-center gap-2 text-primary">
                 <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <span className="text-[12px] font-medium">Redirecting to login...</span>
+                <span className="text-[12px] font-medium">Redirecting to Care Team Portal...</span>
               </div>
             </div>
           )}
