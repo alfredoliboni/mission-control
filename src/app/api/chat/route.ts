@@ -94,8 +94,12 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { getFamilyAgent } = await import("@/lib/family-agents");
-  const family = getFamilyAgent(user?.email ?? undefined);
+  const family = getFamilyAgent(user.email ?? undefined);
 
   // Support ?agent= param for multi-child routing
   const agentParam = request.nextUrl.searchParams.get("agent");

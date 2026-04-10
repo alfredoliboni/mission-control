@@ -86,6 +86,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
   }
 
+  // Prevent re-changing after accepted/declined
+  if (existing.status === "accepted" || existing.status === "declined") {
+    return NextResponse.json(
+      { error: `Invitation has already been ${existing.status}` },
+      { status: 400 }
+    );
+  }
+
   // Update the status
   const { data: updated, error: updateError } = await admin
     .from("stakeholder_links")

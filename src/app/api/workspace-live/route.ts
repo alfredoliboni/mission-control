@@ -11,9 +11,13 @@ import path from "path";
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const agentParam = request.nextUrl.searchParams.get("agent");
 
-  const family = getFamilyAgent(user?.email ?? undefined);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const agentParam = request.nextUrl.searchParams.get("agent");
+  const family = getFamilyAgent(user.email ?? undefined);
   let workspacePath: string;
 
   if (agentParam && family.children.some((c) => c.agentId === agentParam)) {
