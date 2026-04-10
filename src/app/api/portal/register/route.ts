@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendProviderWelcomeEmail } from "@/lib/email";
 
 interface RegistrationPayload {
   organizationName: string;
   contactEmail: string;
+  password: string;
   phone?: string;
   type?: string;
   services?: string[];
   specialties?: string;
   agesServed?: string;
   locationAddress?: string;
+  city?: string;
   postalCode?: string;
   fundingAccepted?: string[];
   waitTimeEstimate?: string;
@@ -33,11 +36,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { organizationName, contactEmail } = body;
+  const { organizationName, contactEmail, password } = body;
 
-  if (!organizationName?.trim() || !contactEmail?.trim()) {
+  if (!organizationName?.trim() || !contactEmail?.trim() || !password?.trim()) {
     return NextResponse.json(
-      { error: "Organization name and contact email are required" },
+      { error: "Organization name, email, and password are required" },
       { status: 400 }
     );
   }
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
   const { data: authData, error: authError } =
     await supabase.auth.admin.createUser({
       email: contactEmail.trim(),
+      password: password.trim(),
       email_confirm: true,
       user_metadata: {
         role: "provider",
@@ -82,12 +86,12 @@ export async function POST(request: NextRequest) {
       : `Ages served: ${body.agesServed}`;
   }
 
-  // 4. Parse city from address if possible (e.g. "123 Main St, London, ON")
-  let locationCity: string | null = null;
-  if (body.locationAddress) {
+  // 4. City: use explicit field, fall back to parsing from address
+  let locationCity: string | null = body.city?.trim() || null;
+  if (!locationCity && body.locationAddress) {
     const parts = body.locationAddress.split(",").map((p) => p.trim());
     if (parts.length >= 2) {
-      locationCity = parts[1]; // second segment is typically the city
+      locationCity = parts[1];
     }
   }
 
@@ -133,6 +137,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Send welcome email (non-blocking)
+  sendProviderWelcomeEmail({
+    to: contactEmail.trim(),
+    organizationName: organizationName.trim(),
+  });
 
   return NextResponse.json({
     success: true,

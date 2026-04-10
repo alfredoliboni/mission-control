@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
@@ -47,7 +48,7 @@ export default function LoginPage() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -58,7 +59,18 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Redirect based on user role and stakeholder status
+    const metadata = data.user?.user_metadata || {};
+    if (metadata.is_stakeholder || metadata.stakeholder_role) {
+      // Providers/stakeholders who are on a care team → team portal
+      router.push("/team");
+    } else if (metadata.role === "provider") {
+      router.push("/portal/dashboard");
+    } else if (metadata.role === "stakeholder") {
+      router.push("/team");
+    } else {
+      router.push("/dashboard");
+    }
     router.refresh();
   };
 
@@ -108,9 +120,8 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

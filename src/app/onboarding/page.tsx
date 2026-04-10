@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
@@ -620,8 +621,7 @@ export default function OnboardingPage() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Password <span className="text-destructive">*</span>
             </label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="At least 6 characters"
               value={authPassword}
               onChange={(e) => {
@@ -634,8 +634,7 @@ export default function OnboardingPage() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Confirm password <span className="text-destructive">*</span>
             </label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="Re-enter your password"
               value={authConfirmPassword}
               onChange={(e) => {

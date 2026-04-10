@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
@@ -52,12 +53,14 @@ const WAIT_TIME_OPTIONS = [
 interface FormData {
   organizationName: string;
   contactEmail: string;
+  password: string;
   phone: string;
   type: string;
   services: string[];
   specialties: string;
   agesServed: string;
   locationAddress: string;
+  city: string;
   postalCode: string;
   fundingAccepted: string[];
   waitTimeEstimate: string;
@@ -69,12 +72,14 @@ export default function ProviderRegisterPage() {
   const [formData, setFormData] = useState<FormData>({
     organizationName: "",
     contactEmail: "",
+    password: "",
     phone: "",
     type: "",
     services: [],
     specialties: "",
     agesServed: "",
     locationAddress: "",
+    city: "",
     postalCode: "",
     fundingAccepted: [],
     waitTimeEstimate: "",
@@ -227,6 +232,27 @@ export default function ProviderRegisterPage() {
                   placeholder="(519) 555-0123"
                 />
               </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-foreground block mb-1.5"
+              >
+                Password <span className="text-destructive">*</span>
+              </label>
+              <PasswordInput
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                placeholder="Min. 8 characters"
+                required
+                minLength={8}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                You&apos;ll use this to log in to your provider dashboard
+              </p>
             </div>
 
             <div>
@@ -417,7 +443,23 @@ export default function ProviderRegisterPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label
+                  htmlFor="city"
+                  className="text-sm font-medium text-foreground block mb-1.5"
+                >
+                  City <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  id="city"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  placeholder="e.g. London"
+                  required
+                />
+              </div>
               <div>
                 <label
                   htmlFor="postalCode"

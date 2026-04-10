@@ -45,6 +45,107 @@ export async function sendInviteEmail(params: {
   }
 }
 
+/**
+ * Send a welcome email to a newly registered provider.
+ */
+export async function sendProviderWelcomeEmail(params: {
+  to: string;
+  organizationName: string;
+}) {
+  if (!RESEND_API_KEY) {
+    console.log("[email] RESEND_API_KEY not configured — skipping welcome email");
+    return;
+  }
+
+  const fromAddress = "The Companion <onboarding@resend.dev>";
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: params.to,
+        subject: `Welcome to The Companion — ${params.organizationName}`,
+        html: buildWelcomeEmailHtml(params),
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("[email] Resend API error:", res.status, error);
+    } else {
+      console.log("[email] Welcome email sent to", params.to);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send welcome email:", err);
+  }
+}
+
+function buildWelcomeEmailHtml(params: {
+  organizationName: string;
+}): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin: 0; padding: 0; background-color: #faf9f6; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf9f6; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; border: 1px solid #e8e5e0; overflow: hidden;">
+          <tr>
+            <td style="padding: 32px 40px 24px; text-align: center; border-bottom: 1px solid #e8e5e0;">
+              <div style="font-size: 28px; margin-bottom: 8px;">&#x1F9ED;</div>
+              <h1 style="margin: 0; font-size: 18px; font-weight: 700; color: #1a1a1a;">The Companion</h1>
+              <p style="margin: 4px 0 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #c96442;">Provider Registration</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 40px;">
+              <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
+                Welcome, <strong>${params.organizationName}</strong>!
+              </p>
+              <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #6b6560;">
+                Your provider profile has been created on The Companion. Families navigating Ontario&rsquo;s autism services can now find you when searching for providers.
+              </p>
+              <p style="margin: 0 0 28px; font-size: 14px; line-height: 1.6; color: #6b6560;">
+                <strong>What&rsquo;s next:</strong>
+              </p>
+              <ul style="margin: 0 0 28px; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #6b6560;">
+                <li>Your profile is now visible in our provider directory</li>
+                <li>You can log in to your dashboard to update your profile and waitlist</li>
+                <li>Once verified, you&rsquo;ll receive a badge and priority placement</li>
+              </ul>
+              <p style="margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #9a9590;">
+                Your temporary password is: <strong>Companion2026!</strong>
+              </p>
+              <p style="margin: 0 0 0; font-size: 12px; line-height: 1.5; color: #9a9590;">
+                Please change it after your first login.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px; background-color: #f5f3ef; text-align: center; border-top: 1px solid #e8e5e0;">
+              <p style="margin: 0; font-size: 11px; color: #9a9590;">
+                The Companion &mdash; Navigating Ontario&rsquo;s autism services together
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`.trim();
+}
+
 function buildInviteEmailHtml(params: {
   inviterName: string;
   childName: string;
