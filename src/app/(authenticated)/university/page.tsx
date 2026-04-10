@@ -38,7 +38,7 @@ export default function UniversityPage() {
   return (
     <WorkspaceSection
       title="University & College"
-      icon={"\uD83C\uDF93"}
+      icon={"🎓"}
       lastUpdated={university?.lastUpdated}
       isLoading={isLoading}
     >
@@ -57,7 +57,7 @@ export default function UniversityPage() {
           {university.snapshot && (
             <div className="bg-card border border-border rounded-xl p-5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                {"\uD83D\uDCCB"} Snapshot
+                {"📋"} Snapshot
               </p>
               <p className="text-[13px] text-foreground leading-relaxed">
                 {university.snapshot}
@@ -69,7 +69,7 @@ export default function UniversityPage() {
           {university.academicThemes.length > 0 && (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                {"\uD83C\uDFAF"} Good-Fit Academic Themes
+                {"🎯"} Good-Fit Academic Themes
               </p>
               <div className="flex flex-wrap gap-2">
                 {university.academicThemes.map((theme, i) => (
@@ -88,7 +88,7 @@ export default function UniversityPage() {
           {university.planningPriorities.length > 0 && (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                {"\uD83D\uDCDD"} Planning Priorities
+                {"📝"} Planning Priorities
               </p>
               <div className="grid sm:grid-cols-2 gap-4">
                 {university.planningPriorities.map((priority, i) => (
@@ -102,7 +102,7 @@ export default function UniversityPage() {
           {university.documentationNeeded.length > 0 && (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                {"\uD83D\uDCC2"} Documentation Needed
+                {"📂"} Documentation Needed
               </p>
               <div className="bg-card border border-border rounded-xl p-4">
                 <ul className="space-y-2">
@@ -126,7 +126,7 @@ export default function UniversityPage() {
           {university.campusConsiderations.length > 0 && (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                {"\uD83C\uDFEB"} Campus Transition Questions
+                {"🏫"} Campus Transition Questions
               </p>
               <div className="bg-card border border-border rounded-xl p-4">
                 <ul className="space-y-2">
@@ -148,7 +148,7 @@ export default function UniversityPage() {
           {university.cautionNotes.length > 0 && (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                {"\u26A0\uFE0F"} Caution
+                {"⚠️\uFE0F"} Caution
               </p>
               <div className="bg-status-caution/5 border border-status-caution/20 rounded-xl p-4">
                 <ul className="space-y-2">

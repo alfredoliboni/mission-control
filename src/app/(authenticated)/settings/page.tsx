@@ -621,26 +621,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="pt-3 border-t border-border space-y-3">
-            <h4 className="text-[13px] font-semibold text-foreground flex items-center gap-2">
-              <Lock className="size-3.5" />
-              Data Management
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-8">
-                <Download className="size-3.5 mr-1.5" />
-                Export All Data
-              </Button>
-              <Button variant="outline" size="sm" className="h-8">
-                <Eye className="size-3.5 mr-1.5" />
-                View Access Log
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-status-blocked hover:text-status-blocked hover:bg-status-blocked/8 border-status-blocked/30">
-                <AlertTriangle className="size-3.5 mr-1.5" />
-                Delete All Data
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 

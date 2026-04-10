@@ -1100,15 +1100,15 @@ export default function ProvidersPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "my-providers", label: "My Providers", icon: "\uD83C\uDFE5" },
-    { key: "recommended", label: "Recommended", icon: "\uD83C\uDFAF" },
-    { key: "search", label: "Search All", icon: "\uD83D\uDD0D" },
+    { key: "my-providers", label: "My Providers", icon: "🏥" },
+    { key: "recommended", label: "Recommended", icon: "🎯" },
+    { key: "search", label: "Search All", icon: "🔍" },
   ];
 
   return (
     <WorkspaceSection
       title="Service Providers"
-      icon="\uD83C\uDFE5"
+      icon="🏥"
       lastUpdated={providers?.lastUpdated}
       isLoading={isLoading}
     >

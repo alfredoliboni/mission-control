@@ -27,13 +27,13 @@ interface UploadedDoc {
 // ── Helpers ──────────────────────────────────────────────────────────
 function getTypeEmoji(type: string): string {
   const lower = type.toLowerCase();
-  if (lower === "assessment") return "\uD83D\uDCDD";
-  if (lower === "diagnosis") return "\uD83E\uDE7A";
-  if (lower === "report") return "\uD83D\uDCCB";
-  if (lower === "iep" || lower === "school") return "\uD83D\uDCDA";
-  if (lower === "prescription" || lower === "medical") return "\uD83D\uDC8A";
-  if (lower === "therapy") return "\uD83E\uDDD1\u200D\u2695\uFE0F";
-  return "\uD83D\uDCC4";
+  if (lower === "assessment") return "📝";
+  if (lower === "diagnosis") return "🩺";
+  if (lower === "report") return "📋";
+  if (lower === "iep" || lower === "school") return "📚";
+  if (lower === "prescription" || lower === "medical") return "💊";
+  if (lower === "therapy") return "🧑\u200D\u2695\uFE0F";
+  return "📄";
 }
 
 function getUploaderLabel(role: string): string {

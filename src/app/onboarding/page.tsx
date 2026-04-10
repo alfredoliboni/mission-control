@@ -209,14 +209,14 @@ const SUPPORT_NEEDS = [
 ];
 
 const INTEREST_PRESETS = [
-  { emoji: "\ud83d\ude82", label: "Trains" },
-  { emoji: "\ud83c\udfb5", label: "Music" },
-  { emoji: "\ud83e\uddf1", label: "Building" },
-  { emoji: "\ud83d\udc3e", label: "Animals" },
-  { emoji: "\ud83d\udca7", label: "Water" },
-  { emoji: "\ud83c\udfa8", label: "Art" },
-  { emoji: "\ud83d\udcda", label: "Books" },
-  { emoji: "\ud83c\udfc3", label: "Movement" },
+  { emoji: "🚂", label: "Trains" },
+  { emoji: "🎵", label: "Music" },
+  { emoji: "🧱", label: "Building" },
+  { emoji: "🐾", label: "Animals" },
+  { emoji: "💧", label: "Water" },
+  { emoji: "🎨", label: "Art" },
+  { emoji: "📚", label: "Books" },
+  { emoji: "🏃", label: "Movement" },
 ];
 
 const COMMUNICATION_STYLES = [

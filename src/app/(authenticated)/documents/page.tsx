@@ -55,13 +55,13 @@ type CategoryValue = (typeof CATEGORIES)[number]["value"];
 // ── Type icon mapping ─────────────────────────────────────────────────
 function getTypeEmoji(type: string): string {
   const lower = type.toLowerCase();
-  if (lower === "assessment") return "\uD83D\uDCDD";
-  if (lower === "diagnosis") return "\uD83E\uDE7A";
-  if (lower === "report") return "\uD83D\uDCCB";
-  if (lower === "iep" || lower === "school") return "\uD83D\uDCDA";
-  if (lower === "prescription" || lower === "medical") return "\uD83D\uDC8A";
-  if (lower === "therapy") return "\uD83E\uDDD1\u200D\u2695\uFE0F";
-  return "\uD83D\uDCC4";
+  if (lower === "assessment") return "📝";
+  if (lower === "diagnosis") return "🩺";
+  if (lower === "report") return "📋";
+  if (lower === "iep" || lower === "school") return "📚";
+  if (lower === "prescription" || lower === "medical") return "💊";
+  if (lower === "therapy") return "🧑\u200D\u2695\uFE0F";
+  return "📄";
 }
 
 function getUploaderLabel(role: string): string {
@@ -983,7 +983,7 @@ function EmptyVault() {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <span className="text-4xl mb-3" aria-hidden="true">
-        {"\uD83D\uDCC2"}
+        {"📂"}
       </span>
       <h3 className="text-[15px] font-semibold text-foreground mb-1">
         No documents yet
@@ -1171,7 +1171,7 @@ export default function DocumentsPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <span className="text-2xl" aria-hidden="true">
-              {"\uD83D\uDCC4"}
+              {"📄"}
             </span>
             Document Vault
           </h1>

@@ -86,7 +86,7 @@ export default function DashboardPage() {
   /* ── Metric card config ────────────────────────────────────── */
   const metrics = [
     {
-      emoji: "\uD83D\uDEA8",
+      emoji: "🚨",
       bg: "bg-[#fde8e8]",
       value: activeAlerts.length,
       label: "Active Alerts",
@@ -94,7 +94,7 @@ export default function DashboardPage() {
       color: highAlerts.length > 0 ? "text-status-blocked" : "text-status-caution",
     },
     {
-      emoji: "\uD83C\uDFE5",
+      emoji: "🏥",
       bg: "bg-[#fef0e8]",
       value: providerCount,
       label: "Providers Found",
@@ -102,7 +102,7 @@ export default function DashboardPage() {
       color: "text-primary",
     },
     {
-      emoji: "\uD83D\uDCDA",
+      emoji: "📚",
       bg: "bg-[#e6f4ea]",
       value: programCount,
       label: "Programs Available",
@@ -110,7 +110,7 @@ export default function DashboardPage() {
       color: "text-status-success",
     },
     {
-      emoji: "\uD83D\uDCB0",
+      emoji: "💰",
       bg: "bg-[#fef7e0]",
       value: benefitsPending,
       label: "Benefits Pending",

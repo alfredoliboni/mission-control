@@ -64,7 +64,7 @@ export default function EmploymentPage() {
   return (
     <WorkspaceSection
       title="Employment & Internships"
-      icon="\uD83D\uDCBC"
+      icon="💼"
       lastUpdated={employment?.lastUpdated}
       isLoading={isLoading}
     >

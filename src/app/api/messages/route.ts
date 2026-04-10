@@ -10,6 +10,9 @@ export interface MessageRow {
   thread_subject: string;
   sender_id: string;
   sender_role: string;
+  sender_name?: string;
+  recipient_id?: string;
+  recipient_name?: string;
   content: string;
   attachments: unknown[] | null;
   created_at: string;
@@ -22,7 +25,7 @@ export interface ThreadSummary {
   lastMessage: MessageRow;
 }
 
-// Demo threads for demo mode
+// Demo threads for demo mode — using real contact names
 const DEMO_THREADS: ThreadSummary[] = [
   {
     id: "demo-thread-1",
@@ -34,6 +37,7 @@ const DEMO_THREADS: ThreadSummary[] = [
       thread_subject: "IEP Discussion",
       sender_id: "ms-rodriguez",
       sender_role: "school",
+      sender_name: "Ms. Thompson",
       content:
         "I'll check with the principal about increasing EA hours. Could you review the IEP draft and share feedback by April 5?",
       attachments: null,
@@ -47,8 +51,11 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "IEP Discussion",
         sender_id: "demo-parent",
         sender_role: "parent",
+        sender_name: "Santos Family",
+        recipient_id: "ms-rodriguez",
+        recipient_name: "Ms. Thompson",
         content:
-          "Hi Ms. Rodriguez, I wanted to discuss Alex's social goals for the updated IEP. We've noticed improvements at home with turn-taking during board games.",
+          "Hi Ms. Thompson, I wanted to discuss Alex's social goals for the updated IEP. We've noticed improvements at home with turn-taking during board games.",
         attachments: null,
         created_at: "2026-03-25T10:00:00Z",
       },
@@ -59,6 +66,7 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "IEP Discussion",
         sender_id: "ms-rodriguez",
         sender_role: "school",
+        sender_name: "Ms. Thompson",
         content:
           "That's great to hear! I've updated the draft to reflect those improvements. I've also added a goal around peer interactions during group work. Here's the updated IEP draft.",
         attachments: [{ name: "IEP_Draft_v2.pdf", type: "application/pdf" }],
@@ -71,6 +79,7 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "IEP Discussion",
         sender_id: "ms-rodriguez",
         sender_role: "school",
+        sender_name: "Ms. Thompson",
         content:
           "I'll check with the principal about increasing EA hours. Could you review the IEP draft and share feedback by April 5?",
         attachments: null,
@@ -88,6 +97,7 @@ const DEMO_THREADS: ThreadSummary[] = [
       thread_subject: "Medication Follow-up",
       sender_id: "dr-patel",
       sender_role: "doctor",
+      sender_name: "Dr. Park",
       content:
         "Appointment confirmed for April 15 at 2:00 PM. Please keep tracking the sleep log — bring 2 weeks of data to the appointment so we can assess melatonin effectiveness.",
       attachments: null,
@@ -101,8 +111,11 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "Medication Follow-up",
         sender_id: "demo-parent",
         sender_role: "parent",
+        sender_name: "Santos Family",
+        recipient_id: "dr-patel",
+        recipient_name: "Dr. Park",
         content:
-          "Dr. Patel, Alex has been on melatonin for 3 weeks now. Sleep has improved somewhat but he still wakes up around 3 AM most nights. Should we adjust the dose?",
+          "Dr. Park, Alex has been on melatonin for 3 weeks now. Sleep has improved somewhat but he still wakes up around 3 AM most nights. Should we adjust the dose?",
         attachments: null,
         created_at: "2026-03-18T20:00:00Z",
       },
@@ -113,6 +126,7 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "Medication Follow-up",
         sender_id: "dr-patel",
         sender_role: "doctor",
+        sender_name: "Dr. Park",
         content:
           "Thank you for the update. Let's not adjust yet — 3 weeks isn't enough to see the full effect. Can we book a follow-up in a few weeks to review?",
         attachments: null,
@@ -125,6 +139,7 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "Medication Follow-up",
         sender_id: "dr-patel",
         sender_role: "doctor",
+        sender_name: "Dr. Park",
         content:
           "Appointment confirmed for April 15 at 2:00 PM. Please keep tracking the sleep log — bring 2 weeks of data to the appointment so we can assess melatonin effectiveness.",
         attachments: null,
@@ -142,6 +157,7 @@ const DEMO_THREADS: ThreadSummary[] = [
       thread_subject: "OT Waitlist Update",
       sender_id: "sarah-ot",
       sender_role: "therapist",
+      sender_name: "Sarah Williams",
       content:
         "Good news — a spot may open up in June. I'll keep you at the top of the list. In the meantime, the sensory strategies I shared should help with the classroom fidgeting.",
       attachments: null,
@@ -155,6 +171,9 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "OT Waitlist Update",
         sender_id: "demo-parent",
         sender_role: "parent",
+        sender_name: "Santos Family",
+        recipient_id: "sarah-ot",
+        recipient_name: "Sarah Williams",
         content:
           "Hi Sarah, just checking in on the OT waitlist. Alex's teacher mentioned he's struggling more with sensory regulation in the classroom lately.",
         attachments: null,
@@ -167,6 +186,7 @@ const DEMO_THREADS: ThreadSummary[] = [
         thread_subject: "OT Waitlist Update",
         sender_id: "sarah-ot",
         sender_role: "therapist",
+        sender_name: "Sarah Williams",
         content:
           "Good news — a spot may open up in June. I'll keep you at the top of the list. In the meantime, the sensory strategies I shared should help with the classroom fidgeting.",
         attachments: null,
@@ -198,23 +218,46 @@ export async function GET() {
   const familyId = user.id;
   const admin = createAdminClient();
 
-  const { data: messages, error } = await admin
-    .from("messages")
-    .select("*")
-    .eq("family_id", familyId)
-    .order("created_at", { ascending: true });
+  // Fetch messages and stakeholder_links in parallel for name enrichment
+  const [messagesResult, stakeholdersResult] = await Promise.all([
+    admin
+      .from("messages")
+      .select("*")
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: true }),
+    admin
+      .from("stakeholder_links")
+      .select("stakeholder_id, name, role, organization")
+      .eq("family_id", familyId),
+  ]);
 
-  if (error) {
-    console.error("Error fetching messages:", error);
+  if (messagesResult.error) {
+    console.error("Error fetching messages:", messagesResult.error);
     return NextResponse.json(
       { error: "Failed to fetch messages" },
       { status: 500 }
     );
   }
 
-  // Group messages by thread_id
+  const messages = messagesResult.data;
+
+  // Build a lookup map: stakeholder_id -> name
+  const nameMap = new Map<string, string>();
+  for (const s of stakeholdersResult.data ?? []) {
+    nameMap.set(s.stakeholder_id, s.name);
+  }
+
+  // Group messages by thread_id, enriching sender_name if missing
   const threadMap = new Map<string, MessageRow[]>();
   for (const msg of (messages ?? []) as MessageRow[]) {
+    // Enrich sender_name from stakeholder_links if not stored on the message
+    if (!msg.sender_name) {
+      if (msg.sender_id === familyId) {
+        msg.sender_name = "You";
+      } else {
+        msg.sender_name = nameMap.get(msg.sender_id) ?? undefined;
+      }
+    }
     const existing = threadMap.get(msg.thread_id) ?? [];
     existing.push(msg);
     threadMap.set(msg.thread_id, existing);

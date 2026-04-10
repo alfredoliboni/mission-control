@@ -158,9 +158,9 @@ export default function InvitePage({
                   </p>
                   <div className="space-y-2">
                     {[
-                      { icon: "\uD83D\uDCC4", text: "Upload and view documents" },
-                      { icon: "\uD83D\uDCAC", text: "Communicate with the family" },
-                      { icon: "\uD83D\uDC64", text: "Access the child\u2019s profile" },
+                      { icon: "📄", text: "Upload and view documents" },
+                      { icon: "💬", text: "Communicate with the family" },
+                      { icon: "👤", text: "Access the child\u2019s profile" },
                     ].map((item) => (
                       <div key={item.text} className="flex items-center gap-2.5">
                         <span className="text-sm shrink-0">{item.icon}</span>

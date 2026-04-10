@@ -866,7 +866,7 @@ export default function ProgramsPage() {
   return (
     <WorkspaceSection
       title="Programs"
-      icon="\uD83D\uDCDA"
+      icon="📚"
       lastUpdated={programs?.lastUpdated}
       isLoading={isLoading}
     >
