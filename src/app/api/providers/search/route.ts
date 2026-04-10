@@ -56,13 +56,16 @@ export async function GET(request: NextRequest) {
 
   if (q && results.length < 50) {
     const lowerQ = q.toLowerCase();
+    const upperQ = q.toUpperCase();
+    const titleQ = q.charAt(0).toUpperCase() + q.slice(1).toLowerCase();
     // Fetch additional providers that might match via array columns
+    // Try multiple cases since PostgreSQL array contains is case-sensitive
     const { data: arrayMatches } = await supabase
       .from("providers")
       .select(
         "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
       )
-      .contains("services", [lowerQ])
+      .or(`services.cs.{${lowerQ}},services.cs.{${upperQ}},services.cs.{${titleQ}}`)
       .limit(20);
 
     if (arrayMatches) {
@@ -80,7 +83,7 @@ export async function GET(request: NextRequest) {
       .select(
         "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
       )
-      .contains("specialties", [lowerQ])
+      .or(`specialties.cs.{${lowerQ}},specialties.cs.{${upperQ}},specialties.cs.{${titleQ}}`)
       .limit(20);
 
     if (specMatches) {
