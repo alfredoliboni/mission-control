@@ -128,32 +128,27 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fuzzy fallback: if no results and query is 4+ chars, try partial word match
-  if (q && results.length === 0 && q.length >= 4) {
-    // Try matching with just the first N-1 chars (handles typos at end)
-    const partial = q.slice(0, -1);
-    const { data: fuzzyResults } = await supabase
-      .from("providers")
-      .select(
-        "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
-      )
-      .or(`name.ilike.%${partial}%,description.ilike.%${partial}%,type.ilike.%${partial}%`)
-      .limit(20);
+  // Fuzzy fallback using pg_trgm similarity (handles real typos)
+  if (q && results.length === 0 && q.length >= 3) {
+    const { data: fuzzyResults } = await supabase.rpc("search_providers_fuzzy", {
+      search_term: q,
+      min_similarity: 0.1,
+    });
 
     if (fuzzyResults && fuzzyResults.length > 0) {
       results = fuzzyResults;
     } else {
-      // Try with first 3 chars as prefix
-      const prefix = q.slice(0, 3);
-      const { data: prefixResults } = await supabase
+      // Last resort: partial prefix match
+      const partial = q.slice(0, -1);
+      const { data: partialResults } = await supabase
         .from("providers")
         .select(
           "id, name, type, description, specialties, services, location_address, location_city, location_postal, phone, email, website, waitlist_estimate, is_verified, rating, price_range, accepts_funding"
         )
-        .or(`name.ilike.%${prefix}%,description.ilike.%${prefix}%`)
+        .or(`name.ilike.%${partial}%,description.ilike.%${partial}%,type.ilike.%${partial}%`)
         .limit(20);
 
-      if (prefixResults) results = prefixResults;
+      if (partialResults) results = partialResults;
     }
   }
 
