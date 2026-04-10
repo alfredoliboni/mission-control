@@ -47,6 +47,7 @@ export default function UniversityRegistrationPage() {
     transitionSupport: "",
     description: "",
     address: "",
+    city: "",
     postalCode: "",
   });
 
@@ -189,6 +190,12 @@ export default function UniversityRegistrationPage() {
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Address</label>
               <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                className="w-full rounded-lg border border-border bg-warm-50 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">City</label>
+              <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
+                placeholder="e.g., Toronto"
                 className="w-full rounded-lg border border-border bg-warm-50 px-3 py-2 text-sm" />
             </div>
             <div>

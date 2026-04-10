@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     transitionSupport,
     description,
     address,
+    city,
     postalCode,
   } = body;
 
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Insert into providers table as type "university"
-  const city = address?.split(",").pop()?.trim() || "";
+  const locationCity = city?.trim() || null;
   const { data: provider, error: insertError } = await admin
     .from("providers")
     .insert({
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       description: description || null,
       specialties: accommodations || [],
       services: programs || [],
-      location_city: city,
+      location_city: locationCity,
       location_postal: postalCode || null,
       location_address: address || null,
       phone: contactPhone || null,

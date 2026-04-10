@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -561,12 +562,76 @@ function ProgramsSection({ programs }: { programs: Program[] }) {
   );
 }
 
+// ── My Families Section ──────────────────────────────────────────────────
+
+interface LinkedFamily {
+  id: string;
+  family_id: string;
+  child_name: string | null;
+  role: string;
+  status: string;
+}
+
+function MyFamiliesSection({ families }: { families: LinkedFamily[] }) {
+  if (families.length === 0) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          My Families
+        </h2>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Families who have invited you to their care team
+        </p>
+      </div>
+      <div className="divide-y divide-border">
+        {families.map((f) => {
+          const isAccepted = f.status === "accepted" || !f.status;
+          return (
+            <div key={f.id} className="px-5 py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-primary">
+                    {(f.child_name || "?")[0]}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-foreground truncate">
+                    {f.child_name || "Child"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Role: {f.role} &middot;{" "}
+                    <span className={isAccepted ? "text-[#16a34a]" : "text-[#f59e0b]"}>
+                      {isAccepted ? "Accepted" : "Pending"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              {isAccepted && (
+                <Link
+                  href="/team"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Open Portal
+                </Link>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────
 
 export default function ProviderDashboardPage() {
   const router = useRouter();
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [families, setFamilies] = useState<LinkedFamily[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -608,6 +673,23 @@ export default function ProviderDashboardPage() {
         const data = await res.json();
         setProvider(data.provider);
         setPrograms(data.programs ?? []);
+
+        // Fetch linked families from team profile API
+        try {
+          const teamRes = await fetch("/api/team/profile");
+          if (teamRes.ok) {
+            const teamData = await teamRes.json();
+            if (teamData.families) {
+              setFamilies(teamData.families.map((f: { familyId: string; childName: string; familyName: string; age: string; diagnosis: string }) => ({
+                id: f.familyId,
+                family_id: f.familyId,
+                child_name: f.childName,
+                role: "provider",
+                status: "accepted",
+              })));
+            }
+          }
+        } catch { /* not a stakeholder, skip */ }
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError("load_error");
@@ -718,15 +800,24 @@ export default function ProviderDashboardPage() {
             services.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSignOut}
-          className="gap-1.5 self-start"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          Sign Out
-        </Button>
+        <div className="flex items-center gap-2 self-start">
+          <Link
+            href="/team"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-primary hover:text-primary/80 rounded-lg hover:bg-primary/5 transition-colors"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Care Team Portal
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSignOut}
+            className="gap-1.5"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       {/* Stats row — MVP placeholders */}
@@ -750,6 +841,9 @@ export default function ProviderDashboardPage() {
           sublabel={provider.waitlist_estimate ? "Visible to families" : "Set in profile"}
         />
       </div>
+
+      {/* My Families */}
+      <MyFamiliesSection families={families} />
 
       {/* Profile — view or edit */}
       {isEditing ? (
