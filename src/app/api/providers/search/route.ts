@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  const limit = q ? 50 : 100; // Show more when browsing without a query
+
   let query = supabase
     .from("providers")
     .select(
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
     )
     .order("is_verified", { ascending: false })
     .order("name", { ascending: true })
-    .limit(50);
+    .limit(limit);
 
   // Full-text / ilike search across name, description, services, specialties
   // Also generates fuzzy variants for common typos
@@ -51,7 +53,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (city) {
-    query = query.ilike("location_city", `%${city}%`);
+    // Handle "London, Ontario" → match on "London"
+    const cityName = city.split(",")[0].trim();
+    query = query.ilike("location_city", `%${cityName}%`);
   }
 
   if (type) {

@@ -352,7 +352,6 @@
   }
 
   /* Hide screen-only elements */
-  .print\\:hidden,
   [data-slot="sidebar"],
   [data-slot="topbar"],
   nav,

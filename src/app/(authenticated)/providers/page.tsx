@@ -725,10 +725,10 @@ function SearchFilters({
 
 // -- Search Tab Content ------------------------------------------------------
 
-function SearchTabContent() {
+function SearchTabContent({ childCity }: { childCity?: string }) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [city, setCity] = useState("");
+  const [city, setCity] = useState(childCity || "");
   const [type, setType] = useState("");
   const [debounceTimer, setDebounceTimer] = useState<ReturnType<
     typeof setTimeout
@@ -751,8 +751,6 @@ function SearchTabContent() {
     return params.toString();
   }, [debouncedQuery, city, type]);
 
-  const hasQuery = !!(debouncedQuery || city || type);
-
   const { data, isLoading, error } = useQuery<{
     providers: SupabaseProvider[];
   }>({
@@ -762,7 +760,6 @@ function SearchTabContent() {
       if (!res.ok) throw new Error("Search failed");
       return res.json();
     },
-    enabled: hasQuery,
     staleTime: 30_000,
   });
 
@@ -773,12 +770,18 @@ function SearchTabContent() {
       {/* Provider Map */}
       <ProviderMap
         providers={results.map((p) => ({
+          id: p.id,
           name: p.name,
-          type: p.type || undefined,
-          city: p.location_city || undefined,
+          type: p.type,
+          location_city: p.location_city,
+          location_address: p.location_address,
+          services: p.services,
+          phone: p.phone,
+          email: p.email,
+          website: p.website,
+          is_verified: p.is_verified,
         }))}
-        childCity={city || undefined}
-        onSelectCity={(c) => setCity(c)}
+        childCity={city || childCity || undefined}
       />
 
       {/* Search input */}
@@ -797,15 +800,6 @@ function SearchTabContent() {
       <SearchFilters city={city} setCity={setCity} type={type} setType={setType} />
 
       {/* Results */}
-      {!hasQuery && (
-        <div className="text-center py-12">
-          <p className="text-[13px] text-muted-foreground">
-            Search for any service, specialty, or provider name to explore the
-            full directory.
-          </p>
-        </div>
-      )}
-
       {isLoading && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -822,10 +816,12 @@ function SearchTabContent() {
         </div>
       )}
 
-      {hasQuery && !isLoading && !error && (
+      {!isLoading && !error && (
         <>
           <p className="text-[12px] text-muted-foreground">
             {results.length} provider{results.length !== 1 ? "s" : ""} found
+            {city && ` near ${city}`}
+            {debouncedQuery && ` for "${debouncedQuery}"`}
           </p>
           {results.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -836,8 +832,8 @@ function SearchTabContent() {
           ) : (
             <div className="text-center py-8">
               <p className="text-[13px] text-muted-foreground">
-                No providers match your search. Try different keywords or adjust
-                filters.
+                No providers found. Try different keywords or clear the city
+                filter to see all Ontario providers.
               </p>
             </div>
           )}
@@ -1304,7 +1300,9 @@ export default function ProvidersPage() {
             />
           )}
 
-          {activeTab === "search" && <SearchTabContent />}
+          {activeTab === "search" && (
+            <SearchTabContent childCity={profile?.basicInfo.location} />
+          )}
         </div>
       )}
     </WorkspaceSection>

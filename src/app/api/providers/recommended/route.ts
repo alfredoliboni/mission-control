@@ -133,6 +133,9 @@ export async function GET(request: NextRequest) {
   let results = Array.from(allResults.values());
 
   // Filter by location if provided
+  // Handle "London, Ontario" → match on "London"
+  const cityName = cityParam.split(",")[0].trim().toLowerCase();
+
   if (postalParam) {
     const postalPrefix = postalParam.substring(0, 3).toUpperCase();
     results = results.filter((r) => {
@@ -140,7 +143,7 @@ export async function GET(request: NextRequest) {
       const providerCity = (r.location_city as string)?.toLowerCase() || "";
       return (
         providerPostal.startsWith(postalPrefix) ||
-        providerCity.includes(cityParam.toLowerCase())
+        providerCity.includes(cityName)
       );
     });
 
@@ -148,10 +151,9 @@ export async function GET(request: NextRequest) {
     if (results.length === 0) {
       results = Array.from(allResults.values());
     }
-  } else if (cityParam) {
-    const lowerCity = cityParam.toLowerCase();
+  } else if (cityName) {
     const localResults = results.filter((r) =>
-      (r.location_city as string)?.toLowerCase().includes(lowerCity)
+      (r.location_city as string)?.toLowerCase().includes(cityName)
     );
     // If we have local results, prefer them; otherwise include all
     if (localResults.length > 0) {
