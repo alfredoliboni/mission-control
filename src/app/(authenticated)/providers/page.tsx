@@ -930,6 +930,9 @@ function RecommendedTabContent({
     staleTime: 60_000,
   });
 
+  const [invitePrompt, setInvitePrompt] = useState<SupabaseProvider | null>(null);
+  const [inviting, setInviting] = useState(false);
+
   const addToTeamMutation = useMutation({
     mutationFn: async (provider: SupabaseProvider) => {
       const res = await fetch("/api/providers/add-to-team", {
@@ -955,13 +958,14 @@ function RecommendedTabContent({
     },
     onSuccess: (_data, provider) => {
       toast.success(`${provider.name} added to your providers`);
-      // Invalidate workspace providers so My Providers tab refreshes
       queryClient.invalidateQueries({ queryKey: ["workspace", "file", "providers.md"] });
-      // Also invalidate recommended to remove the added provider
       queryClient.invalidateQueries({ queryKey: ["providers-recommended"] });
-      // Reset enrichment cache
       queryClient.invalidateQueries({ queryKey: ["providers-enrich"] });
       setAddingId(null);
+      // Show invite prompt if provider has email
+      if (provider.email) {
+        setInvitePrompt(provider);
+      }
     },
     onError: (_err, provider) => {
       toast.error(`Failed to add ${provider.name}. Please try again.`);
@@ -977,10 +981,69 @@ function RecommendedTabContent({
     [addToTeamMutation]
   );
 
+  const handleInviteProvider = useCallback(async () => {
+    if (!invitePrompt?.email) return;
+    setInviting(true);
+    try {
+      const res = await fetch("/api/care-team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: invitePrompt.email,
+          name: invitePrompt.name,
+          role: invitePrompt.type || "therapist",
+          organization: invitePrompt.name,
+          child_name: childName,
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Invitation sent to ${invitePrompt.name}`);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to send invitation");
+      }
+    } catch {
+      toast.error("Failed to send invitation");
+    } finally {
+      setInviting(false);
+      setInvitePrompt(null);
+    }
+  }, [invitePrompt, childName]);
+
   const results = data?.providers ?? [];
 
   return (
     <div className="space-y-5">
+      {/* Invite prompt after Add to My Team */}
+      {invitePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md mx-4 space-y-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">
+              {invitePrompt.name} added! 🎉
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Would you also like to invite <strong>{invitePrompt.name}</strong> to your care team?
+              This lets them upload documents, exchange messages, and access {childName}&apos;s profile.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleInviteProvider}
+                disabled={inviting}
+                className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm"
+              >
+                {inviting ? "Sending..." : "Yes, invite"}
+              </button>
+              <button
+                onClick={() => setInvitePrompt(null)}
+                className="flex-1 border border-border py-2.5 rounded-lg font-semibold text-muted-foreground hover:bg-warm-50 transition-colors text-sm"
+              >
+                No, just add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Priority Banner */}
       <PriorityBanner childName={childName} profile={profile} />
 
