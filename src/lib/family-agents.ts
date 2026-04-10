@@ -110,7 +110,8 @@ export function getFamilyAgentFlat(email: string | undefined, childIndex: number
 export function getAgentWorkspacePath(agentId: string): string {
   // Strip "navigator-" prefix to get workspace suffix
   const suffix = agentId.replace(/^navigator-/, "");
-  return `/root/.openclaw/workspace-${suffix}/memory`;
+  const home = process.env.HOME || process.env.USERPROFILE || "/root";
+  return `${home}/.openclaw/workspace-${suffix}/memory`;
 }
 
 export function getAllFamilies(): Array<FamilyAgent & { email: string }> {

@@ -28,66 +28,39 @@ function getDemoResponse(message: string): string {
   return DEMO_RESPONSES.default;
 }
 
-const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
-const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
+const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
-const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
 async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
-  // Send message to OpenClaw Gateway via Orgo.ai exec (Python) API
-  // Using exec instead of bash avoids JSON escaping issues with markdown/unicode in responses
-  const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
+  if (!COMPANION_API_DIRECT) {
+    throw new Error("Gateway not configured");
+  }
 
-  // Base64 encode everything to avoid any escaping issues
-  const b64Message = Buffer.from(message).toString("base64");
-  const b64Token = Buffer.from(COMPANION_API_TOKEN).toString("base64");
-  const b64AgentId = Buffer.from(agentId).toString("base64");
-
-  const pythonCode = [
-    "import json, urllib.request, base64",
-    `msg = base64.b64decode("${b64Message}").decode()`,
-    `token = base64.b64decode("${b64Token}").decode().strip()`,
-    `agent = base64.b64decode("${b64AgentId}").decode().strip()`,
-    'payload = json.dumps({"model": "openclaw/" + agent, "messages": [{"role": "user", "content": msg}], "user": agent}).encode()',
-    'headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}',
-    'req = urllib.request.Request("http://127.0.0.1:18789/v1/chat/completions", data=payload, headers=headers)',
-    "try:",
-    "    resp = urllib.request.urlopen(req, timeout=90)",
-    "    result = json.loads(resp.read().decode())",
-    '    content = result["choices"][0]["message"]["content"]',
-    '    print(json.dumps({"ok": True, "content": content}))',
-    "except Exception as e:",
-    '    print(json.dumps({"ok": False, "error": str(e)}))',
-  ].join("\n");
-
-  const response = await fetch(ORGO_EXEC_BASE, {
+  const response = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${ORGO_API_KEY}`,
+      "Authorization": `Bearer ${COMPANION_API_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ code: pythonCode }),
+    body: JSON.stringify({
+      model: `openclaw/${agentId}`,
+      messages: [{ role: "user", content: message }],
+      user: agentId,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Orgo API error: ${response.status}`);
+    throw new Error(`Gateway error: ${response.status}`);
   }
 
   const result = await response.json();
-  const output = (result.output || "").trim();
-
-  try {
-    const parsed = JSON.parse(output);
-    if (parsed.ok && parsed.content) {
-      return parsed.content;
-    }
-    if (parsed.error) {
-      throw new Error(parsed.error);
-    }
-    return output;
-  } catch {
-    return output || "I'm having trouble connecting. Please try again.";
+  if (result.choices?.[0]?.message?.content) {
+    return result.choices[0].message.content;
   }
+  if (result.error?.message) {
+    throw new Error(result.error.message);
+  }
+  return "I'm having trouble connecting. Please try again.";
 }
 
 export async function POST(request: NextRequest) {
@@ -109,8 +82,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Production: proxy to OpenClaw Gateway via Orgo.ai
-  if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
+  // Production: direct connection to OpenClaw Gateway
+  if (!COMPANION_API_DIRECT) {
     return NextResponse.json({
       response: getDemoResponse(message),
     });
