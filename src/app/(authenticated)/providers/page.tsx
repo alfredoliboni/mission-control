@@ -905,6 +905,9 @@ function RecommendedTabContent({
     const params = new URLSearchParams();
     if (needs.length > 0) {
       params.set("needs", needs.map((n) => n.label).join(","));
+    } else {
+      // Fallback: search for common autism services
+      params.set("needs", "OT,SLP,ABA/IBI");
     }
     if (postalCode) params.set("postal", postalCode);
     if (city) params.set("city", city);
@@ -926,7 +929,7 @@ function RecommendedTabContent({
       if (!res.ok) throw new Error("Failed to fetch recommendations");
       return res.json();
     },
-    enabled: needs.length > 0,
+    enabled: needs.length > 0 || !!profile,
     staleTime: 60_000,
   });
 

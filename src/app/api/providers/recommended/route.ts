@@ -37,7 +37,13 @@ export async function GET(request: NextRequest) {
     .filter(Boolean);
 
   if (needs.length === 0) {
-    return NextResponse.json({ providers: [], message: "No needs specified" });
+    // Fallback: return all local providers without filtering by needs
+    const supabase = createAdminClient();
+    const { data } = await supabase.from("providers").select("*").limit(20);
+    const filtered = (data || []).filter(
+      (p) => !excludeNames.includes((p.name || "").toLowerCase())
+    );
+    return NextResponse.json({ providers: filtered });
   }
 
   const supabase = createAdminClient();
