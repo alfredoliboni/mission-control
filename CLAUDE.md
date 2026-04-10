@@ -125,41 +125,91 @@ Format drift breaks parsers — always test after changing parser logic.
 
 ## Current State (April 2026)
 
-### Working
-- Frontend v2 (all pages rewritten from scratch, Cream Balance design)
-- 239 vitest tests passing (all parsers + sections)
-- Lint: 0 errors, 0 warnings
-- Supabase Auth (sign in, sign up, session validation, sign out)
-- 5 family accounts with dedicated OpenClaw agents on Orgo.ai VM
-- Chat bubble connected to OpenClaw Gateway (Claude Sonnet 4.6)
-- Each family routes to their own Navigator agent
+### Working (April 9, 2026)
+
+**Core:**
+- Frontend v2 (Cream Balance design, DM Sans, emojis, 55 routes)
+- 275 vitest tests passing (12 test files, 10 parsers)
+- Supabase Auth (sign in/up, password reset, session validation)
+- 5 family accounts + 6 agents on Orgo.ai VM (incl. Sofia Santos)
+- Chat bubble → OpenClaw Gateway (Claude Sonnet 4.6, base64 encoding, 60s timeout)
 - Demo mode (cookie-based, static .md files)
-- Document upload (drag-drop → Supabase Storage, signed URLs)
-- Care team invite (create account + stakeholder_links)
-- Real messaging (threads, send, Navigator thread from workspace)
-- Provider Portal (/portal/register — public registration)
-- Onboarding creates account automatically (step 0 if not logged in)
-- Settings page wired to real APIs (invite/remove care team)
-- Error boundaries + offline handling (retry, fallback UI)
-- Mobile optimized (44px touch targets, dvh viewport)
-- 43 memory files across 5 agent workspaces (backed up in openclaw-backup/)
-- 31 routes, 16 API endpoints
+- Error boundaries + mobile polish (44px touch targets, dvh)
 - Deploy on Vercel with all env vars configured
 
+**Dashboard & Sections:**
+- Dashboard with welcome card, metrics, stage progress, alerts
+- Profile with "🎯 Priority Needs" card (extracted from child data)
+- Pathway with stages, checkmarks, next actions
+- Providers: two tabs (matches + search all), Ontario map, enrichment from Supabase, "Why?" explanations, Priority Now banner with child-specific needs
+- Programs: two tabs, gap filler explanations, enrichment, Priority Now banner
+- Benefits: 3-column Kanban (Recommended → Applied → Result), status tracking
+- Alerts: severity dots, undo/reactivate
+- Ontario System: visual vertical timeline with hover details
+- Employment + University: parsers + structured pages (adolescent)
+
+**Document Vault:**
+- Two-panel layout (list + detail)
+- Upload drag-and-drop → Supabase Storage
+- Per-document sharing toggles (Supabase document_permissions)
+- RAG: PDF text extraction (PyPDF2 on VM) → Navigator analysis
+- Share Packet: select docs → browser print → PDF export
+- Child filter for multi-child families
+- "Ask Navigator" / "Get Summary" with inline results
+
+**Messaging:**
+- Real threads with Supabase persistence
+- Real contacts (names from stakeholder_links, not generic roles)
+- Family ↔ stakeholder communication
+- Navigator thread from workspace messages.md
+
+**Community:**
+- Forum on Supabase (posts, comments, upvotes)
+- 6 categories, search, sort, pinned posts
+- Anonymous posting (default)
+
+**Portals:**
+- Provider Portal (/portal/register — public registration)
+- Employer Portal (/portal/employer — supported employment)
+- University Portal (/portal/university — accommodations)
+- Provider Dashboard (/portal/dashboard — authenticated, edit profile, stats)
+- Care Team Portal (/team — limited view for doctors/schools)
+
+**Multi-child:**
+- Santos family: Alex (4yo) + Sofia (8yo, ASD L1 + ADHD)
+- Child switcher dropdown in TopBar
+- Per-child workspace routing (?agent= param)
+- Per-child stakeholder invites (child_name in stakeholder_links)
+
+**Invite System:**
+- Accept/decline flow (/invite/[id] public page)
+- Status tracking: pending → accepted/declined
+- Email notification via Resend (optional, graceful without API key)
+- Settings shows status badges (green/yellow/red)
+
+**Auth:**
+- Password reset flow (forgot → email → update)
+- Multi-role: parent, stakeholder, provider
+- Stakeholders auto-redirect to Care Team Portal
+
 ### Pending
-- **Agent heartbeat/cron automation** — agents need to proactively:
-  - Read Supabase providers table for new registrations → match with child needs → update providers.md
-  - Read uploaded documents from Supabase Storage → extract text → update workspace files
-  - Monitor deadlines from alerts.md → send notifications when approaching
-  - Currently: agent chat works but does NOT write to workspace files via Gateway API
-  - Needed: configure OpenClaw heartbeat tasks to run these jobs periodically (every 2-4h)
-- Agent ↔ Supabase loop (agent reads provider DB, processes uploads)
-- Real-time notifications (email/SMS via Resend/Twilio)
-- Share Packet (export multiple documents as PDF)
-- Multi-child support (one family, multiple children)
-- PWA (installable on mobile)
-- Provider Portal dashboard (analytics, waitlist management for registered providers)
-- Calendar view (appointments, deadlines)
+
+**High Priority:**
+- **Agent heartbeat/cron** — agents proactively check Supabase for new providers, process uploads, monitor deadlines. Currently agent only responds via chat, does NOT write to workspace
+- **Provider architecture change** — providers.md should be "My Providers" (confirmed/active), Supabase providers table should be the match source. "Your Matches" reads from DB, not workspace
+- **Email service (Resend)** — RESEND_API_KEY needs to be set on Vercel. User needs to create Resend account
+
+**Medium Priority:**
+- **RLS policies** — proper row-level security for production
+- **PWA** — installable on mobile (manifest.json + service worker)
+- **Calendar** — visualize appointments and deadlines
+- **Monitoring/logging** — Sentry or similar for production
+
+**Low Priority / Future:**
+- Agent reads uploaded documents permanently (copies to workspace)
+- 211 Ontario API integration
+- Stripe billing for provider subscriptions
+- Real-time WebSocket for messages (currently polling)
 
 ## Rules
 
