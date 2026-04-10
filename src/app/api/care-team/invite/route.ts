@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { sendInviteEmail } from "@/lib/email";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
     name,
     organization: organization || null,
     linked_by: user.id,
+    status: "pending",
   };
 
   if (child_name) insertPayload.child_name = child_name;
@@ -127,6 +129,19 @@ export async function POST(request: NextRequest) {
   if (linkError) {
     return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
+
+  // Send invite email (non-blocking — failure doesn't break the invite)
+  const inviterName = user.user_metadata?.full_name || user.email || "A family";
+  const resolvedChildName = child_name || "their child";
+  const inviteUrl = `https://mission-control-gray-one.vercel.app/invite/${link.id}`;
+
+  sendInviteEmail({
+    to: email,
+    inviterName,
+    childName: resolvedChildName,
+    role,
+    inviteUrl,
+  }).catch((err) => console.error("[invite] Email send error:", err));
 
   return NextResponse.json({ success: true, stakeholder: link });
 }

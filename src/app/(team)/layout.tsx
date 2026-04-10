@@ -34,5 +34,18 @@ export default async function TeamLayout({
     redirect("/dashboard");
   }
 
-  return <TeamLayoutClient>{children}</TeamLayoutClient>;
+  // Determine invite status — use worst-case status across all links
+  // "pending" or "declined" blocks full access
+  const statuses = links.map((l) => l.status || "accepted"); // null = accepted (backward compat)
+  const hasPending = statuses.includes("pending");
+  const allDeclined = statuses.length > 0 && statuses.every((s) => s === "declined");
+  const childNames = links.map((l) => l.child_name).filter(Boolean);
+
+  const inviteStatus = allDeclined ? "declined" : hasPending ? "pending" : "accepted";
+
+  return (
+    <TeamLayoutClient inviteStatus={inviteStatus} childNames={childNames}>
+      {children}
+    </TeamLayoutClient>
+  );
 }

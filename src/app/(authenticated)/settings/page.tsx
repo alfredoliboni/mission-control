@@ -51,7 +51,7 @@ interface Partner {
   role: string;
   organization: string;
   email: string;
-  status: "active" | "pending" | "revoked";
+  status: "active" | "pending" | "accepted" | "declined" | "revoked";
   lastAccess: string;
   permissions: string[];
   childName?: string;
@@ -129,9 +129,11 @@ function PartnerRow({
   onRevoke: () => void;
   onRemove: () => void;
 }) {
-  const statusColors = {
+  const statusColors: Record<Partner["status"], string> = {
     active: "bg-status-success/8 text-status-success",
+    accepted: "bg-status-success/8 text-status-success",
     pending: "bg-status-caution/8 text-status-caution",
+    declined: "bg-status-blocked/8 text-status-blocked",
     revoked: "bg-status-blocked/8 text-status-blocked",
   };
 
@@ -207,18 +209,28 @@ async function fetchCareTeam(): Promise<Partner[]> {
   }
   const data = await res.json();
   // Map stakeholder_links rows to Partner shape
-  return (data.stakeholders ?? []).map((s: Record<string, unknown>) => ({
-    id: s.id as string,
-    name: (s.name as string) || "Unknown",
-    role: (s.role as string) || "Provider",
-    organization: (s.organization as string) || "—",
-    email: (s.email as string) || "",
-    status: (s.status as Partner["status"]) || "active",
-    lastAccess: (s.last_access as string) || "—",
-    permissions: (s.permissions as string[]) || ["View profile"],
-    childName: (s.child_name as string) || undefined,
-    childAgentId: (s.child_agent_id as string) || undefined,
-  }));
+  return (data.stakeholders ?? []).map((s: Record<string, unknown>) => {
+    // Map DB status to display status — null/undefined = "active" for backward compat
+    const dbStatus = s.status as string | null | undefined;
+    let displayStatus: Partner["status"] = "active";
+    if (dbStatus === "pending") displayStatus = "pending";
+    else if (dbStatus === "accepted") displayStatus = "accepted";
+    else if (dbStatus === "declined") displayStatus = "declined";
+    else if (dbStatus === "revoked") displayStatus = "revoked";
+
+    return {
+      id: s.id as string,
+      name: (s.name as string) || "Unknown",
+      role: (s.role as string) || "Provider",
+      organization: (s.organization as string) || "—",
+      email: (s.email as string) || "",
+      status: displayStatus,
+      lastAccess: (s.last_access as string) || "—",
+      permissions: (s.permissions as string[]) || ["View profile"],
+      childName: (s.child_name as string) || undefined,
+      childAgentId: (s.child_agent_id as string) || undefined,
+    };
+  });
 }
 
 async function inviteCareTeamMember(body: {
@@ -313,8 +325,9 @@ export default function SettingsPage() {
     setParent((p) => ({ ...p, [key]: value }));
   };
 
-  const activePartners = partners.filter((p) => p.status === "active");
+  const activePartners = partners.filter((p) => p.status === "active" || p.status === "accepted");
   const pendingPartners = partners.filter((p) => p.status === "pending");
+  const declinedPartners = partners.filter((p) => p.status === "declined");
   const revokedPartners = partners.filter((p) => p.status === "revoked");
 
   return (
@@ -390,7 +403,7 @@ export default function SettingsPage() {
               Care Team Access
             </h2>
             <Badge variant="secondary" className="text-[11px]">
-              {activePartners.length} active · {pendingPartners.length} pending
+              {activePartners.length} active · {pendingPartners.length} pending{declinedPartners.length > 0 ? ` · ${declinedPartners.length} declined` : ""}
             </Badge>
           </div>
           <p className="text-[12px] text-muted-foreground mt-1">
@@ -507,6 +520,16 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invitation</p>
               {pendingPartners.map((p) => (
+                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
+              ))}
+            </div>
+          )}
+
+          {/* Declined */}
+          {declinedPartners.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Declined</p>
+              {declinedPartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
             </div>
