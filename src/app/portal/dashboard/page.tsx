@@ -830,9 +830,9 @@ export default function ProviderDashboardPage() {
         />
         <StatCard
           icon={<Users className="h-4 w-4" />}
-          label="Families Matched"
-          value="--"
-          sublabel="Coming soon"
+          label="Families Connected"
+          value={String(families.filter(f => f.status === "accepted").length)}
+          sublabel={families.length > 0 ? "Via care team invites" : "No families yet"}
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}

@@ -36,25 +36,28 @@ export async function POST(request: NextRequest) {
   // Use admin client to create user account for the stakeholder
   const supabaseAdmin = createAdminClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  // Check if user already exists
-  const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-  const existingUser = existingUsers?.users?.find(u => u.email === email);
-
+  // Try to create the user — if they already exist, fetch their ID
   let stakeholderId: string;
 
-  if (existingUser) {
-    stakeholderId = existingUser.id;
-  } else {
-    // Create new account
-    const { data: newUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: "Companion2026!",
-      email_confirm: true,
-    });
+  const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: "Companion2026!",
+    email_confirm: true,
+  });
 
-    if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+  if (createError) {
+    if (createError.message?.includes("already been registered")) {
+      // User exists — find their ID by email
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      const existingUser = existingUsers?.users?.find(u => u.email === email);
+      if (!existingUser) {
+        return NextResponse.json({ error: "Could not find existing user" }, { status: 500 });
+      }
+      stakeholderId = existingUser.id;
+    } else {
+      return NextResponse.json({ error: createError.message }, { status: 500 });
     }
+  } else {
     stakeholderId = newUser.user.id;
   }
 
@@ -79,7 +82,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Merge metadata (preserve existing role like "provider" if they registered)
-  const existingMetadata = existingUser?.user_metadata || {};
+  const { data: stakeholderUser } = await supabaseAdmin.auth.admin.getUserById(stakeholderId);
+  const existingMetadata = stakeholderUser?.user?.user_metadata || {};
   await supabaseAdmin.auth.admin.updateUserById(stakeholderId, {
     user_metadata: { ...existingMetadata, stakeholder_role: role, is_stakeholder: true },
   });

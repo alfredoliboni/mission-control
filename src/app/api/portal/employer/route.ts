@@ -28,22 +28,21 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Create auth account for the employer
+  // Create auth account for the employer (try create first, handle existing)
   let authUserId: string | null = null;
-  const { data: existingUsers } = await admin.auth.admin.listUsers();
-  const existing = existingUsers?.users?.find((u) => u.email === contactEmail);
-
-  if (existing) {
-    authUserId = existing.id;
-  } else {
-    const { data: newUser, error: authError } = await admin.auth.admin.createUser({
-      email: contactEmail,
-      password: "Companion2026!",
-      email_confirm: true,
-    });
-    if (authError) {
+  const { data: newUser, error: authError } = await admin.auth.admin.createUser({
+    email: contactEmail,
+    password: "Companion2026!",
+    email_confirm: true,
+  });
+  if (authError) {
+    if (authError.message?.includes("already been registered")) {
+      const { data: existing } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      authUserId = existing?.users?.find((u) => u.email === contactEmail)?.id || null;
+    } else {
       return NextResponse.json({ error: authError.message }, { status: 500 });
     }
+  } else {
     authUserId = newUser.user.id;
   }
 
