@@ -49,6 +49,7 @@ async function sendHeartbeat(agentId) {
   try {
     const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(180000), // 3 minute timeout per agent
       headers: {
         "Authorization": `Bearer ${GATEWAY_TOKEN}`,
         "Content-Type": "application/json",
