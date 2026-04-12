@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getFamilyAgent, getAgentWorkspacePath } from "@/lib/family-agents";
 import fs from "fs";
-import path from "path";
+
+const WORKSPACE_FILE_SERVER = process.env.WORKSPACE_FILE_SERVER || "";
+const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
 /**
  * GET /api/workspace-live?agent=navigator-santos-sofia
- * Lists .md files in the agent's local workspace.
+ * Lists .md files in the agent's workspace.
+ * Mode 1 (dev): reads from local filesystem
+ * Mode 2 (Vercel): fetches from remote workspace file server
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -18,26 +22,45 @@ export async function GET(request: NextRequest) {
 
   const agentParam = request.nextUrl.searchParams.get("agent");
   const family = getFamilyAgent(user.email ?? undefined);
-  let workspacePath: string;
 
+  let agentId: string;
   if (agentParam && family.children.some((c) => c.agentId === agentParam)) {
-    workspacePath = getAgentWorkspacePath(agentParam);
+    agentId = agentParam;
   } else {
-    workspacePath = getAgentWorkspacePath(family.children[0].agentId);
+    agentId = family.children[0].agentId;
   }
 
-  // Resolve ~ to home dir
-  const resolvedPath = workspacePath;
-
+  // Mode 1: Local filesystem (dev)
+  const workspacePath = getAgentWorkspacePath(agentId);
   try {
-    const files = fs.readdirSync(resolvedPath)
+    const files = fs.readdirSync(workspacePath)
       .filter((f) => f.endsWith(".md"))
       .sort();
     return NextResponse.json(files);
-  } catch (err) {
-    return NextResponse.json(
-      { error: "Failed to list workspace files", details: String(err) },
-      { status: 502 }
-    );
+  } catch {
+    // Filesystem not available — try remote
   }
+
+  // Mode 2: Remote workspace file server (Vercel/production)
+  if (WORKSPACE_FILE_SERVER) {
+    try {
+      const headers: Record<string, string> = {};
+      if (COMPANION_API_TOKEN) {
+        headers["Authorization"] = `Bearer ${COMPANION_API_TOKEN}`;
+      }
+      const res = await fetch(`${WORKSPACE_FILE_SERVER}/files/${agentId}`, { headers });
+      if (res.ok) {
+        const files = await res.json();
+        return NextResponse.json(files);
+      }
+    } catch (err) {
+      console.error("Remote workspace fetch error:", err);
+    }
+  }
+
+  // Fallback: return default file list
+  return NextResponse.json([
+    "alerts.md", "benefits.md", "child-profile.md", "documents.md",
+    "ontario-system.md", "pathway.md", "programs.md", "providers.md",
+  ]);
 }

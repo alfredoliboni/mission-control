@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.companion.heartbeat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/Users/luisaliboni/.openclaw/workspace/out/companion/mission-control/scripts/heartbeat.mjs</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/luisaliboni/.openclaw/workspace/out/companion/mission-control</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>COMPANION_API_DIRECT</key>
+        <string>http://localhost:18789</string>
+        <key>COMPANION_API_TOKEN</key>
+        <string>6d7433ddac74d4141bc5b78fc3ee54a62b99675fe265e90b</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>10800</integer><!-- Every 3 hours -->
+    <key>StandardOutPath</key>
+    <string>/tmp/companion-heartbeat.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/companion-heartbeat-error.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

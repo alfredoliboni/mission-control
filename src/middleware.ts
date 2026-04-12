@@ -3,21 +3,23 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/demo", "/onboarding", "/portal", "/reset-password", "/update-password", "/invite"];
-// Note: /team (Care Team Portal) requires auth but is NOT public.
-// It is handled by the (team) route group layout which verifies stakeholder status.
+
+// API routes that don't require authentication
+const PUBLIC_API_PREFIXES = [
+  "/api/demo",
+  "/api/providers/search",
+  "/api/providers/recommended",
+  "/api/programs/search",
+  "/api/portal/register",
+  "/api/portal/employer",
+  "/api/portal/university",
+  "/api/invite/",
+  "/api/onboarding",
+  "/api/community/posts",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // Allow all API routes
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
-  }
-
-  // Allow public paths (exact match or prefix match)
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return NextResponse.next();
-  }
 
   // Allow static assets
   if (
@@ -28,13 +30,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // API routes: check if public or requires auth
+  if (pathname.startsWith("/api/")) {
+    const isPublicApi = PUBLIC_API_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(p)
+    );
+    if (isPublicApi) {
+      return NextResponse.next();
+    }
+
+    // Protected API: verify auth session
+    const { user, supabaseResponse } = await updateSession(request);
+    if (user) {
+      return supabaseResponse;
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Allow public page paths
+  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return NextResponse.next();
+  }
+
   // Check for demo mode cookie
   const isDemo = request.cookies.get("companion-demo")?.value === "true";
   if (isDemo) {
     return NextResponse.next();
   }
 
-  // Check Supabase auth session
+  // Check Supabase auth session for protected pages
   const { user, supabaseResponse } = await updateSession(request);
 
   if (user) {

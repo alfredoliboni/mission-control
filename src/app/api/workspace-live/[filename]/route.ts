@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getFamilyAgent, getAgentWorkspacePath } from "@/lib/family-agents";
 import fs from "fs";
+import path from "path";
+
+const WORKSPACE_FILE_SERVER = process.env.WORKSPACE_FILE_SERVER || "";
+const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
 /**
  * GET /api/workspace-live/[filename]?agent=navigator-santos-sofia
- * Reads a raw .md file from the agent's local workspace.
+ * Reads a raw .md file from the agent's workspace.
+ * Mode 1 (dev): reads from local filesystem
+ * Mode 2 (Vercel): fetches from remote workspace file server
  */
 export async function GET(
   request: NextRequest,
@@ -26,19 +32,49 @@ export async function GET(
 
   const agentParam = request.nextUrl.searchParams.get("agent");
   const family = getFamilyAgent(user.email ?? undefined);
-  let workspacePath: string;
 
+  let agentId: string;
   if (agentParam && family.children.some((c) => c.agentId === agentParam)) {
-    workspacePath = getAgentWorkspacePath(agentParam);
+    agentId = agentParam;
   } else {
-    workspacePath = getAgentWorkspacePath(family.children[0].agentId);
+    agentId = family.children[0].agentId;
   }
 
-  const resolvedPath = workspacePath.replace("~", process.env.HOME || "/root");
-  const filepath = `${resolvedPath}/${filename}`;
-
+  // Mode 1: Local filesystem (dev)
+  const workspacePath = getAgentWorkspacePath(agentId);
+  const filepath = path.join(workspacePath, filename);
   try {
     const content = fs.readFileSync(filepath, "utf-8");
+    return new NextResponse(content, {
+      headers: { "Content-Type": "text/markdown; charset=utf-8" },
+    });
+  } catch {
+    // Filesystem not available — try remote
+  }
+
+  // Mode 2: Remote workspace file server (Vercel/production)
+  if (WORKSPACE_FILE_SERVER) {
+    try {
+      const headers: Record<string, string> = {};
+      if (COMPANION_API_TOKEN) {
+        headers["Authorization"] = `Bearer ${COMPANION_API_TOKEN}`;
+      }
+      const res = await fetch(`${WORKSPACE_FILE_SERVER}/files/${agentId}/${filename}`, { headers });
+      if (res.ok) {
+        const content = await res.text();
+        return new NextResponse(content, {
+          headers: { "Content-Type": "text/markdown; charset=utf-8" },
+        });
+      }
+    } catch (err) {
+      console.error("Remote workspace file fetch error:", err);
+    }
+  }
+
+  // Fallback: try demo data
+  try {
+    const demoPath = path.join(process.cwd(), "public", "demo-data", filename);
+    const content = fs.readFileSync(demoPath, "utf-8");
     return new NextResponse(content, {
       headers: { "Content-Type": "text/markdown; charset=utf-8" },
     });
