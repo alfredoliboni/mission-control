@@ -83,6 +83,7 @@ export function Sidebar() {
       >
         <div className="space-y-[2px]">
           {navLink("/dashboard", "📊", "Dashboard")}
+          {navLink("/calendar", "📅", "Calendar")}
           {navLink("/community", "👥", "Community")}
           {navLink("/messages", "💬", "Messages")}
           {navLink("/documents", "📄", "Documents")}
