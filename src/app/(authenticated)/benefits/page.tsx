@@ -482,8 +482,6 @@ export default function BenefitsPage() {
       })
     : [];
 
-  const eligibleCount = sortedRows.filter((r) => eligibleStatuses.has(r.status) || trackingData[r.benefit]).length;
-  const notStartedCount = sortedRows.length - eligibleCount;
 
   return (
     <WorkspaceSection

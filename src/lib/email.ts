@@ -1,4 +1,41 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const FROM_ADDRESS = "The Companion <noreply@luisaliboni.com>";
+
+/**
+ * Low-level email sender via Resend API.
+ * Handles API key check, fetch, and error logging.
+ */
+async function sendEmail(params: { to: string; subject: string; html: string }) {
+  if (!RESEND_API_KEY) {
+    console.log("[email] RESEND_API_KEY not configured — skipping email");
+    return;
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: FROM_ADDRESS,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("[email] Resend API error:", res.status, error);
+    } else {
+      console.log("[email] Email sent to", params.to);
+    }
+  } catch (err) {
+    console.error("[email] Failed to send email:", err);
+  }
+}
 
 /**
  * Send an invite email to a care team member using Resend.
@@ -11,38 +48,11 @@ export async function sendInviteEmail(params: {
   role: string;
   inviteUrl: string;
 }) {
-  if (!RESEND_API_KEY) {
-    console.log("[email] RESEND_API_KEY not configured — skipping invite email");
-    return;
-  }
-
-  // Resend free tier requires onboarding@resend.dev unless custom domain is verified
-  const fromAddress = "The Companion <noreply@luisaliboni.com>";
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: fromAddress,
-        to: params.to,
-        subject: `You've been invited to ${params.childName}'s care team`,
-        html: buildInviteEmailHtml(params),
-      }),
-    });
-
-    if (!res.ok) {
-      const error = await res.text();
-      console.error("[email] Resend API error:", res.status, error);
-    } else {
-      console.log("[email] Invite email sent to", params.to);
-    }
-  } catch (err) {
-    console.error("[email] Failed to send invite email:", err);
-  }
+  await sendEmail({
+    to: params.to,
+    subject: `You've been invited to ${params.childName}'s care team`,
+    html: buildInviteEmailHtml(params),
+  });
 }
 
 /**
@@ -52,37 +62,11 @@ export async function sendProviderWelcomeEmail(params: {
   to: string;
   organizationName: string;
 }) {
-  if (!RESEND_API_KEY) {
-    console.log("[email] RESEND_API_KEY not configured — skipping welcome email");
-    return;
-  }
-
-  const fromAddress = "The Companion <noreply@luisaliboni.com>";
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: fromAddress,
-        to: params.to,
-        subject: `Welcome to The Companion — ${params.organizationName}`,
-        html: buildWelcomeEmailHtml(params),
-      }),
-    });
-
-    if (!res.ok) {
-      const error = await res.text();
-      console.error("[email] Resend API error:", res.status, error);
-    } else {
-      console.log("[email] Welcome email sent to", params.to);
-    }
-  } catch (err) {
-    console.error("[email] Failed to send welcome email:", err);
-  }
+  await sendEmail({
+    to: params.to,
+    subject: `Welcome to The Companion — ${params.organizationName}`,
+    html: buildWelcomeEmailHtml(params),
+  });
 }
 
 function buildWelcomeEmailHtml(params: {

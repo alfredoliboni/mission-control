@@ -119,7 +119,8 @@ export async function POST(request: NextRequest) {
     console.error("Gateway chat error:", err);
     // Fallback to demo-style response instead of error
     return NextResponse.json({
-      response: getDemoResponse(message) + "\n\n_(Navigator is temporarily offline — this is a sample response)_",
+      response: getDemoResponse(message),
+      fallback: true,
     });
   }
 }

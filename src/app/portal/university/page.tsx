@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, MapPin, Mail, Phone, Globe, Check, BookOpen, GraduationCap } from "lucide-react";
+import { Building2, MapPin, Mail, Check, BookOpen, GraduationCap } from "lucide-react";
 
 const PROGRAM_OPTIONS = [
   "Computer Science",

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -119,12 +119,12 @@ export default function UpdatePasswordPage() {
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
-                <a
+                <Link
                   href="/login"
                   className="text-primary hover:underline font-medium"
                 >
                   Back to Sign In
-                </a>
+                </Link>
               </p>
             </form>
           </CardContent>

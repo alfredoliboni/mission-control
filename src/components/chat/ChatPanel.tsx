@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useState } from "react";
 import { X, Send, Loader2 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { ChatMessage } from "./ChatMessage";
 import { useChat } from "@/hooks/useChat";

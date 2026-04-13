@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, Briefcase, MapPin, Mail, Phone, Globe, Check } from "lucide-react";
+import { Building2, Briefcase, MapPin, Mail, Check } from "lucide-react";
 
 const ACCOMMODATION_OPTIONS = [
   "Quiet workspace",

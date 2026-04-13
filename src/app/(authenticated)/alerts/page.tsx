@@ -372,6 +372,7 @@ export default function AlertsPage() {
   const handleUndo = useCallback((key: string) => {
     setPersisted((prev) => {
       const { [key]: _removedAt, ...restCompletedAt } = prev.completedAt;
+      void _removedAt;
       return {
         ...prev,
         completedIds: prev.completedIds.filter((id) => id !== key),

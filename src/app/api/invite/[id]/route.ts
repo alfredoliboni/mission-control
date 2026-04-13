@@ -29,7 +29,7 @@ export async function GET(
 
   // Fetch family user to get family name
   let familyName = "The Family";
-  let childName = link.child_name || "their child";
+  const childName = link.child_name || "their child";
 
   const { data: familyUser } = await admin.auth.admin.getUserById(link.family_id);
   if (familyUser?.user) {

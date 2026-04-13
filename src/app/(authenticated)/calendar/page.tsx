@@ -32,6 +32,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   alert: "bg-status-caution",
 };
 
+const CATEGORY_BORDER_COLORS: Record<string, string> = {
+  deadline: "border-l-status-blocked",
+  milestone: "border-l-status-success",
+  appointment: "border-l-status-current",
+  alert: "border-l-status-caution",
+};
+
 const CATEGORY_LABELS: Record<string, string> = {
   deadline: "Deadline",
   milestone: "Milestone",
@@ -78,11 +85,10 @@ export default function CalendarPage() {
     if (alerts) {
       for (const alert of alerts) {
         if (alert.date) {
-          const severity = alert.severity === "HIGH" ? "deadline" : "alert";
           result.push({
             date: alert.date,
             title: alert.title,
-            category: severity === "deadline" ? "deadline" : "alert",
+            category: alert.severity === "HIGH" ? "deadline" : "alert",
             severity: alert.severity,
             description: alert.description,
             action: alert.action,
@@ -99,7 +105,7 @@ export default function CalendarPage() {
             result.push({
               date: item.date,
               title: item.text,
-              category: item.completed ? "milestone" : "milestone",
+              category: "milestone",
               description: `Stage: ${stage.title}`,
             });
           }
@@ -165,19 +171,35 @@ export default function CalendarPage() {
   };
 
   // Build calendar grid
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfWeek(year, month);
-  const today = new Date();
-  const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+  const { daysInMonth, firstDay } = useMemo(() => ({
+    daysInMonth: getDaysInMonth(year, month),
+    firstDay: getFirstDayOfWeek(year, month),
+  }), [year, month]);
+
+  const todayStr = useMemo(() => {
+    const t = new Date();
+    return formatDate(t.getFullYear(), t.getMonth(), t.getDate());
+  }, []);
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : [];
 
   // Count events this month
-  const monthEventCount = Array.from(eventsByDate.entries()).filter(
-    ([date]) => date.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)
-  ).reduce((sum, [, evts]) => sum + evts.length, 0);
+  const monthEventCount = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+    return Array.from(eventsByDate.entries())
+      .filter(([date]) => date.startsWith(prefix))
+      .reduce((sum, [, evts]) => sum + evts.length, 0);
+  }, [eventsByDate, year, month]);
 
   const childName = profile?.basicInfo?.name || "your child";
+
+  // Upcoming events (memoized)
+  const upcomingEvents = useMemo(() =>
+    events
+      .filter(e => e.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+    [events, todayStr]
+  );
 
   return (
     <WorkspaceSection title="Calendar" icon="📅" isLoading={false}>
@@ -321,12 +343,7 @@ export default function CalendarPage() {
                 {selectedEvents.map((evt, i) => (
                   <div
                     key={i}
-                    className={`border-l-[3px] ${
-                      evt.category === "deadline" ? "border-l-status-blocked" :
-                      evt.category === "milestone" ? "border-l-status-success" :
-                      evt.category === "appointment" ? "border-l-status-current" :
-                      "border-l-status-caution"
-                    } pl-3 py-1`}
+                    className={`border-l-[3px] ${CATEGORY_BORDER_COLORS[evt.category] || "border-l-status-caution"} pl-3 py-1`}
                   >
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -363,9 +380,7 @@ export default function CalendarPage() {
               Upcoming Events
             </h3>
             <div className="space-y-2">
-              {events
-                .filter((e) => e.date >= todayStr)
-                .sort((a, b) => a.date.localeCompare(b.date))
+              {upcomingEvents
                 .slice(0, 8)
                 .map((evt, i) => (
                   <div
@@ -393,7 +408,7 @@ export default function CalendarPage() {
                     </div>
                   </div>
                 ))}
-              {events.filter((e) => e.date >= todayStr).length === 0 && (
+              {upcomingEvents.length === 0 && (
                 <p className="text-[13px] text-muted-foreground">No upcoming events.</p>
               )}
             </div>
