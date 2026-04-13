@@ -7,11 +7,45 @@
 -- Families can CRUD their own documents
 -- Stakeholders can view documents they uploaded or have permission for
 
--- Fix infinite recursion first
+-- Fix infinite recursion: use SECURITY DEFINER function to check permissions
+-- without triggering RLS on document_permissions from within documents policy
 DROP POLICY IF EXISTS "documents_select_policy" ON documents;
 DROP POLICY IF EXISTS "documents_insert_policy" ON documents;
 DROP POLICY IF EXISTS "documents_update_policy" ON documents;
 DROP POLICY IF EXISTS "documents_delete_policy" ON documents;
+DROP POLICY IF EXISTS "documents_family_all" ON documents;
+DROP POLICY IF EXISTS "documents_stakeholder_view" ON documents;
+DROP POLICY IF EXISTS "documents_stakeholder_insert" ON documents;
+
+-- Helper function that bypasses RLS on document_permissions
+CREATE OR REPLACE FUNCTION public.can_view_document(doc_id uuid, user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.document_permissions
+    WHERE document_id = doc_id
+      AND stakeholder_id = user_id
+      AND can_view = true
+  );
+$$;
+
+-- Helper function that checks stakeholder link status
+CREATE OR REPLACE FUNCTION public.is_accepted_stakeholder(stakeholder uuid, family uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.stakeholder_links
+    WHERE stakeholder_id = stakeholder
+      AND family_id = family
+      AND (status = 'accepted' OR status IS NULL)
+  );
+$$;
 
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
@@ -21,23 +55,13 @@ CREATE POLICY "documents_family_all" ON documents
 CREATE POLICY "documents_stakeholder_view" ON documents
   FOR SELECT USING (
     uploaded_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM document_permissions dp
-      WHERE dp.document_id = documents.id
-        AND dp.stakeholder_id = auth.uid()
-        AND dp.can_view = true
-    )
+    OR public.can_view_document(id, auth.uid())
   );
 
 CREATE POLICY "documents_stakeholder_insert" ON documents
   FOR INSERT WITH CHECK (
     uploaded_by = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM stakeholder_links sl
-      WHERE sl.stakeholder_id = auth.uid()
-        AND sl.family_id = documents.family_id
-        AND (sl.status = 'accepted' OR sl.status IS NULL)
-    )
+    AND public.is_accepted_stakeholder(auth.uid(), family_id)
   );
 
 -- ── Document Permissions ────────────────────────────────────────────────────

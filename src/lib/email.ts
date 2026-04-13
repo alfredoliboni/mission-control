@@ -17,7 +17,7 @@ export async function sendInviteEmail(params: {
   }
 
   // Resend free tier requires onboarding@resend.dev unless custom domain is verified
-  const fromAddress = "The Companion <onboarding@resend.dev>";
+  const fromAddress = "The Companion <noreply@luisaliboni.com>";
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -57,7 +57,7 @@ export async function sendProviderWelcomeEmail(params: {
     return;
   }
 
-  const fromAddress = "The Companion <onboarding@resend.dev>";
+  const fromAddress = "The Companion <noreply@luisaliboni.com>";
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
