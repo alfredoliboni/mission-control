@@ -38,6 +38,7 @@ async function sendToGateway(message: string, agentId: string = "main"): Promise
 
   const response = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(50000), // 50s timeout (Vercel function has 60s max)
     headers: {
       "Authorization": `Bearer ${COMPANION_API_TOKEN}`,
       "Content-Type": "application/json",
@@ -116,8 +117,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ response: agentResponse });
   } catch (err) {
     console.error("Gateway chat error:", err);
+    // Fallback to demo-style response instead of error
     return NextResponse.json({
-      response: "I'm having trouble connecting right now. Please try again in a moment.",
-    }, { status: 502 });
+      response: getDemoResponse(message) + "\n\n_(Navigator is temporarily offline — this is a sample response)_",
+    });
   }
 }
