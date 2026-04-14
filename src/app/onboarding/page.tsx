@@ -526,22 +526,30 @@ export default function OnboardingPage() {
     setCompleting(true);
 
     try {
-      // Step 1: Create Supabase account if not already logged in
-      if (!isLoggedIn) {
-        const supabase = createClient();
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword,
-        });
+      // Step 1: Create Supabase account
+      const supabase = createClient();
 
-        if (signUpError) {
-          toast.error(signUpError.message || "Failed to create account");
-          setCompleting(false);
-          return;
-        }
+      // Sign out any existing session first (prevents overwriting another user's metadata)
+      await supabase.auth.signOut();
 
-        toast.success("Account created successfully");
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: {
+          data: {
+            role: "parent",
+            full_name: formData.fullName || formData.nickname,
+          },
+        },
+      });
+
+      if (signUpError) {
+        toast.error(signUpError.message || "Failed to create account");
+        setCompleting(false);
+        return;
       }
+
+      toast.success("Account created! Check your email to confirm.");
 
       // Step 2: Generate profile and save to localStorage for post-login completion
       const profile = generateProfileMarkdown(formData);
@@ -554,28 +562,9 @@ export default function OnboardingPage() {
       localStorage.setItem("onboarding-profile", profile);
       localStorage.setItem("onboarding-pending", JSON.stringify(onboardingData));
 
-      // Step 3: If logged in, complete setup now. Otherwise it will complete on first login.
-      if (isLoggedIn) {
-        try {
-          const res = await fetch("/api/onboarding", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(onboardingData),
-          });
-          const data = await res.json();
-          if (data.success) {
-            localStorage.removeItem("onboarding-pending");
-            if (data.welcome) toast.success(data.welcome.slice(0, 100));
-          }
-        } catch {
-          // Will complete on next login
-        }
-        router.push("/profile");
-      } else {
-        // Not logged in yet — tell user to check email
-        toast.success("Account created! Please check your email to confirm, then sign in.");
-        router.push("/login");
-      }
+      // Step 3: Always redirect to login — email confirmation required
+      // Onboarding data is saved in localStorage and will be completed on first login
+      router.push("/login");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");
       setCompleting(false);
