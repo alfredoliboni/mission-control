@@ -1,37 +1,18 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/appStore";
 import { getFamilyAgent, isKnownFamilyEmail, getFamilyAgentFromMetadata } from "@/lib/family-agents";
 import type { FamilyAgent } from "@/lib/family-agents";
+import { createClient } from "@/lib/supabase/client";
 
 /**
- * Returns the active child's agentId based on the current user session
- * and the selected child index from the app store.
- *
- * In demo mode or when the user is unknown, returns undefined
- * (API routes will use the default agent).
- *
- * For live mode, reads the user email from the session cookie and
- * combines it with activeChildIndex to resolve the correct agentId.
+ * Returns the active child's agentId based on the current user session.
  */
 export function useActiveAgent(): string | undefined {
   const activeChildIndex = useAppStore((s) => s.activeChildIndex);
+  const family = useFamily();
 
-  // On the client we can read the supabase session email from localStorage
-  // but it's simpler + more reliable to let the API route resolve the user.
-  // We only need the agentId here as a cache key differentiator and param.
-  // The actual user resolution still happens server-side in the API route.
-
-  // For the client, we read from cookies/localStorage to determine email.
-  // However the cleanest approach: store the family data once and reuse.
-  // For now, we derive the agentId from what we can read client-side.
-  if (typeof window === "undefined") return undefined;
-
-  // Try to get user email from Supabase session in localStorage
-  const email = getSupabaseUserEmail();
-  if (!email) return undefined;
-
-  const family = resolveFamily(email);
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
     : 0;
@@ -40,133 +21,34 @@ export function useActiveAgent(): string | undefined {
 
 /**
  * Returns the full family with children for UI rendering (e.g., child switcher).
+ * Resolves dynamic agents from Supabase user metadata for new users.
  */
-export function useFamily() {
-  const email = typeof window !== "undefined" ? getSupabaseUserEmail() : undefined;
-  return resolveFamily(email);
-}
+export function useFamily(): FamilyAgent {
+  const [family, setFamily] = useState<FamilyAgent>(() => getFamilyAgent(undefined));
 
-/**
- * Resolves family: known emails use hardcoded map, unknown emails check JWT metadata.
- */
-function resolveFamily(email: string | undefined): FamilyAgent {
-  if (email && isKnownFamilyEmail(email)) {
-    return getFamilyAgent(email);
-  }
-  // Try to get agent_id from JWT metadata for dynamic users
-  const metadata = getSupabaseUserMetadata();
-  if (metadata) {
-    const dynamic = getFamilyAgentFromMetadata(metadata);
-    if (dynamic) return dynamic;
-  }
-  return getFamilyAgent(email);
-}
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
 
-function getSupabaseUserMetadata(): { agent_id?: string; child_name?: string; full_name?: string } | null {
-  try {
-    // Decode the JWT access token to get user_metadata
-    const cookies = document.cookie.split(";").map(c => c.trim());
-    for (const cookie of cookies) {
-      if (cookie.includes("auth-token")) {
-        const value = cookie.split("=").slice(1).join("=");
-        const parts = value.split(".");
-        if (parts.length === 3) {
-          try {
-            const payload = JSON.parse(atob(parts[1]));
-            if (payload?.user_metadata) return payload.user_metadata;
-          } catch { /* not valid */ }
-        }
+      const email = user.email;
+      if (email && isKnownFamilyEmail(email)) {
+        setFamily(getFamilyAgent(email));
+        return;
       }
-    }
-    // Also try localStorage
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const meta = parsed?.user?.user_metadata
-            || parsed?.currentSession?.user?.user_metadata
-            || parsed?.[0]?.user?.user_metadata;
-          if (meta) return meta;
-        }
-      }
-    }
-  } catch { /* silently fail */ }
-  return null;
-}
 
-function getSupabaseUserEmail(): string | undefined {
-  try {
-    // Try localStorage first (some Supabase versions store here)
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const email = parsed?.user?.email
-            || parsed?.currentSession?.user?.email
-            || parsed?.[0]?.user?.email;
-          if (email) return email;
-        }
+      // Dynamic user — check metadata for agent_id
+      const metadata = user.user_metadata || {};
+      const dynamic = getFamilyAgentFromMetadata(metadata);
+      if (dynamic) {
+        setFamily(dynamic);
+        return;
       }
-    }
 
-    // Supabase SSR stores session in cookies — decode the JWT to get email
-    const cookies = document.cookie.split(";").map(c => c.trim());
-    // Look for base64-encoded session chunks
-    const authCookies = cookies
-      .filter(c => c.startsWith("sb-") && c.includes("auth-token"))
-      .sort();
+      // Fallback to default
+      setFamily(getFamilyAgent(email));
+    });
+  }, []);
 
-    if (authCookies.length > 0) {
-      // Cookies may be chunked: sb-xxx-auth-token.0, sb-xxx-auth-token.1, etc.
-      // Or a single sb-xxx-auth-token cookie with base64 value
-      let combined = "";
-      for (const cookie of authCookies) {
-        const value = cookie.split("=").slice(1).join("=");
-        combined += value;
-      }
-      // Try to decode — might be base64 JSON
-      if (combined.startsWith("base64-")) {
-        combined = combined.slice(7);
-      }
-      try {
-        const decoded = atob(combined);
-        const session = JSON.parse(decoded);
-        const email = session?.user?.email || session?.access_token;
-        if (email && email.includes("@")) return email;
-
-        // Try decoding the access_token JWT payload
-        if (session?.access_token) {
-          const payload = session.access_token.split(".")[1];
-          if (payload) {
-            const jwtData = JSON.parse(atob(payload));
-            if (jwtData?.email) return jwtData.email;
-          }
-        }
-      } catch {
-        // Not valid base64/JSON — try JWT decode on raw cookie chunks
-      }
-    }
-
-    // Last resort: decode any JWT-looking cookie
-    for (const cookie of cookies) {
-      if (cookie.includes("auth-token")) {
-        const value = cookie.split("=").slice(1).join("=");
-        // JWT has 3 parts separated by dots
-        const parts = value.split(".");
-        if (parts.length === 3) {
-          try {
-            const payload = JSON.parse(atob(parts[1]));
-            if (payload?.email) return payload.email;
-          } catch { /* not a valid JWT */ }
-        }
-      }
-    }
-  } catch {
-    // Silently fail
-  }
-  return undefined;
+  return family;
 }
