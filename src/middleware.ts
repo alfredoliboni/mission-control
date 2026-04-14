@@ -39,6 +39,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Demo mode: allow API access with demo cookie
+    const isDemoApi = request.cookies.get("companion-demo")?.value === "true";
+    if (isDemoApi) {
+      return NextResponse.next();
+    }
+
     // Protected API: verify auth session
     const { user, supabaseResponse } = await updateSession(request);
     if (user) {
