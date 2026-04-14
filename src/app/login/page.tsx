@@ -82,24 +82,25 @@ export default function LoginPage() {
     } else if (metadata.role === "stakeholder") {
       router.push("/team");
     } else if (!isKnownFamilyEmail(userEmail) && !metadata.agent_id) {
-      // Check if onboarding was completed but not synced (pending in localStorage)
-      const pendingOnboarding = localStorage.getItem("onboarding-pending");
-      if (pendingOnboarding) {
+      // Check if onboarding was completed (data stored in user_metadata during signUp)
+      if (metadata.onboarding_completed && metadata.onboarding_profile) {
         try {
-          const onboardingData = JSON.parse(pendingOnboarding);
           const res = await fetch("/api/onboarding", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(onboardingData),
+            body: JSON.stringify({
+              profileMarkdown: metadata.onboarding_profile,
+              childName: metadata.child_name,
+              familyName: metadata.family_name,
+            }),
           });
           if (res.ok) {
-            localStorage.removeItem("onboarding-pending");
             router.push("/profile");
             router.refresh();
             return;
           }
         } catch {
-          // If sync fails, still go to profile
+          // If setup fails, still try profile
         }
         router.push("/profile");
       } else {

@@ -532,13 +532,22 @@ export default function OnboardingPage() {
       // Sign out any existing session first (prevents overwriting another user's metadata)
       await supabase.auth.signOut();
 
+      // Generate profile BEFORE signup so we can include it in metadata
+      const profile = generateProfileMarkdown(formData);
+      const childName = formData.fullName || formData.nickname;
+      const familyName = authEmail.split("@")[0].split("+").pop() || "family";
+
       const { error: signUpError } = await supabase.auth.signUp({
         email: authEmail,
         password: authPassword,
         options: {
           data: {
             role: "parent",
-            full_name: formData.fullName || formData.nickname,
+            full_name: childName,
+            child_name: childName,
+            family_name: familyName,
+            onboarding_profile: profile,
+            onboarding_completed: true,
           },
         },
       });
@@ -549,21 +558,9 @@ export default function OnboardingPage() {
         return;
       }
 
-      toast.success("Account created! Check your email to confirm.");
+      toast.success("Account created! Check your email to confirm, then sign in.");
 
-      // Step 2: Generate profile and save to localStorage for post-login completion
-      const profile = generateProfileMarkdown(formData);
-      const onboardingData = {
-        profileMarkdown: profile,
-        childName: formData.fullName || formData.nickname,
-        familyName: authEmail.split("@")[0].split("+").pop() || "family",
-        completedAt: new Date().toISOString(),
-      };
-      localStorage.setItem("onboarding-profile", profile);
-      localStorage.setItem("onboarding-pending", JSON.stringify(onboardingData));
-
-      // Step 3: Always redirect to login — email confirmation required
-      // Onboarding data is saved in localStorage and will be completed on first login
+      // Step 2: Redirect to login — onboarding data is in user_metadata (not localStorage)
       router.push("/login");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");
