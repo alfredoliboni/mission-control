@@ -160,6 +160,7 @@ const INDIGENOUS_OPTIONS = [
   { id: "inuit", label: "Inuit" },
   { id: "metis", label: "M\u00e9tis" },
   { id: "urban-indigenous", label: "Urban Indigenous" },
+  { id: "non-indigenous", label: "Non-Indigenous" },
   { id: "prefer-not-to-say", label: "Prefer not to say" },
 ];
 
@@ -193,6 +194,11 @@ const JOURNEY_STAGES = [
     id: "stable-support",
     title: "Stable Support",
     description: "Established care in place",
+  },
+  {
+    id: "other",
+    title: "Other",
+    description: "My situation is different",
   },
 ];
 
