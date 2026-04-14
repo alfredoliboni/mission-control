@@ -67,6 +67,7 @@ export function useWorkspaceFiles() {
   return useQuery({
     queryKey: ["workspace", "files", "live", agentId],
     queryFn: () => fetchFileList(agentId),
+    enabled: !!agentId,
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
@@ -78,7 +79,7 @@ export function useWorkspaceFile(filename: string) {
   return useQuery({
     queryKey: ["workspace", "file", filename, "live", agentId],
     queryFn: () => fetchFile(filename, agentId),
-    enabled: !!filename,
+    enabled: !!filename && !!agentId,
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
