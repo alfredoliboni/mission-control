@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgent, getAgentWorkspacePath } from "@/lib/family-agents";
+import { getFamilyAgent, getFamilyAgentFromMetadata, getAgentWorkspacePath } from "@/lib/family-agents";
 import fs from "fs";
 
 const WORKSPACE_FILE_SERVER = process.env.WORKSPACE_FILE_SERVER || "";
@@ -21,7 +21,16 @@ export async function GET(request: NextRequest) {
   }
 
   const agentParam = request.nextUrl.searchParams.get("agent");
-  const family = getFamilyAgent(user.email ?? undefined);
+  const { isKnownFamilyEmail } = await import("@/lib/family-agents");
+
+  // Resolve agent: known family → hardcoded map, new user → metadata
+  let family;
+  if (isKnownFamilyEmail(user.email ?? undefined)) {
+    family = getFamilyAgent(user.email ?? undefined);
+  } else {
+    const dynamic = getFamilyAgentFromMetadata(user.user_metadata || {});
+    family = dynamic || getFamilyAgent(user.email ?? undefined);
+  }
 
   let agentId: string;
   if (agentParam && family.children.some((c) => c.agentId === agentParam)) {

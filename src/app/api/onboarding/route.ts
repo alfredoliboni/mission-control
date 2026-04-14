@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgentFlat } from "@/lib/family-agents";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { execSync } from "child_process";
 
-const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
-const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
+const HOME = process.env.HOME || process.env.USERPROFILE || "/root";
+const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
-const ORGO_API_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/bash`;
 
 /**
  * POST /api/onboarding
- * Sends the onboarding data to the family's Navigator agent via chat.
- * The agent processes the intake and writes its own USER.md + memory files.
+ * Creates a new family agent via OpenClaw CLI and sends the onboarding
+ * profile to the agent via Gateway chat. The agent then creates all
+ * workspace .md files from the profile data.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { profileMarkdown } = body as { profileMarkdown: string };
+  const { profileMarkdown, childName, familyName } = body as {
+    profileMarkdown: string;
+    childName?: string;
+    familyName?: string;
+  };
 
   if (!profileMarkdown) {
     return NextResponse.json({ error: "Profile data required" }, { status: 400 });
@@ -22,80 +27,117 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const family = getFamilyAgentFlat(user?.email ?? undefined);
 
-  if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
-    return NextResponse.json({
-      success: true,
-      agentId: family.agentId,
-      mode: "local",
-    });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Send onboarding data to the agent as a chat message.
-  // The agent will process it and create/update USER.md, pathway.md, etc.
-  const prompt = `A new family just completed onboarding. Here is everything they shared about their child. Please:
+  // Derive agent name from child name or email
+  const name = childName || familyName || user.email?.split("@")[0]?.split("+").pop() || "family";
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+  const agentId = `navigator-${slug}`;
+  const workspaceDir = `${HOME}/.openclaw/workspace-${slug}`;
+
+  try {
+    // Step 1: Create the agent via OpenClaw CLI
+    try {
+      const result = execSync(
+        `openclaw agents add "${agentId}" --workspace "${workspaceDir}" --non-interactive --json 2>&1`,
+        { timeout: 30000, encoding: "utf-8" }
+      );
+      console.log(`[onboarding] Agent created: ${agentId}`, result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Agent might already exist — that's OK
+      if (!message.includes("already exists") && !message.includes("duplicate")) {
+        console.error("[onboarding] Agent creation failed:", message);
+        // Continue anyway — the workspace might already exist from manual setup
+      }
+    }
+
+    // Step 2: Send the onboarding profile to the agent via Gateway
+    if (COMPANION_API_DIRECT) {
+      try {
+        const prompt = `A new family just completed onboarding. Here is everything they shared about their child. Please:
 
 1. Read all the information carefully
-2. Update your USER.md with a well-organized profile of this child and family
-3. Create initial memory files based on what you learn:
+2. Create your workspace memory files based on what you learn:
+   - child-profile.md — organize the profile data
    - pathway.md — determine their current stage and next steps
    - alerts.md — any immediate deadlines or actions needed
-   - providers.md — start searching for relevant providers in their area
-   - benefits.md — identify which benefits they should apply for
-4. Send a warm welcome message back to the family
+   - providers.md — note any providers mentioned, start searching for more
+   - benefits.md — identify which Ontario benefits they should apply for
+   - programs.md — find relevant programs in their area
+   - journey-partners.md — note any care team members mentioned
+3. Send a warm welcome message back to the family
 
 Here is the onboarding data:
 
 ${profileMarkdown}`;
 
-  const payload = JSON.stringify({
-    model: `openclaw/${family.agentId}`,
-    messages: [{ role: "user", content: prompt }],
-    user: family.agentId,
-  }).replace(/"/g, '\\"');
+        const response = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
+          method: "POST",
+          signal: AbortSignal.timeout(55000),
+          headers: {
+            "Authorization": `Bearer ${COMPANION_API_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: `openclaw/${agentId}`,
+            messages: [{ role: "user", content: prompt }],
+            user: agentId,
+          }),
+        });
 
-  const curlCmd = `curl -s -X POST -H "Authorization: Bearer ${COMPANION_API_TOKEN}" -H "Content-Type: application/json" -d "${payload}" http://localhost:18789/v1/chat/completions`;
+        if (response.ok) {
+          const data = await response.json();
+          const welcome = data.choices?.[0]?.message?.content || "Welcome! Your Navigator is setting up.";
 
-  try {
-    const response = await fetch(ORGO_API_BASE, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${ORGO_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ command: curlCmd }),
-    });
+          // Step 3: Update user metadata
+          const admin = createAdminClient();
+          await admin.auth.admin.updateUserById(user.id, {
+            user_metadata: {
+              ...user.user_metadata,
+              role: "parent",
+              full_name: familyName || user.user_metadata?.full_name,
+              child_name: childName,
+              agent_id: agentId,
+            },
+          });
 
-    if (!response.ok) {
-      throw new Error(`Orgo API error: ${response.status}`);
-    }
-
-    const result = await response.json();
-    const output = result.output || "";
-
-    // Parse agent response
-    let agentWelcome = "Welcome! Your Navigator is setting up your dashboard. This may take a moment.";
-    try {
-      const parsed = JSON.parse(output);
-      if (parsed.choices?.[0]?.message?.content) {
-        agentWelcome = parsed.choices[0].message.content;
+          return NextResponse.json({
+            success: true,
+            agentId,
+            welcome,
+          });
+        }
+      } catch (err) {
+        console.error("[onboarding] Gateway error:", err);
       }
-    } catch {
-      // Use default welcome
     }
+
+    // Fallback: update metadata even if Gateway is unreachable
+    const admin = createAdminClient();
+    await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...user.user_metadata,
+        role: "parent",
+        full_name: familyName || user.user_metadata?.full_name,
+        child_name: childName,
+        agent_id: agentId,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      agentId: family.agentId,
-      welcome: agentWelcome,
-      mode: "production",
+      agentId,
+      welcome: "Welcome! Your Navigator is being set up. Please check back in a few minutes while we prepare your dashboard.",
     });
   } catch (err) {
-    console.error("Onboarding agent error:", err);
+    console.error("Onboarding error:", err);
     return NextResponse.json(
-      { error: "Failed to send to agent", details: String(err) },
-      { status: 502 }
+      { error: "Failed to complete onboarding", details: String(err) },
+      { status: 500 }
     );
   }
 }

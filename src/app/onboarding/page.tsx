@@ -544,18 +544,26 @@ export default function OnboardingPage() {
       const profile = generateProfileMarkdown(formData);
       localStorage.setItem("onboarding-profile", profile);
 
-      // Step 3: Send profile to agent workspace
+      // Step 3: Create agent workspace via onboarding API
       try {
-        await fetch("/api/onboarding", {
+        const res = await fetch("/api/onboarding", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ profileMarkdown: profile }),
+          body: JSON.stringify({
+            profileMarkdown: profile,
+            childName: formData.nickname,
+            familyName: authEmail.split("@")[0].split("+").pop(),
+          }),
         });
+        const data = await res.json();
+        if (data.welcome) {
+          toast.success(data.welcome.slice(0, 100));
+        }
       } catch {
-        // Continue even if agent write fails — profile is in localStorage
+        // Continue even if agent setup fails
       }
 
-      // Step 4: Redirect to dashboard
+      // Step 4: Redirect to profile
       router.push("/profile");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");

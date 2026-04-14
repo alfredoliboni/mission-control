@@ -123,6 +123,27 @@ export function isKnownFamilyEmail(email: string | undefined): boolean {
   return email.toLowerCase() in FAMILY_AGENT_MAP;
 }
 
+/**
+ * Creates a FamilyAgent from user metadata (for dynamically created agents).
+ * Used when the user completed onboarding and has agent_id in their metadata.
+ */
+export function getFamilyAgentFromMetadata(metadata: {
+  agent_id?: string;
+  child_name?: string;
+  full_name?: string;
+}): FamilyAgent | null {
+  if (!metadata.agent_id) return null;
+  return {
+    familyName: metadata.full_name || "Family",
+    children: [
+      {
+        childName: metadata.child_name || "Child",
+        agentId: metadata.agent_id,
+      },
+    ],
+  };
+}
+
 export function getAllFamilies(): Array<FamilyAgent & { email: string }> {
   return Object.entries(FAMILY_AGENT_MAP).map(([email, agent]) => ({
     email,
