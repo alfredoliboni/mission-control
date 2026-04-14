@@ -1,7 +1,8 @@
 "use client";
 
 import { useAppStore } from "@/store/appStore";
-import { getFamilyAgent } from "@/lib/family-agents";
+import { getFamilyAgent, isKnownFamilyEmail, getFamilyAgentFromMetadata } from "@/lib/family-agents";
+import type { FamilyAgent } from "@/lib/family-agents";
 
 /**
  * Returns the active child's agentId based on the current user session
@@ -30,7 +31,7 @@ export function useActiveAgent(): string | undefined {
   const email = getSupabaseUserEmail();
   if (!email) return undefined;
 
-  const family = getFamilyAgent(email);
+  const family = resolveFamily(email);
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
     : 0;
@@ -42,7 +43,57 @@ export function useActiveAgent(): string | undefined {
  */
 export function useFamily() {
   const email = typeof window !== "undefined" ? getSupabaseUserEmail() : undefined;
-  return getFamilyAgent(email ?? undefined);
+  return resolveFamily(email);
+}
+
+/**
+ * Resolves family: known emails use hardcoded map, unknown emails check JWT metadata.
+ */
+function resolveFamily(email: string | undefined): FamilyAgent {
+  if (email && isKnownFamilyEmail(email)) {
+    return getFamilyAgent(email);
+  }
+  // Try to get agent_id from JWT metadata for dynamic users
+  const metadata = getSupabaseUserMetadata();
+  if (metadata) {
+    const dynamic = getFamilyAgentFromMetadata(metadata);
+    if (dynamic) return dynamic;
+  }
+  return getFamilyAgent(email);
+}
+
+function getSupabaseUserMetadata(): { agent_id?: string; child_name?: string; full_name?: string } | null {
+  try {
+    // Decode the JWT access token to get user_metadata
+    const cookies = document.cookie.split(";").map(c => c.trim());
+    for (const cookie of cookies) {
+      if (cookie.includes("auth-token")) {
+        const value = cookie.split("=").slice(1).join("=");
+        const parts = value.split(".");
+        if (parts.length === 3) {
+          try {
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload?.user_metadata) return payload.user_metadata;
+          } catch { /* not valid */ }
+        }
+      }
+    }
+    // Also try localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const meta = parsed?.user?.user_metadata
+            || parsed?.currentSession?.user?.user_metadata
+            || parsed?.[0]?.user?.user_metadata;
+          if (meta) return meta;
+        }
+      }
+    }
+  } catch { /* silently fail */ }
+  return null;
 }
 
 function getSupabaseUserEmail(): string | undefined {
