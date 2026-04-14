@@ -48,7 +48,8 @@ export function TopBar() {
   // Notification bell state
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
-  const demo = isDemo();
+  const [demo, setDemo] = useState(true); // Start as true to match server (no bell)
+  useEffect(() => { setDemo(isDemo()); }, []);
   const { data: notifications = [] } = useNotifications();
   const unreadCount = demo ? 0 : notifications.length;
 
