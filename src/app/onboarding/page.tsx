@@ -90,6 +90,7 @@ function AddCustomTag({ onAdd, placeholder }: { onAdd: (value: string) => void; 
 
 interface FormData {
   // Step 1
+  fullName: string;
   nickname: string;
   dateOfBirth: string;
   postalCode: string;
@@ -127,6 +128,7 @@ interface FormData {
 }
 
 const initialFormData: FormData = {
+  fullName: "",
   nickname: "",
   dateOfBirth: "",
   postalCode: "",
@@ -300,9 +302,10 @@ const SUPPLEMENT_SUGGESTIONS = [
 
 function generateProfileMarkdown(data: FormData): string {
   const lines: string[] = [];
-  lines.push(`# Child Profile: ${data.nickname}`);
+  lines.push(`# Child Profile: ${data.fullName || data.nickname}`);
   lines.push("");
   lines.push("## Basic Information");
+  if (data.fullName) lines.push(`- **Name:** ${data.fullName}`);
   lines.push(`- **Nickname:** ${data.nickname}`);
   if (data.dateOfBirth) lines.push(`- **Date of Birth:** ${data.dateOfBirth}`);
   if (data.postalCode) lines.push(`- **Postal Code:** ${data.postalCode}`);
@@ -503,7 +506,7 @@ export default function OnboardingPage() {
           authPassword === authConfirmPassword
         );
       case 1:
-        return formData.nickname.trim().length > 0;
+        return formData.fullName.trim().length > 0;
       case 3:
         return formData.journeyStage !== "";
       case 4:
@@ -511,7 +514,7 @@ export default function OnboardingPage() {
       default:
         return true;
     }
-  }, [step, authEmail, authPassword, authConfirmPassword, formData.nickname, formData.journeyStage, formData.supportNeeds]);
+  }, [step, authEmail, authPassword, authConfirmPassword, formData.fullName, formData.journeyStage, formData.supportNeeds]);
 
   const isOptionalStep = step === 2 || step === 5 || step === 6 || step === 7 || step === 8;
 
@@ -551,7 +554,7 @@ export default function OnboardingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             profileMarkdown: profile,
-            childName: formData.nickname,
+            childName: formData.fullName || formData.nickname,
             familyName: authEmail.split("@")[0].split("+").pop(),
           }),
         });
@@ -691,15 +694,27 @@ export default function OnboardingPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Child&apos;s nickname <span className="text-destructive">*</span>
+              Child&apos;s full name <span className="text-destructive">*</span>
             </label>
             <Input
-              placeholder="What do you call them?"
+              placeholder="e.g. Daniel Santos"
+              value={formData.fullName}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, fullName: e.target.value }))
+              }
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Nickname (what do you call them?)
+            </label>
+            <Input
+              placeholder="e.g. Dani"
               value={formData.nickname}
               onChange={(e) =>
                 setFormData((p) => ({ ...p, nickname: e.target.value }))
               }
-              autoFocus
             />
           </div>
           <div>
@@ -923,7 +938,7 @@ export default function OnboardingPage() {
         <StepIcon icon={Sparkles} bgClass="bg-amber-50 text-amber-500" />
         <h2 className="font-heading text-2xl font-bold text-center text-foreground">
           Tell us about{" "}
-          {formData.nickname ? formData.nickname : "your child"}
+          {formData.fullName || formData.nickname || "your child"}
         </h2>
         <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
           The more we know, the better we can personalize recommendations.
