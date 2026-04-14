@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useParsedProfile } from "@/hooks/useWorkspace";
+import { useParsedProfile, useParsedJourneyPartners } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -222,6 +222,7 @@ function SubLabel({ children }: { children: React.ReactNode }) {
 
 export default function ProfilePage() {
   const { data: profile, isLoading } = useParsedProfile();
+  const { data: journeyPartners } = useParsedJourneyPartners();
 
   const initializedRef = useRef(false);
   const initialProfile = (() => {
@@ -740,71 +741,117 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* ── Journey Partners ──────────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <SectionHeader title="🤝 Journey Partners" {...sectionProps("partners")} />
-            {editingSection === "partners" ? (
-              <div className="space-y-4">
-                {data.journeyPartners.map((partner, i) => (
-                  <PartnerEdit
-                    key={i}
-                    partner={partner}
-                    onChange={(updated) => {
-                      const partners = [...data.journeyPartners];
-                      partners[i] = updated;
-                      updatePartners(partners);
-                    }}
-                    onRemove={() => updatePartners(data.journeyPartners.filter((_, idx) => idx !== i))}
-                  />
-                ))}
-                <Button variant="outline" size="sm" onClick={() => updatePartners([...data.journeyPartners, { role: "", name: "", organization: "", contact: "", notes: "" }])}>
-                  <Plus className="size-3.5 mr-1" /> Add Partner
-                </Button>
-              </div>
-            ) : data.journeyPartners.length > 0 ? (
-              <div className="divide-y divide-border">
-                {data.journeyPartners.map((partner, i) => (
-                  <div key={i} className="flex items-start gap-3 py-3">
-                    <div
-                      className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-bold text-white"
-                      style={{ background: "linear-gradient(135deg, #a8c0ff, #3f2b96)" }}
-                    >
-                      {initials(partner.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-[13px] text-foreground font-medium">{partner.name}</p>
-                          <p className="text-[12px] text-muted-foreground">
-                            {partner.role}{partner.organization ? ` · ${partner.organization}` : ""}
-                          </p>
-                        </div>
-                        {partner.contact && (
-                          partner.contact.includes("@") ? (
-                            <a href={`mailto:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Email ${partner.name}`}>
-                              <Mail className="size-4 text-muted-foreground" />
-                            </a>
-                          ) : (
-                            <a href={`tel:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Call ${partner.name}`}>
-                              <Phone className="size-4 text-muted-foreground" />
-                            </a>
-                          )
-                        )}
-                      </div>
-                      {partner.contact && (
-                        <p className="text-[12px] text-muted-foreground mt-0.5">{partner.contact}</p>
-                      )}
-                      {partner.notes && (
-                        <p className="text-[12px] text-muted-foreground italic mt-1">{partner.notes}</p>
-                      )}
-                    </div>
+          {/* ── Journey Partners (from workspace journey-partners.md) ── */}
+          {(() => {
+            const activeTeam = journeyPartners?.activeTeam ?? [];
+            return (
+              <div className="bg-card border border-border rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <SectionHeader title="🤝 Journey Partners" {...sectionProps("partners")} />
+                {editingSection === "partners" ? (
+                  <div className="space-y-4">
+                    {data.journeyPartners.map((partner, i) => (
+                      <PartnerEdit
+                        key={i}
+                        partner={partner}
+                        onChange={(updated) => {
+                          const partners = [...data.journeyPartners];
+                          partners[i] = updated;
+                          updatePartners(partners);
+                        }}
+                        onRemove={() => updatePartners(data.journeyPartners.filter((_, idx) => idx !== i))}
+                      />
+                    ))}
+                    <Button variant="outline" size="sm" onClick={() => updatePartners([...data.journeyPartners, { role: "", name: "", organization: "", contact: "", notes: "" }])}>
+                      <Plus className="size-3.5 mr-1" /> Add Partner
+                    </Button>
                   </div>
-                ))}
+                ) : activeTeam.length > 0 ? (
+                  <div className="divide-y divide-border">
+                    {activeTeam.map((partner, i) => (
+                      <div key={i} className="flex items-start gap-3 py-3">
+                        <div
+                          className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-bold text-white"
+                          style={{ background: "linear-gradient(135deg, #a8c0ff, #3f2b96)" }}
+                        >
+                          {initials(partner.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[13px] text-foreground font-medium">{partner.name}</p>
+                              <p className="text-[12px] text-muted-foreground">
+                                {partner.role}{partner.organization ? ` · ${partner.organization}` : ""}
+                              </p>
+                              {partner.services && (
+                                <p className="text-[11px] text-muted-foreground mt-0.5">{partner.services}</p>
+                              )}
+                            </div>
+                            {partner.contact && (
+                              partner.contact.includes("@") ? (
+                                <a href={`mailto:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Email ${partner.name}`}>
+                                  <Mail className="size-4 text-muted-foreground" />
+                                </a>
+                              ) : (
+                                <a href={`tel:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Call ${partner.name}`}>
+                                  <Phone className="size-4 text-muted-foreground" />
+                                </a>
+                              )
+                            )}
+                          </div>
+                          {partner.contact && (
+                            <p className="text-[12px] text-muted-foreground mt-0.5">{partner.contact}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : data.journeyPartners.length > 0 ? (
+                  /* Fallback: show partners from child-profile.md if journey-partners.md is empty */
+                  <div className="divide-y divide-border">
+                    {data.journeyPartners.map((partner, i) => (
+                      <div key={i} className="flex items-start gap-3 py-3">
+                        <div
+                          className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-bold text-white"
+                          style={{ background: "linear-gradient(135deg, #a8c0ff, #3f2b96)" }}
+                        >
+                          {initials(partner.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[13px] text-foreground font-medium">{partner.name}</p>
+                              <p className="text-[12px] text-muted-foreground">
+                                {partner.role}{partner.organization ? ` · ${partner.organization}` : ""}
+                              </p>
+                            </div>
+                            {partner.contact && (
+                              partner.contact.includes("@") ? (
+                                <a href={`mailto:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Email ${partner.name}`}>
+                                  <Mail className="size-4 text-muted-foreground" />
+                                </a>
+                              ) : (
+                                <a href={`tel:${partner.contact}`} className="shrink-0 p-1 rounded hover:bg-muted" aria-label={`Call ${partner.name}`}>
+                                  <Phone className="size-4 text-muted-foreground" />
+                                </a>
+                              )
+                            )}
+                          </div>
+                          {partner.contact && (
+                            <p className="text-[12px] text-muted-foreground mt-0.5">{partner.contact}</p>
+                          )}
+                          {partner.notes && (
+                            <p className="text-[12px] text-muted-foreground italic mt-1">{partner.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-muted-foreground italic">No journey partners listed</p>
+                )}
               </div>
-            ) : (
-              <p className="text-[13px] text-muted-foreground italic">No journey partners listed</p>
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
     </WorkspaceSection>

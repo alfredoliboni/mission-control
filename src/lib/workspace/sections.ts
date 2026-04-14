@@ -93,6 +93,13 @@ const knownSections: Record<string, SectionConfig> = {
     route: "/school-support",
     group: "dynamic",
   },
+  "journey-partners.md": {
+    icon: "🤝",
+    label: "Journey Partners",
+    order: 14,
+    route: "/journey-partners",
+    group: "overview",
+  },
   "community": {
     icon: "👥",
     label: "Community",
@@ -110,7 +117,7 @@ function titleCase(str: string): string {
 }
 
 // Files that are hardcoded in the Sidebar — exclude from dynamic discovery
-const SIDEBAR_HARDCODED = new Set(["documents.md", "messages.md", "child-profile.md"]);
+const SIDEBAR_HARDCODED = new Set(["documents.md", "messages.md", "child-profile.md", "journey-partners.md"]);
 
 export function discoverSections(filenames: string[]): WorkspaceSection[] {
   return filenames

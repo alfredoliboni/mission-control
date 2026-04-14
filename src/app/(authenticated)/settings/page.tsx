@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useFamily } from "@/hooks/useActiveAgent";
 import { useAppStore } from "@/store/appStore";
+import { useParsedJourneyPartners } from "@/hooks/useWorkspace";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -277,7 +278,7 @@ export default function SettingsPage() {
     : 0;
   const [selectedChildIndex, setSelectedChildIndex] = useState(safeChildIndex);
 
-  // ── Care Team: fetch from API ──
+  // ── Care Team: fetch pending/declined/revoked from Supabase API ──
   const {
     data: partners = [],
     isLoading: loadingPartners,
@@ -287,6 +288,9 @@ export default function SettingsPage() {
     staleTime: 30_000,
     retry: 1,
   });
+
+  // ── Active Team: read from workspace journey-partners.md ──
+  const { data: journeyPartners, isLoading: loadingWorkspaceTeam } = useParsedJourneyPartners();
 
   // ── Invite mutation ──
   const inviteMutation = useMutation({
@@ -321,7 +325,23 @@ export default function SettingsPage() {
     setParent((p) => ({ ...p, [key]: value }));
   };
 
-  const activePartners = partners.filter((p) => p.status === "active" || p.status === "accepted");
+  // Active team comes from workspace (journey-partners.md), with Supabase as fallback
+  const workspaceActiveTeam = journeyPartners?.activeTeam ?? [];
+  const supabaseActivePartners = partners.filter((p) => p.status === "active" || p.status === "accepted");
+  const activePartners = workspaceActiveTeam.length > 0
+    ? workspaceActiveTeam.map((wp) => ({
+        id: wp.name, // workspace partners don't have Supabase ID
+        name: wp.name,
+        role: wp.role,
+        organization: wp.organization,
+        email: wp.contact?.includes("@") ? wp.contact : "",
+        status: "active" as Partner["status"],
+        lastAccess: "—",
+        permissions: ["View profile"],
+        childName: undefined,
+        childAgentId: undefined,
+      }))
+    : supabaseActivePartners;
   const pendingPartners = partners.filter((p) => p.status === "pending");
   const declinedPartners = partners.filter((p) => p.status === "declined");
   const revokedPartners = partners.filter((p) => p.status === "revoked");
@@ -494,27 +514,27 @@ export default function SettingsPage() {
           </div>
 
           {/* Loading state */}
-          {loadingPartners && (
+          {(loadingPartners || loadingWorkspaceTeam) && (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="size-4 mr-2 animate-spin" />
               <span className="text-[13px]">Loading care team...</span>
             </div>
           )}
 
-          {/* Active */}
+          {/* Active Team (from workspace) */}
           {activePartners.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active Team</p>
               {activePartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
             </div>
           )}
 
-          {/* Pending */}
+          {/* Pending Invites (from Supabase) */}
           {pendingPartners.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invitation</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invites</p>
               {pendingPartners.map((p) => (
                 <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
               ))}
@@ -542,7 +562,7 @@ export default function SettingsPage() {
           )}
 
           {/* Empty state */}
-          {!loadingPartners && partners.length === 0 && (
+          {!loadingPartners && !loadingWorkspaceTeam && activePartners.length === 0 && pendingPartners.length === 0 && partners.length === 0 && (
             <div className="text-center py-8">
               <Users className="size-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-[13px] text-muted-foreground">No care team members yet. Invite providers above.</p>

@@ -117,6 +117,58 @@ export async function PATCH(
         stakeholder_role: existing.role,
       },
     });
+
+    // Consolidate accepted invite into workspace journey-partners.md
+    const { data: linkData } = await admin
+      .from("stakeholder_links")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (linkData) {
+      // Look up provider data from Supabase if it's a provider
+      let providerData = null;
+      const { data: provider } = await admin
+        .from("providers")
+        .select("*")
+        .eq("email", linkData.email || "")
+        .limit(1)
+        .single();
+
+      if (provider) {
+        providerData = provider;
+      }
+
+      // Resolve agentId from family
+      const { data: familyUser } = await admin.auth.admin.getUserById(linkData.family_id);
+      const { getFamilyAgent } = await import("@/lib/family-agents");
+      const family = getFamilyAgent(familyUser?.user?.email);
+      const agentId = linkData.child_agent_id || family.children[0].agentId;
+
+      // Consolidate into workspace
+      try {
+        const consolidateUrl = new URL("/api/consolidate", request.url);
+        await fetch(consolidateUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: providerData ? "provider_accepted" : "doctor_accepted",
+            agentId,
+            data: {
+              name: linkData.name,
+              role: linkData.role,
+              organization: linkData.organization || linkData.name,
+              services: providerData?.services?.join(", ") || "",
+              contact: providerData?.phone || "",
+              email: providerData?.email || linkData.email || "",
+            },
+          }),
+        });
+      } catch (err) {
+        console.error("Consolidation error:", err);
+        // Don't fail the invite accept if consolidation fails
+      }
+    }
   }
 
   return NextResponse.json({ success: true, invite: updated });

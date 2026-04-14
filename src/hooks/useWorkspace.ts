@@ -6,6 +6,7 @@ import {
   parseBenefits,
   parseDocuments,
   parseEmployment,
+  parseJourneyPartners,
   parsePathway,
   parseProfile,
   parsePrograms,
@@ -137,6 +138,11 @@ export function useParsedEmployment() {
 export function useParsedUniversity() {
   const { data: raw, ...rest } = useWorkspaceFile("university.md");
   return { ...rest, data: raw ? parseUniversity(raw) : undefined };
+}
+
+export function useParsedJourneyPartners() {
+  const { data: raw, ...rest } = useWorkspaceFile("journey-partners.md");
+  return { ...rest, data: raw ? parseJourneyPartners(raw) : undefined };
 }
 
 export function useParsedOntarioSystem() {

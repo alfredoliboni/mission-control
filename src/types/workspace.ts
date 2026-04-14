@@ -342,6 +342,25 @@ export interface ParsedUniversity {
   cautionNotes: string[];
 }
 
+// ── Parsed journey partner ──────────────────────────────────────────────
+
+export interface ParsedJourneyPartner {
+  name: string;
+  role: string;
+  organization: string;
+  services: string;
+  contact: string;
+  status: string;
+  source: string;
+  active: boolean;
+}
+
+export interface ParsedJourneyPartners {
+  activeTeam: ParsedJourneyPartner[];
+  formerTeam: ParsedJourneyPartner[];
+  lastUpdated: string;
+}
+
 // ── Chat types ───────────────────────────────────────────────────────────
 
 export interface ChatMessage {
