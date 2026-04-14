@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Menu, ChevronDown, Bell } from "lucide-react";
-import { useParsedAlerts, useParsedProfile } from "@/hooks/useWorkspace";
+import { useParsedProfile } from "@/hooks/useWorkspace";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAppStore } from "@/store/appStore";
 import { useFamily } from "@/hooks/useActiveAgent";
@@ -38,7 +38,6 @@ const NOTIFICATION_ICONS: Record<string, string> = {
 
 export function TopBar() {
   const { toggleSidebar, activeChildIndex, setActiveChildIndex } = useAppStore();
-  const { data: alerts } = useParsedAlerts();
   const { data: profile } = useParsedProfile();
   const family = useFamily();
   const queryClient = useQueryClient();
@@ -56,10 +55,6 @@ export function TopBar() {
   const hasMultipleChildren = family.children.length > 1;
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
-    : 0;
-
-  const activeAlertCount = alerts
-    ? alerts.filter((a) => a.status === "active").length
     : 0;
 
   const childName = profile?.basicInfo.name || family.children[safeIndex]?.childName || "Loading...";
@@ -234,8 +229,8 @@ export function TopBar() {
                   )}
                 </div>
 
-                {notifications.length > 0 && (
-                  <div className="px-4 py-2 border-t border-border">
+                <div className="px-4 py-2 border-t border-border flex items-center justify-between">
+                  {notifications.length > 0 && (
                     <Link
                       href="/messages"
                       onClick={() => setNotifOpen(false)}
@@ -243,23 +238,20 @@ export function TopBar() {
                     >
                       View all messages
                     </Link>
-                  </div>
-                )}
+                  )}
+                  <Link
+                    href="/alerts"
+                    onClick={() => setNotifOpen(false)}
+                    className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                  >
+                    View alerts
+                  </Link>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        <Link
-          href="/alerts"
-          className="relative w-8 h-8 rounded-lg flex items-center justify-center hover:bg-warm-50 transition-colors text-base"
-          aria-label={`${activeAlertCount} active alerts`}
-        >
-          🔔
-          {activeAlertCount > 0 && (
-            <span className="absolute top-[5px] right-[5px] w-[7px] h-[7px] rounded-full bg-status-blocked border-[1.5px] border-card" />
-          )}
-        </Link>
       </div>
     </header>
   );

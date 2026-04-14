@@ -13,7 +13,7 @@ export default async function TeamLayout({
   const isDemo = cookieStore.get("companion-demo")?.value === "true";
 
   if (isDemo) {
-    redirect("/dashboard");
+    redirect("/profile");
   }
 
   const supabase = await createClient();
@@ -35,7 +35,7 @@ export default async function TeamLayout({
     .eq("stakeholder_id", user.id);
 
   if (!links || links.length === 0) {
-    redirect("/dashboard");
+    redirect("/profile");
   }
 
   // Determine invite status — if ANY link is accepted, grant access

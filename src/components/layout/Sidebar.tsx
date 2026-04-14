@@ -59,7 +59,7 @@ export function Sidebar() {
     <>
       <div className="flex items-center justify-between px-5 pt-5 pb-4">
         <Link
-          href="/dashboard"
+          href="/profile"
           className="flex items-center gap-[10px]"
           onClick={() => setSidebarOpen(false)}
         >
@@ -82,7 +82,7 @@ export function Sidebar() {
         aria-label="Main navigation"
       >
         <div className="space-y-[2px]">
-          {navLink("/dashboard", "📊", "Dashboard")}
+          {navLink("/profile", "👤", "Profile")}
           {navLink("/calendar", "📅", "Calendar")}
           {navLink("/community", "👥", "Community")}
           {navLink("/messages", "💬", "Messages")}

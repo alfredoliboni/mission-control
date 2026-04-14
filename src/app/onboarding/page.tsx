@@ -550,7 +550,7 @@ export default function OnboardingPage() {
       }
 
       // Step 4: Redirect to dashboard
-      router.push("/dashboard");
+      router.push("/profile");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");
       setCompleting(false);

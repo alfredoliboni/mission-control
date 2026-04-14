@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.clone();
-  url.pathname = "/dashboard";
+  url.pathname = "/profile";
   const response = NextResponse.redirect(url);
   response.cookies.set("companion-demo", "true", {
     path: "/",

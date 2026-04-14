@@ -8,7 +8,16 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
+import { isKnownFamilyEmail } from "@/lib/family-agents";
 import Link from "next/link";
+
+type SignupRole = "family" | "provider" | "stakeholder";
+
+const SIGNUP_ROLES: { value: SignupRole; label: string; description: string; icon: string }[] = [
+  { value: "family", label: "I'm a parent / family member", description: "Set up your child's profile and services", icon: "👨‍👩‍👧" },
+  { value: "provider", label: "I'm a service provider", description: "Register your practice on our directory", icon: "🏥" },
+  { value: "stakeholder", label: "I'm a doctor / therapist on a care team", description: "You'll need an invite link from a family", icon: "🩺" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,11 +26,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [signupRole, setSignupRole] = useState<SignupRole>("family");
 
   const handleDemo = () => {
     document.cookie =
       "companion-demo=true; path=/; max-age=86400; samesite=lax";
-    router.push("/dashboard");
+    router.push("/profile");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +42,12 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (mode === "signup") {
+      // Provider role: redirect to provider registration instead of creating account here
+      if (signupRole === "provider") {
+        router.push("/portal/register");
+        return;
+      }
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -62,15 +78,20 @@ export default function LoginPage() {
 
     // Redirect based on user role and stakeholder status
     const metadata = data.user?.user_metadata || {};
+    const userEmail = data.user?.email;
+
     if (metadata.is_stakeholder || metadata.stakeholder_role) {
-      // Providers/stakeholders who are on a care team → team portal
+      // Providers/stakeholders who are on a care team -> team portal
       router.push("/team");
     } else if (metadata.role === "provider") {
       router.push("/portal/dashboard");
     } else if (metadata.role === "stakeholder") {
       router.push("/team");
+    } else if (!isKnownFamilyEmail(userEmail)) {
+      // New user not in the family map and no role set -> onboarding
+      router.push("/onboarding");
     } else {
-      router.push("/dashboard");
+      router.push("/profile");
     }
     router.refresh();
   };
@@ -97,39 +118,81 @@ export default function LoginPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Role selector — only shown in signup mode */}
+            {mode === "signup" && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-foreground mb-1.5">
+                  I am...
+                </legend>
+                {SIGNUP_ROLES.map((role) => (
+                  <label
+                    key={role.value}
+                    className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                      signupRole === role.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-warm-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="signupRole"
+                      value={role.value}
+                      checked={signupRole === role.value}
+                      onChange={() => setSignupRole(role.value)}
+                      className="mt-1 accent-primary"
+                    />
+                    <div>
+                      <span className="mr-1.5 text-sm">{role.icon}</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {role.label}
+                      </span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {role.description}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="text-sm font-medium text-foreground block mb-1.5"
-                >
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="password"
-                  className="text-sm font-medium text-foreground block mb-1.5"
-                >
-                  Password
-                </label>
-                <PasswordInput
-                  id="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
+              {/* Hide email/password fields for provider signup — they'll register on the portal */}
+              {!(mode === "signup" && signupRole === "provider") && (
+                <>
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="text-sm font-medium text-foreground block mb-1.5"
+                    >
+                      Email
+                    </label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="password"
+                      className="text-sm font-medium text-foreground block mb-1.5"
+                    >
+                      Password
+                    </label>
+                    <PasswordInput
+                      id="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </>
+              )}
 
               {error && (
                 <p className={`text-sm ${error.includes("Check your email") ? "text-status-success" : "text-status-blocked"}`}>
@@ -144,9 +207,11 @@ export default function LoginPage() {
               >
                 {loading
                   ? "..."
-                  : mode === "signin"
-                    ? "Sign In"
-                    : "Create Account"}
+                  : mode === "signup" && signupRole === "provider"
+                    ? "Go to Provider Registration"
+                    : mode === "signin"
+                      ? "Sign In"
+                      : "Create Account"}
               </Button>
 
               {mode === "signin" && (

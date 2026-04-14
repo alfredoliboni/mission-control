@@ -114,6 +114,15 @@ export function getAgentWorkspacePath(agentId: string): string {
   return `${home}/.openclaw/workspace-${suffix}/memory`;
 }
 
+/**
+ * Returns true if the email belongs to a known family in the agent map.
+ * Used to distinguish existing test families from brand-new signups.
+ */
+export function isKnownFamilyEmail(email: string | undefined): boolean {
+  if (!email) return false;
+  return email.toLowerCase() in FAMILY_AGENT_MAP;
+}
+
 export function getAllFamilies(): Array<FamilyAgent & { email: string }> {
   return Object.entries(FAMILY_AGENT_MAP).map(([email, agent]) => ({
     email,

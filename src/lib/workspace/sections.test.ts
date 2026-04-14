@@ -4,17 +4,10 @@ describe("discoverSections", () => {
   // ---------------------------------------------------------------------------
   // Known filenames map to correct config
   // ---------------------------------------------------------------------------
-  it("maps child-profile.md to overview group with correct config", () => {
+  // child-profile.md is now hardcoded in Sidebar — filtered out like documents.md
+  it("excludes child-profile.md (hardcoded in sidebar)", () => {
     const sections = discoverSections(["child-profile.md"]);
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toMatchObject({
-      filename: "child-profile.md",
-      icon: "\u{1F464}",
-      label: "Profile",
-      route: "/profile",
-      group: "overview",
-      order: 1,
-    });
+    expect(sections).toHaveLength(0);
   });
 
   it("maps pathway.md to navigate group", () => {
@@ -58,10 +51,11 @@ describe("discoverSections", () => {
       "pathway.md",
       "alerts.md",
     ]);
+    // documents.md and child-profile.md are hardcoded in sidebar, so filtered out
     const orders = sections.map((s) => s.order);
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
-    expect(sections[0].label).toBe("Profile");
-    expect(sections[1].label).toBe("Pathway");
+    expect(sections[0].label).toBe("Pathway");
+    expect(sections[1].label).toBe("Alerts");
   });
 
   // ---------------------------------------------------------------------------
@@ -107,8 +101,8 @@ describe("getSectionGroups", () => {
     ]);
     const groups = getSectionGroups(sections);
 
-    expect(groups.overview).toHaveLength(1);
-    expect(groups.overview[0].label).toBe("Profile");
+    // child-profile.md and messages.md are hardcoded in sidebar — excluded
+    expect(groups.overview).toHaveLength(0);
 
     expect(groups.navigate).toHaveLength(2);
     expect(groups.navigate.map((s) => s.label)).toContain("Pathway");
@@ -123,9 +117,9 @@ describe("getSectionGroups", () => {
   });
 
   it("returns empty arrays for groups with no sections", () => {
-    const sections = discoverSections(["child-profile.md"]);
+    const sections = discoverSections(["pathway.md"]);
     const groups = getSectionGroups(sections);
-    expect(groups.navigate).toEqual([]);
+    expect(groups.overview).toEqual([]);
     expect(groups.organize).toEqual([]);
     expect(groups.connect).toEqual([]);
     expect(groups.dynamic).toEqual([]);

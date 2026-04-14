@@ -1132,7 +1132,7 @@ export default function ProvidersPage() {
   const { data: providers, isLoading } = useParsedProviders();
   const { data: profile } = useParsedProfile();
   const agentId = useActiveAgent();
-  const [activeTab, setActiveTab] = useState<Tab>("my-providers");
+  const [activeTab, setActiveTab] = useState<Tab>("recommended");
   const [matchSearch, setMatchSearch] = useState("");
 
   const { enrichMap, enrichLoading } = useEnrichedProviders(providers);
@@ -1185,8 +1185,8 @@ export default function ProvidersPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "my-providers", label: "My Providers", icon: "🏥" },
     { key: "recommended", label: "Recommended", icon: "🎯" },
+    { key: "my-providers", label: "My Providers", icon: "🏥" },
     { key: "search", label: "Search All", icon: "🔍" },
   ];
 

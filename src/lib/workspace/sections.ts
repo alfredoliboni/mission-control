@@ -110,7 +110,7 @@ function titleCase(str: string): string {
 }
 
 // Files that are hardcoded in the Sidebar — exclude from dynamic discovery
-const SIDEBAR_HARDCODED = new Set(["documents.md", "messages.md"]);
+const SIDEBAR_HARDCODED = new Set(["documents.md", "messages.md", "child-profile.md"]);
 
 export function discoverSections(filenames: string[]): WorkspaceSection[] {
   return filenames
