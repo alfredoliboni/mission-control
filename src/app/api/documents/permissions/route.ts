@@ -28,11 +28,12 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Get care team members for this family
+    // Get care team members for this family (only accepted invites)
     const { data: stakeholders, error: stakeholderError } = await admin
       .from("stakeholder_links")
       .select("stakeholder_id, name, role")
-      .eq("family_id", user.id);
+      .eq("family_id", user.id)
+      .or("status.eq.accepted,status.is.null");
 
     if (stakeholderError) {
       console.error("Stakeholder links query error:", stakeholderError);

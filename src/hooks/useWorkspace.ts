@@ -16,20 +16,11 @@ import { parseOntarioSystem } from "@/lib/workspace/parsers/ontario-system";
 import { discoverSections } from "@/lib/workspace/sections";
 import { useActiveAgent } from "@/hooks/useActiveAgent";
 
-// --- Mode detection ---
-
-function isDemo(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.includes("companion-demo=true");
-}
-
-// --- Unified fetch: demo uses /api/workspace, live uses /api/workspace-live ---
-// Both return raw .md content; parsing is always client-side.
+// --- Fetch helpers: always use /api/workspace-live ---
 
 function getBaseUrl(agentId?: string): string {
-  const base = isDemo() ? "/api/workspace" : "/api/workspace-live";
-  // In live mode, append ?agent= param to route to the correct child's workspace
-  if (!isDemo() && agentId) {
+  const base = "/api/workspace-live";
+  if (agentId) {
     return `${base}?agent=${encodeURIComponent(agentId)}`;
   }
   return base;
@@ -61,10 +52,8 @@ async function fetchFileList(agentId?: string): Promise<string[]> {
 }
 
 async function fetchFile(filename: string, agentId?: string): Promise<string> {
-  const demo = isDemo();
-  const baseRoot = demo ? "/api/workspace" : "/api/workspace-live";
-  const agentParam = !demo && agentId ? `?agent=${encodeURIComponent(agentId)}` : "";
-  const res = await fetch(`${baseRoot}/${filename}${agentParam}`);
+  const agentParam = agentId ? `?agent=${encodeURIComponent(agentId)}` : "";
+  const res = await fetch(`/api/workspace-live/${filename}${agentParam}`);
   if (!res.ok)
     throw new WorkspaceError(`Failed to fetch ${filename}`, res.status);
   return res.text();
@@ -73,26 +62,24 @@ async function fetchFile(filename: string, agentId?: string): Promise<string> {
 // --- Hooks ---
 
 export function useWorkspaceFiles() {
-  const demo = isDemo();
   const agentId = useActiveAgent();
   return useQuery({
-    queryKey: ["workspace", "files", demo ? "demo" : "live", agentId],
+    queryKey: ["workspace", "files", "live", agentId],
     queryFn: () => fetchFileList(agentId),
-    staleTime: demo ? Infinity : 30_000,
-    refetchInterval: demo ? false : 30_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     retry: 2,
   });
 }
 
 export function useWorkspaceFile(filename: string) {
-  const demo = isDemo();
   const agentId = useActiveAgent();
   return useQuery({
-    queryKey: ["workspace", "file", filename, demo ? "demo" : "live", agentId],
+    queryKey: ["workspace", "file", filename, "live", agentId],
     queryFn: () => fetchFile(filename, agentId),
     enabled: !!filename,
-    staleTime: demo ? Infinity : 30_000,
-    refetchInterval: demo ? false : 30_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     retry: 2,
   });
 }

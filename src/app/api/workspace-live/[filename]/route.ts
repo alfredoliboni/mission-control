@@ -71,14 +71,5 @@ export async function GET(
     }
   }
 
-  // Fallback: try demo data
-  try {
-    const demoPath = path.join(process.cwd(), "public", "demo-data", filename);
-    const content = fs.readFileSync(demoPath, "utf-8");
-    return new NextResponse(content, {
-      headers: { "Content-Type": "text/markdown; charset=utf-8" },
-    });
-  } catch {
-    return new NextResponse("File not found", { status: 404 });
-  }
+  return new NextResponse("File not found", { status: 404 });
 }

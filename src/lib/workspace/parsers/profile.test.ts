@@ -265,6 +265,28 @@ describe("parseProfile — extra basicInfo fields gap", () => {
     expect(result.basicInfo.location).toBe("");
     expect(result.basicInfo.familyLanguage).toBe("");
   });
+
+  it("maps City/Region to basicInfo.location", () => {
+    const md = [
+      "# Child Profile",
+      "## Basic Info",
+      "- **Name:** Test Child",
+      "- **City/Region:** London, Ontario",
+    ].join("\n");
+    const result = parseProfile(md);
+    expect(result.basicInfo.location).toBe("London, Ontario");
+  });
+
+  it("maps Languages at home to basicInfo.familyLanguage", () => {
+    const md = [
+      "# Child Profile",
+      "## Basic Info",
+      "- **Name:** Test Child",
+      "- **Languages at home:** Portuguese and English",
+    ].join("\n");
+    const result = parseProfile(md);
+    expect(result.basicInfo.familyLanguage).toBe("Portuguese and English");
+  });
 });
 
 // Gap 5: Placeholder rows in medications table are filtered out

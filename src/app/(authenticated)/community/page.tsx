@@ -630,7 +630,7 @@ function SinglePostView({
 
   const commentMutation = useMutation({
     mutationFn: (content: string) =>
-      addComment(postId, { content, isAnonymous: true }),
+      addComment(postId, { content, isAnonymous: false }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["community-post", postId] });
       queryClient.invalidateQueries({ queryKey: ["community-posts"] });

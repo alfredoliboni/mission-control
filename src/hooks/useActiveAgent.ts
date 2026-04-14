@@ -26,9 +26,6 @@ export function useActiveAgent(): string | undefined {
   // For now, we derive the agentId from what we can read client-side.
   if (typeof window === "undefined") return undefined;
 
-  // Check if demo mode — no agent routing needed
-  if (document.cookie.includes("companion-demo=true")) return undefined;
-
   // Try to get user email from Supabase session in localStorage
   const email = getSupabaseUserEmail();
   if (!email) return undefined;

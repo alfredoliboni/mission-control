@@ -5,7 +5,7 @@ test.describe("Landing Page", () => {
     await page.goto("/");
     await expect(page.locator("h1")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("h1")).toContainText("alone");
-    await expect(page.getByRole("link", { name: /See It In Action/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Get Started/i })).toBeVisible();
   });
 
   test("has stats bar", async ({ page }) => {
@@ -30,10 +30,10 @@ test.describe("Landing Page", () => {
     await expect(page.locator("body")).toContainText("For Providers", { timeout: 10_000 });
   });
 
-  test("demo link navigates to demo page", async ({ page }) => {
+  test("get started link navigates to onboarding", async ({ page }) => {
     await page.goto("/");
-    const demoLink = page.getByRole("link", { name: /See It In Action/i });
-    await demoLink.click();
-    await page.waitForURL(/\/demo/, { timeout: 10_000 });
+    const ctaLink = page.getByRole("link", { name: /Get Started/i }).first();
+    await ctaLink.click();
+    await page.waitForURL(/\/onboarding/, { timeout: 10_000 });
   });
 });

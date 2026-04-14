@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFamilyAgentFlat } from "@/lib/family-agents";
@@ -7,52 +6,6 @@ import { getFamilyAgentFlat } from "@/lib/family-agents";
 const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
 const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
-
-// ── Demo responses for document analysis ─────────────────────────────
-const DEMO_RESPONSES: Record<string, string> = {
-  summary: `## Document Summary
-
-**Key Findings:**
-- This document contains important information about your child's development and service needs
-- Several recommendations are outlined for therapeutic interventions
-- Follow-up assessments are suggested within 6 months
-
-**Recommendations:**
-1. Continue current therapy sessions (OT and Speech)
-2. Request an updated IEP at the next school meeting
-3. Apply for additional funding through the OAP
-
-**Action Items:**
-- [ ] Schedule follow-up assessment
-- [ ] Share this document with your care team
-- [ ] Discuss recommendations with your child's therapist
-
-*Note: This is a demo summary. In production, the Navigator agent reads the actual document content and provides specific analysis.*`,
-
-  insights: `## Navigator Insights
-
-**What This Means for Your Family:**
-This document provides clinical evidence that supports your child's service applications. Here's how to use it strategically:
-
-**For Ontario Autism Program (OAP):**
-- This document strengthens your OAP application
-- Key diagnostic codes can be referenced in your next funding request
-
-**For School Accommodations:**
-- Share relevant sections with the school's IPRC committee
-- Request that IEP goals align with the recommendations in this document
-
-**For Care Team Coordination:**
-- I recommend sharing this with Dr. Park and your OT
-- The findings may influence therapy goal adjustments
-
-**Next Steps I Can Help With:**
-- Finding providers who specialize in the areas mentioned
-- Tracking deadlines for follow-up assessments
-- Preparing a summary packet for your next IEP meeting
-
-*Note: This is a demo analysis. In production, the Navigator reads the actual document and provides specific, actionable insights.*`,
-};
 
 // ── Extract text from document via Orgo VM ───────────────────────────
 async function extractTextViaVM(signedUrl: string, contentType: string): Promise<string> {
@@ -212,10 +165,6 @@ async function sendToNavigator(prompt: string, agentId: string): Promise<string>
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check demo mode
-    const cookieStore = await cookies();
-    const isDemo = cookieStore.get("companion-demo")?.value === "true";
-
     const body = await request.json();
     const { documentId, action } = body as {
       documentId: string;
@@ -234,15 +183,6 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid action. Must be "summary" or "insights"' },
         { status: 400 },
       );
-    }
-
-    // Demo mode: return canned response
-    if (isDemo) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      return NextResponse.json({
-        analysis: DEMO_RESPONSES[action],
-        source: "demo",
-      });
     }
 
     // 1. Authenticate user
@@ -291,9 +231,8 @@ export async function POST(request: NextRequest) {
 
     // Check if Orgo VM is configured
     if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
-      // Fallback: return demo response when VM isn't configured
       return NextResponse.json({
-        analysis: DEMO_RESPONSES[action],
+        analysis: "Navigator agent is not connected. Document analysis is unavailable. Please try again later.",
         source: "fallback",
       });
     }

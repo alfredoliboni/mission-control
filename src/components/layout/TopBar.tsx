@@ -11,11 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function isDemo(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.includes("companion-demo=true");
-}
-
 function formatNotificationTime(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -47,10 +42,8 @@ export function TopBar() {
   // Notification bell state
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
-  const [demo, setDemo] = useState(true); // Start as true to match server (no bell)
-  useEffect(() => { setDemo(isDemo()); }, []);
   const { data: notifications = [] } = useNotifications();
-  const unreadCount = demo ? 0 : notifications.length;
+  const unreadCount = notifications.length;
 
   const hasMultipleChildren = family.children.length > 1;
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
@@ -168,8 +161,7 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Notification bell — hidden in demo mode */}
-        {!demo && (
+        {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotifOpen((prev) => !prev)}
@@ -250,7 +242,6 @@ export function TopBar() {
               </div>
             )}
           </div>
-        )}
 
       </div>
     </header>

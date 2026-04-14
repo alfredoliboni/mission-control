@@ -38,7 +38,6 @@ SUPABASE (minimal — NOT for agent content)
 | Chat with Navigator agent | OpenClaw Gateway API (port 18789) | Direct agent conversation |
 
 ### Data modes
-- **Demo:** Static `.md` files in `public/demo-data/` — no agent, no auth needed
 - **Dev:** Local filesystem via `WORKSPACE_MEMORY_PATH` env var
 - **Production:** OpenClaw Gateway API on Orgo.ai VM, authenticated with bearer token
 
@@ -82,14 +81,14 @@ The sidebar discovers these dynamically via `discoverSections()`.
 ## Key Directories
 
 - `src/lib/workspace/parsers/` — Markdown parsers (the heart of the app)
-- `src/hooks/useWorkspace.ts` — Data fetching hooks (dual-mode demo/live)
+- `src/hooks/useWorkspace.ts` — Data fetching hooks (workspace-live API)
 - `src/components/sections/` — Feature-specific UI components
-- `src/components/layout/` — AppShell, Sidebar, TopBar, DemoBanner
+- `src/components/layout/` — AppShell, Sidebar, TopBar
 - `src/components/chat/` — ChatBubble, ChatPanel, ChatMessage
 - `src/app/(authenticated)/` — Protected route pages
-- `src/app/api/` — API routes (workspace, chat, companion proxy, demo)
+- `src/app/api/` — API routes (workspace-live, chat, companion proxy)
 - `src/lib/supabase/` — Supabase clients (browser, server, middleware)
-- `public/demo-data/` — Demo markdown files (also used as test fixtures)
+- `src/lib/workspace/parsers/__fixtures__/demo-data/` — Test fixture markdown files
 
 ## Commands
 
@@ -134,7 +133,6 @@ Format drift breaks parsers — always test after changing parser logic.
 - Supabase Auth (sign in/up, password reset, session validation, password visibility toggle)
 - 5 family accounts + 6 agents on Orgo.ai VM (incl. Sofia Santos)
 - Chat bubble → OpenClaw Gateway (Claude Sonnet 4.6, base64 encoding, 60s timeout)
-- Demo mode (cookie-based, static .md files)
 - Error boundaries + loading states + mobile polish (44px touch targets, dvh)
 - Deploy on Vercel — production live, all env vars configured
 - RLS policies applied for production security (10 security bugs fixed)
@@ -215,7 +213,7 @@ Format drift breaks parsers — always test after changing parser logic.
 
 - Never use a database for agent-produced content — workspace `.md` is source of truth
 - All parsers must have corresponding test files
-- Demo data in `public/demo-data/` must stay in sync with parser expectations
+- Test fixture data in `src/lib/workspace/parsers/__fixtures__/demo-data/` must stay in sync with parser expectations
 - CSS variables in `globals.css` drive the entire color system
 - Run `npm test` before committing parser changes
 - The agent is the product, the dashboard is the window

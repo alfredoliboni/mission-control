@@ -41,7 +41,7 @@ export async function POST(
   }
 
   const authorName =
-    isAnonymous !== false
+    isAnonymous === true
       ? "Anonymous Parent"
       : user.user_metadata?.full_name || user.email || "Community Member";
 
@@ -51,7 +51,7 @@ export async function POST(
       post_id: postId,
       author_id: user.id,
       author_name: authorName,
-      is_anonymous: isAnonymous !== false,
+      is_anonymous: isAnonymous === true,
       content: content.trim(),
       upvotes: 0,
     })

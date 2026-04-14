@@ -2,11 +2,10 @@ import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/demo", "/onboarding", "/portal", "/reset-password", "/update-password", "/invite"];
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/onboarding", "/portal", "/reset-password", "/update-password", "/invite"];
 
 // API routes that don't require authentication
 const PUBLIC_API_PREFIXES = [
-  "/api/demo",
   "/api/providers/search",
   "/api/providers/recommended",
   "/api/providers/track-view",
@@ -25,7 +24,6 @@ export async function proxy(request: NextRequest) {
   // Allow static assets
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/demo-data") ||
     pathname.includes(".")
   ) {
     return NextResponse.next();
@@ -40,12 +38,6 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Demo mode: allow API access with demo cookie
-    const isDemoApi = request.cookies.get("companion-demo")?.value === "true";
-    if (isDemoApi) {
-      return NextResponse.next();
-    }
-
     // Protected API: verify auth session
     const { user, supabaseResponse } = await updateSession(request);
     if (user) {
@@ -56,12 +48,6 @@ export async function proxy(request: NextRequest) {
 
   // Allow public page paths
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return NextResponse.next();
-  }
-
-  // Check for demo mode cookie
-  const isDemo = request.cookies.get("companion-demo")?.value === "true";
-  if (isDemo) {
     return NextResponse.next();
   }
 

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,9 +12,6 @@ interface SendMessageBody {
 }
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const isDemo = cookieStore.get("companion-demo")?.value === "true";
-
   const body = (await request.json()) as SendMessageBody;
 
   if (!body.content?.trim()) {
@@ -25,21 +21,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Demo mode: return a fake success response
-  if (isDemo) {
-    const fakeId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    return NextResponse.json({
-      success: true,
-      message: {
-        id: fakeId,
-        content: body.content,
-        created_at: now,
-      },
-    });
-  }
-
-  // Authenticated mode
   const supabase = await createClient();
   const admin = createAdminClient();
   const {

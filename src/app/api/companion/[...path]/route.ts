@@ -56,12 +56,6 @@ export async function GET(
   const { path: pathSegments } = await params;
   const apiPath = pathSegments.join("/");
 
-  // Check if we're in demo mode
-  const isDemo = request.cookies.get("companion-demo")?.value === "true";
-  if (isDemo) {
-    return NextResponse.json({ error: "Demo mode — use demo data" }, { status: 400 });
-  }
-
   // Check if Orgo credentials are configured
   if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
     if (COMPANION_API_DIRECT) {

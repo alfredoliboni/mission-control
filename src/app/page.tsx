@@ -109,12 +109,6 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href="/demo"
-              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors hidden sm:inline"
-            >
-              Try Demo
-            </Link>
-            <Link
               href="/login"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -146,10 +140,10 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
               <Link
-                href="/demo"
+                href="/onboarding"
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 w-full sm:w-auto"
               >
-                See It In Action
+                Get Started
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -393,23 +387,23 @@ export default function LandingPage() {
               <span className="text-primary">Mission Control?</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Try the full demo with real data — no sign-up required.
-              See exactly what your navigator can do for your family.
+              Join families across Ontario who already have a personal AI navigator
+              working around the clock for their child.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/demo"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-10 py-4 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 w-full sm:w-auto"
-              >
-                Try the Demo
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-              <Link
                 href="/onboarding"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-border px-10 py-4 text-lg font-semibold text-foreground hover:bg-warm-100 transition-colors w-full sm:w-auto"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-10 py-4 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 w-full sm:w-auto"
               >
                 <Users className="h-5 w-5" />
                 Get Started Free
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-border px-10 py-4 text-lg font-semibold text-foreground hover:bg-warm-100 transition-colors w-full sm:w-auto"
+              >
+                Sign In
               </Link>
             </div>
           </div>
@@ -435,7 +429,6 @@ export default function LandingPage() {
                 For Families
               </p>
               <div className="space-y-2 text-sm">
-                <Link href="/demo" className="block text-muted-foreground hover:text-foreground transition-colors">Try Demo</Link>
                 <Link href="/onboarding" className="block text-muted-foreground hover:text-foreground transition-colors">Get Started</Link>
                 <Link href="/login" className="block text-muted-foreground hover:text-foreground transition-colors">Sign In</Link>
               </div>

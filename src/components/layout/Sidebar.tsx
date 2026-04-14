@@ -20,7 +20,7 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sidebarOpen, setSidebarOpen, isDemo } = useAppStore();
+  const { sidebarOpen, setSidebarOpen } = useAppStore();
   const { data: sections, isLoading } = useWorkspaceSections();
 
   const groups = sections ? getSectionGroups(sections) : null;
@@ -118,20 +118,15 @@ export function Sidebar() {
         {navLink("/settings", "⚙️", "Settings")}
         <button
           onClick={async () => {
-            if (isDemo) {
-              document.cookie =
-                "companion-demo=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-            } else {
-              const supabase = createClient();
-              await supabase.auth.signOut();
-            }
+            const supabase = createClient();
+            await supabase.auth.signOut();
             setSidebarOpen(false);
             window.location.href = "/login";
           }}
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 min-h-[44px] text-[13px] font-medium text-muted-foreground hover:bg-warm-50 transition-all w-full text-left"
         >
           <LogOut className="h-4 w-4" />
-          {isDemo ? "Exit Demo" : "Sign Out"}
+          Sign Out
         </button>
       </div>
     </>

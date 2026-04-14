@@ -28,12 +28,6 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [signupRole, setSignupRole] = useState<SignupRole>("family");
 
-  const handleDemo = () => {
-    document.cookie =
-      "companion-demo=true; path=/; max-age=86400; samesite=lax";
-    router.push("/profile");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -258,18 +252,6 @@ export default function LoginPage() {
                 or
               </span>
             </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleDemo}
-            >
-              Try Demo
-              <span className="ml-2 text-muted-foreground text-xs">
-                — sample data, no login required
-              </span>
-            </Button>
 
             <Button
               type="button"

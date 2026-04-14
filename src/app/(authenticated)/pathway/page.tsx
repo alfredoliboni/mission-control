@@ -133,6 +133,11 @@ function ChecklistItem({ item }: { item: PathwayItem }) {
 export default function PathwayPage() {
   const { data: pathway, isLoading } = useParsedPathway();
 
+  // Filter: show completed stages, current stage, and upcoming only if they have progress
+  const visibleStages = pathway?.stages.filter(
+    (s) => s.status !== "upcoming" || s.items.some((i) => i.completed)
+  ) ?? [];
+
   const totalStages = pathway?.stages.length ?? 0;
   const completedStages = pathway?.stages.filter((s) => s.status === "completed").length ?? 0;
 
@@ -147,11 +152,11 @@ export default function PathwayPage() {
 
           {/* Single card with all stages */}
           <div className="bg-card border border-border rounded-xl p-5 transition-all">
-            {pathway.stages.map((stage, i) => (
+            {visibleStages.map((stage, i) => (
               <StageRow
                 key={stage.number}
                 stage={stage}
-                isLast={i === pathway.stages.length - 1}
+                isLast={i === visibleStages.length - 1}
               />
             ))}
           </div>

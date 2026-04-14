@@ -2,7 +2,6 @@
 
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
-import { DemoBanner } from "./DemoBanner";
 import { ChatBubble } from "@/components/chat/ChatBubble";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -11,7 +10,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <DemoBanner />
         <TopBar />
         <main
           className="flex-1 overflow-y-auto"

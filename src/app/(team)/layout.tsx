@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,13 +8,6 @@ export default async function TeamLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const isDemo = cookieStore.get("companion-demo")?.value === "true";
-
-  if (isDemo) {
-    redirect("/profile");
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
