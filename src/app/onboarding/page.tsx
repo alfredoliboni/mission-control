@@ -543,31 +543,39 @@ export default function OnboardingPage() {
         toast.success("Account created successfully");
       }
 
-      // Step 2: Generate profile and save to localStorage
+      // Step 2: Generate profile and save to localStorage for post-login completion
       const profile = generateProfileMarkdown(formData);
+      const onboardingData = {
+        profileMarkdown: profile,
+        childName: formData.fullName || formData.nickname,
+        familyName: authEmail.split("@")[0].split("+").pop() || "family",
+        completedAt: new Date().toISOString(),
+      };
       localStorage.setItem("onboarding-profile", profile);
+      localStorage.setItem("onboarding-pending", JSON.stringify(onboardingData));
 
-      // Step 3: Create agent workspace via onboarding API
-      try {
-        const res = await fetch("/api/onboarding", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            profileMarkdown: profile,
-            childName: formData.fullName || formData.nickname,
-            familyName: authEmail.split("@")[0].split("+").pop(),
-          }),
-        });
-        const data = await res.json();
-        if (data.welcome) {
-          toast.success(data.welcome.slice(0, 100));
+      // Step 3: If logged in, complete setup now. Otherwise it will complete on first login.
+      if (isLoggedIn) {
+        try {
+          const res = await fetch("/api/onboarding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(onboardingData),
+          });
+          const data = await res.json();
+          if (data.success) {
+            localStorage.removeItem("onboarding-pending");
+            if (data.welcome) toast.success(data.welcome.slice(0, 100));
+          }
+        } catch {
+          // Will complete on next login
         }
-      } catch {
-        // Continue even if agent setup fails
+        router.push("/profile");
+      } else {
+        // Not logged in yet — tell user to check email
+        toast.success("Account created! Please check your email to confirm, then sign in.");
+        router.push("/login");
       }
-
-      // Step 4: Redirect to profile
-      router.push("/profile");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");
       setCompleting(false);

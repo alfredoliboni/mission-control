@@ -81,9 +81,31 @@ export default function LoginPage() {
       router.push("/portal/dashboard");
     } else if (metadata.role === "stakeholder") {
       router.push("/team");
-    } else if (!isKnownFamilyEmail(userEmail)) {
-      // New user not in the family map and no role set -> onboarding
-      router.push("/onboarding");
+    } else if (!isKnownFamilyEmail(userEmail) && !metadata.agent_id) {
+      // Check if onboarding was completed but not synced (pending in localStorage)
+      const pendingOnboarding = localStorage.getItem("onboarding-pending");
+      if (pendingOnboarding) {
+        try {
+          const onboardingData = JSON.parse(pendingOnboarding);
+          const res = await fetch("/api/onboarding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(onboardingData),
+          });
+          if (res.ok) {
+            localStorage.removeItem("onboarding-pending");
+            router.push("/profile");
+            router.refresh();
+            return;
+          }
+        } catch {
+          // If sync fails, still go to profile
+        }
+        router.push("/profile");
+      } else {
+        // Truly new user, no onboarding done
+        router.push("/onboarding");
+      }
     } else {
       router.push("/profile");
     }
