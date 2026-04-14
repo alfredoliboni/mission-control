@@ -109,6 +109,12 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
+              href="/onboarding"
+              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors hidden sm:inline"
+            >
+              Get Started
+            </Link>
+            <Link
               href="/login"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -387,23 +393,23 @@ export default function LandingPage() {
               <span className="text-primary">Mission Control?</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Join families across Ontario who already have a personal AI navigator
-              working around the clock for their child.
+              Join families across Ontario who already have a personal AI navigator working for their child.
+              See exactly what your navigator can do for your family.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/onboarding"
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-10 py-4 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 w-full sm:w-auto"
               >
-                <Users className="h-5 w-5" />
                 Get Started Free
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
-                href="/login"
+                href="/onboarding"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-border px-10 py-4 text-lg font-semibold text-foreground hover:bg-warm-100 transition-colors w-full sm:w-auto"
               >
-                Sign In
+                <Users className="h-5 w-5" />
+                Get Started Free
               </Link>
             </div>
           </div>
@@ -429,6 +435,7 @@ export default function LandingPage() {
                 For Families
               </p>
               <div className="space-y-2 text-sm">
+                <Link href="/onboarding" className="block text-muted-foreground hover:text-foreground transition-colors">Get Started</Link>
                 <Link href="/onboarding" className="block text-muted-foreground hover:text-foreground transition-colors">Get Started</Link>
                 <Link href="/login" className="block text-muted-foreground hover:text-foreground transition-colors">Sign In</Link>
               </div>
