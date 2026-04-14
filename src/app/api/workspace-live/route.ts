@@ -21,22 +21,21 @@ export async function GET(request: NextRequest) {
   }
 
   const agentParam = request.nextUrl.searchParams.get("agent");
-  const { isKnownFamilyEmail } = await import("@/lib/family-agents");
 
-  // Resolve agent: known family → hardcoded map, new user → metadata
-  let family;
-  if (isKnownFamilyEmail(user.email ?? undefined)) {
-    family = getFamilyAgent(user.email ?? undefined);
-  } else {
-    const dynamic = getFamilyAgentFromMetadata(user.user_metadata || {});
-    family = dynamic || getFamilyAgent(user.email ?? undefined);
-  }
-
+  // Resolve agentId: prefer query param, then metadata, then hardcoded map
   let agentId: string;
-  if (agentParam && family.children.some((c) => c.agentId === agentParam)) {
+  if (agentParam) {
+    // Frontend knows the correct agent — trust it
     agentId = agentParam;
   } else {
-    agentId = family.children[0].agentId;
+    // Resolve from metadata or hardcoded map
+    const metadata = user.user_metadata || {};
+    if (metadata.agent_id) {
+      agentId = metadata.agent_id;
+    } else {
+      const family = getFamilyAgent(user.email ?? undefined);
+      agentId = family.children[0].agentId;
+    }
   }
 
   // Mode 1: Local filesystem (dev)
