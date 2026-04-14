@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
@@ -63,12 +64,12 @@ export default function ResetPasswordPage() {
                 <p className="text-sm text-status-success text-center">
                   Check your email for a reset link
                 </p>
-                <a
+                <Link
                   href="/login"
                   className="block text-center text-sm text-primary hover:underline font-medium"
                 >
                   Back to Sign In
-                </a>
+                </Link>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -102,12 +103,12 @@ export default function ResetPasswordPage() {
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">
-                  <a
+                  <Link
                     href="/login"
                     className="text-primary hover:underline font-medium"
                   >
                     Back to Sign In
-                  </a>
+                  </Link>
                 </p>
               </form>
             )}

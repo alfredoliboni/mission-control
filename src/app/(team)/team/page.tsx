@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import {
   User,
   FileText,
@@ -771,6 +772,9 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
   const [selectedContactId, setSelectedContactId] = useState<string>("family");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Subscribe to realtime message inserts for instant updates
+  useRealtimeMessages(activeFamilyId, ["team-messages", activeFamilyId ?? ""]);
+
   const {
     data: threads = [],
     isLoading,
@@ -778,7 +782,7 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
     queryKey: ["team-messages", activeFamilyId],
     queryFn: () => fetchTeamMessages(activeFamilyId),
     staleTime: 15_000,
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
   });
 
   // Fetch contacts (family + other linked stakeholders)

@@ -9,6 +9,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/demo",
   "/api/providers/search",
   "/api/providers/recommended",
+  "/api/providers/track-view",
   "/api/programs/search",
   "/api/portal/register",
   "/api/portal/employer",

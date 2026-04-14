@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useParsedProviders, useParsedProfile } from "@/hooks/useWorkspace";
@@ -764,6 +764,29 @@ function SearchTabContent({ childCity }: { childCity?: string }) {
   });
 
   const results = data?.providers ?? [];
+
+  // Track provider views when search results load
+  const trackedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (results.length === 0) return;
+    const newIds = results
+      .map((p) => p.id)
+      .filter((id) => !trackedIdsRef.current.has(id));
+    if (newIds.length === 0) return;
+    for (const id of newIds) {
+      trackedIdsRef.current.add(id);
+    }
+    // Fire-and-forget tracking calls
+    for (const providerId of newIds) {
+      fetch("/api/providers/track-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId }),
+      }).catch(() => {
+        /* tracking is best-effort */
+      });
+    }
+  }, [results]);
 
   return (
     <div className="space-y-4">

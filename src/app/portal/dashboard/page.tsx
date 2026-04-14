@@ -46,6 +46,7 @@ interface ProviderProfile {
   accepts_funding: string[];
   is_verified: boolean;
   created_at: string;
+  review_count: number | null;
 }
 
 interface Program {
@@ -825,8 +826,8 @@ export default function ProviderDashboardPage() {
         <StatCard
           icon={<Eye className="h-4 w-4" />}
           label="Profile Views"
-          value="--"
-          sublabel="Coming soon"
+          value={String(provider.review_count ?? 0)}
+          sublabel="From family searches"
         />
         <StatCard
           icon={<Users className="h-4 w-4" />}

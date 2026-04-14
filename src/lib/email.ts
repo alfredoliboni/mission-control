@@ -7,7 +7,6 @@ const FROM_ADDRESS = "The Companion <noreply@luisaliboni.com>";
  */
 async function sendEmail(params: { to: string; subject: string; html: string }) {
   if (!RESEND_API_KEY) {
-    console.log("[email] RESEND_API_KEY not configured — skipping email");
     return;
   }
 
@@ -29,8 +28,6 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
     if (!res.ok) {
       const error = await res.text();
       console.error("[email] Resend API error:", res.status, error);
-    } else {
-      console.log("[email] Email sent to", params.to);
     }
   } catch (err) {
     console.error("[email] Failed to send email:", err);

@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Look up family_id for this user
-    const { data: familyMember, error: familyError } = await supabase
+    const { data: familyMember } = await supabase
       .from("family_members")
       .select("family_id, role")
       .eq("user_id", user.id)
@@ -73,10 +73,7 @@ export async function POST(request: NextRequest) {
     const familyId = familyMember?.family_id ?? user.id;
     const uploaderRole = familyMember?.role ?? "parent";
 
-    if (familyError && familyError.code !== "PGRST116") {
-      // PGRST116 = no rows found — that's OK, we fall back
-      console.warn("family_members lookup warning:", familyError.message);
-    }
+    // PGRST116 = no rows found — that's OK, we fall back to user.id
 
     // 4. Upload file to Supabase Storage
     const admin = createAdminClient();

@@ -4,8 +4,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Plus, MessageSquare, Loader2, ArrowLeft } from "lucide-react";
 import { useWorkspaceFile } from "@/hooks/useWorkspace";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import type { ThreadSummary, MessageRow } from "@/app/api/messages/route";
 
 // ── Data fetching ────────────────────────────────────────────────────────
@@ -579,15 +581,29 @@ function ConversationView({
 export default function MessagesPage() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [showNewThread, setShowNewThread] = useState(false);
+  const [familyId, setFamilyId] = useState<string | undefined>(undefined);
 
-  // Fetch threads from API
+  // Resolve the current user's ID (used as family_id for realtime)
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!cancelled && user) setFamilyId(user.id);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Subscribe to realtime message inserts — instant updates
+  useRealtimeMessages(familyId);
+
+  // Fetch threads from API (long fallback interval since realtime handles updates)
   const {
     data: threadsData,
     isLoading: threadsLoading,
   } = useQuery({
     queryKey: ["messages"],
     queryFn: fetchThreads,
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
   });
 
   // Fetch workspace messages.md for Navigator thread

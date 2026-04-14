@@ -63,10 +63,11 @@ SUPABASE (minimal — NOT for agent content)
 ## Agent Details (Orgo.ai)
 
 - 5 test families deployed: Santos, Chen, Okafor, Tremblay, Rivera
+- 6 navigators total (incl. Sofia Santos)
 - Each has own workspace with: SOUL.md, AGENTS.md, USER.md, memory/*.md
 - Model: Claude Sonnet 4.6 (fallback Haiku)
-- Heartbeat: every 2-4 hours
-- Gateway port: 18789, token auth
+- Heartbeat: configured via OpenClaw cron (6 navigators, every 3h)
+- Gateway port: 18789, token auth, Tailscale for secure access
 - Agent is headless (no Discord) — writes to workspace, dashboard reads
 
 ## Stage-Specific Sections
@@ -93,7 +94,7 @@ The sidebar discovers these dynamically via `discoverSections()`.
 ## Commands
 
 - `npm run dev` — Start dev server
-- `npm test` — Run all tests (vitest, 239 tests)
+- `npm test` — Run all tests (vitest, 299 tests)
 - `npm run test:watch` — Tests in watch mode
 - `npm run build` — Production build
 - `npm run lint` — ESLint
@@ -125,23 +126,26 @@ Format drift breaks parsers — always test after changing parser logic.
 
 ## Current State (April 2026)
 
-### Working (April 9, 2026)
+### Working (April 13, 2026)
 
 **Core:**
-- Frontend v2 (Cream Balance design, DM Sans, emojis, 55 routes)
-- 275 vitest tests passing (12 test files, 10 parsers)
-- Supabase Auth (sign in/up, password reset, session validation)
+- Frontend v2 (Cream Balance design, DM Sans, emojis, 65+ routes)
+- 299 vitest tests passing (14 test files, 10 parsers)
+- Supabase Auth (sign in/up, password reset, session validation, password visibility toggle)
 - 5 family accounts + 6 agents on Orgo.ai VM (incl. Sofia Santos)
 - Chat bubble → OpenClaw Gateway (Claude Sonnet 4.6, base64 encoding, 60s timeout)
 - Demo mode (cookie-based, static .md files)
-- Error boundaries + mobile polish (44px touch targets, dvh)
-- Deploy on Vercel with all env vars configured
+- Error boundaries + loading states + mobile polish (44px touch targets, dvh)
+- Deploy on Vercel — production live, all env vars configured
+- RLS policies applied for production security (10 security bugs fixed)
+- Resend domain verified for transactional email
 
 **Dashboard & Sections:**
 - Dashboard with welcome card, metrics, stage progress, alerts
+- Calendar: visualize appointments, deadlines, and agent-discovered events
 - Profile with "🎯 Priority Needs" card (extracted from child data)
 - Pathway with stages, checkmarks, next actions
-- Providers: two tabs (matches + search all), Ontario map, enrichment from Supabase, "Why?" explanations, Priority Now banner with child-specific needs
+- Providers: three tabs (my providers + recommended + search all), interactive Leaflet map, enrichment from Supabase, "Why?" explanations, Priority Now banner with child-specific needs, fuzzy search (trigram similarity), provider view tracking
 - Programs: two tabs, gap filler explanations, enrichment, Priority Now banner
 - Benefits: 3-column Kanban (Recommended → Applied → Result), status tracking
 - Alerts: severity dots, undo/reactivate
@@ -172,7 +176,7 @@ Format drift breaks parsers — always test after changing parser logic.
 - Provider Portal (/portal/register — public registration)
 - Employer Portal (/portal/employer — supported employment)
 - University Portal (/portal/university — accommodations)
-- Provider Dashboard (/portal/dashboard — authenticated, edit profile, stats)
+- Provider Dashboard (/portal/dashboard — authenticated, edit profile, real view count stats, My Families)
 - Care Team Portal (/team — limited view for doctors/schools)
 
 **Multi-child:**
@@ -195,14 +199,10 @@ Format drift breaks parsers — always test after changing parser logic.
 ### Pending
 
 **High Priority:**
-- **Agent heartbeat/cron** — agents proactively check Supabase for new providers, process uploads, monitor deadlines. Currently agent only responds via chat, does NOT write to workspace
 - **Provider architecture change** — providers.md should be "My Providers" (confirmed/active), Supabase providers table should be the match source. "Your Matches" reads from DB, not workspace
-- **Email service (Resend)** — RESEND_API_KEY needs to be set on Vercel. User needs to create Resend account
 
 **Medium Priority:**
-- **RLS policies** — proper row-level security for production
 - **PWA** — installable on mobile (manifest.json + service worker)
-- **Calendar** — visualize appointments and deadlines
 - **Monitoring/logging** — Sentry or similar for production
 
 **Low Priority / Future:**

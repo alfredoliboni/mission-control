@@ -8,6 +8,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -150,12 +151,12 @@ export default function LoginPage() {
 
               {mode === "signin" && (
                 <p className="text-center text-xs text-muted-foreground">
-                  <a
+                  <Link
                     href="/reset-password"
                     className="text-primary hover:underline font-medium"
                   >
                     Forgot password?
-                  </a>
+                  </Link>
                 </p>
               )}
             </form>
