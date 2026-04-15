@@ -33,7 +33,13 @@ export function AuthenticatedLayoutClient({
     }
 
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+
+    // Force fresh session from server when refreshing (not browser cache)
+    const getUser = needsRefresh
+      ? supabase.auth.refreshSession().then(() => supabase.auth.getUser())
+      : supabase.auth.getUser();
+
+    getUser.then(({ data: { user } }) => {
       if (!user) {
         setResolvedFamily(getFamilyAgent(undefined));
         return;

@@ -129,53 +129,61 @@ export async function POST(request: NextRequest) {
 
   // Step 1.5: Transcribe audio if provided
   let transcript = "";
+  console.log(`[onboarding] audioUrl: ${audioUrl ? audioUrl.slice(0, 80) + "..." : "NOT PROVIDED"}`);
   if (audioUrl) {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    console.log(`[onboarding] OPENAI_API_KEY: ${OPENAI_API_KEY ? "SET (" + OPENAI_API_KEY.slice(0, 10) + "...)" : "NOT SET"}`);
     if (OPENAI_API_KEY) {
       try {
         // Download audio from Supabase Storage
+        console.log(`[onboarding] Downloading audio from: ${audioUrl}`);
         const audioRes = await fetch(audioUrl);
+        console.log(`[onboarding] Audio download: ${audioRes.status} ${audioRes.statusText}, size: ${audioRes.headers.get("content-length") || "unknown"}`);
         if (audioRes.ok) {
           const audioBuffer = await audioRes.arrayBuffer();
+          console.log(`[onboarding] Audio buffer: ${audioBuffer.byteLength} bytes`);
 
           // Send to Whisper API
-          const formData = new FormData();
-          formData.append("file", new Blob([audioBuffer], { type: "audio/webm" }), "onboarding.webm");
-          formData.append("model", "whisper-1");
-          formData.append("language", "pt"); // Portuguese
+          const whisperForm = new FormData();
+          whisperForm.append("file", new Blob([audioBuffer], { type: "audio/webm" }), "onboarding.webm");
+          whisperForm.append("model", "whisper-1");
+          whisperForm.append("language", "pt");
 
+          console.log("[onboarding] Sending to Whisper API...");
           const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
-            body: formData,
-            signal: AbortSignal.timeout(120000), // 2 min timeout for long audio
+            body: whisperForm,
+            signal: AbortSignal.timeout(120000),
           });
 
+          console.log(`[onboarding] Whisper response: ${whisperRes.status} ${whisperRes.statusText}`);
           if (whisperRes.ok) {
             const result = await whisperRes.json();
             transcript = result.text || "";
-            console.log("[onboarding] Audio transcribed:", transcript.slice(0, 100) + "...");
-
-            // Save transcript to workspace using memoryDir (NOT re-derived path)
-            if (transcript) {
-              const transcriptPath = path.join(memoryDir, "audio-transcript.md");
-              fs.writeFileSync(transcriptPath, `# Audio Onboarding Transcript\n\nTranscribed: ${new Date().toISOString().slice(0, 10)}\nAudio URL: ${audioUrl}\n\n---\n\n${transcript}\n`);
-
-              // VERIFY transcript was saved
-              if (fs.existsSync(transcriptPath)) {
-                console.log(`[onboarding] Transcript saved: ${transcriptPath} (${transcript.length} chars)`);
-              } else {
-                console.error("[onboarding] FAILED to save transcript!");
-              }
-            }
+            console.log(`[onboarding] Transcript (${transcript.length} chars): ${transcript.slice(0, 200)}`);
+          } else {
+            const errBody = await whisperRes.text().catch(() => "");
+            console.error(`[onboarding] Whisper FAILED: ${whisperRes.status} — ${errBody.slice(0, 200)}`);
           }
+
+          // Save transcript to workspace
+          if (transcript) {
+            const transcriptPath = path.join(memoryDir, "audio-transcript.md");
+            fs.writeFileSync(transcriptPath, `# Audio Onboarding Transcript\n\nTranscribed: ${new Date().toISOString().slice(0, 10)}\nAudio URL: ${audioUrl}\n\n---\n\n${transcript}\n`);
+            console.log(`[onboarding] Transcript saved to: ${transcriptPath}`);
+          }
+        } else {
+          console.error(`[onboarding] Audio download FAILED: ${audioRes.status}`);
         }
       } catch (err) {
-        console.error("[onboarding] Whisper transcription failed:", err);
+        console.error("[onboarding] Whisper transcription error:", err);
       }
     } else {
       console.warn("[onboarding] OPENAI_API_KEY not set — skipping transcription");
     }
+  } else {
+    console.log("[onboarding] No audioUrl — wizard mode, skipping transcription");
   }
 
   // Step 2: Update user metadata — append to children array with status "processing"
@@ -231,27 +239,15 @@ export async function POST(request: NextRequest) {
         user: agentId,
       }),
     }).then(async (res) => {
+      // DON'T mark as "ready" here — the status endpoint checks the filesystem
+      // to verify the agent ACTUALLY curated the data (not just that Gateway returned 200)
       if (res.ok) {
-        // Agent finished — update child status to "ready"
-        try {
-          const freshUser = await admin.auth.admin.getUserById(user.id);
-          const freshMeta = freshUser.data.user?.user_metadata || {};
-          const freshChildren = freshMeta.children || [];
-          const updated = freshChildren.map((c: { agentId: string; [key: string]: unknown }) =>
-            c.agentId === agentId ? { ...c, status: "ready" } : c
-          );
-          await admin.auth.admin.updateUserById(user.id, {
-            user_metadata: { ...freshMeta, children: updated },
-          });
-          console.log(`[onboarding] Agent curated ${agentId}, status → ready`);
-        } catch (err) {
-          console.error("[onboarding] Failed to update status:", err);
-        }
+        console.log(`[onboarding] Gateway returned 200 for ${agentId} — agent is processing`);
       } else {
-        console.error("[onboarding] Gateway returned non-OK — agent will retry on next heartbeat");
+        console.error(`[onboarding] Gateway returned ${res.status} for ${agentId}`);
       }
     }).catch((err) => {
-      console.error("[onboarding] Gateway failed — agent will retry on next heartbeat:", err.message);
+      console.error("[onboarding] Gateway failed:", err.message);
     });
   }
 

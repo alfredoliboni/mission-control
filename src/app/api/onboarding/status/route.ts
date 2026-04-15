@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAgentWorkspacePath } from "@/lib/family-agents";
 import fs from "fs";
 import path from "path";
@@ -18,20 +19,8 @@ export async function GET(request: NextRequest) {
   const child = children.find((c: { agentId: string }) => c.agentId === agentId);
   if (!child) return NextResponse.json({ error: "Child not found" }, { status: 404 });
 
-  // If already marked ready in metadata
-  if (child.status === "ready" || !child.status) {
-    return NextResponse.json({
-      status: "ready",
-      workspaceCreated: true,
-      filesCreated: true,
-      transcribed: true,
-      profileReady: true,
-      childName: child.childName,
-      agentId,
-    });
-  }
-
-  // Check real filesystem state
+  // ALWAYS check real filesystem state — never trust metadata status alone
+  // (metadata can be stale if the agent didn't actually curate the data)
   const memoryPath = getAgentWorkspacePath(agentId); // returns .../memory
   const wsDir = path.dirname(memoryPath); // workspace root
 
@@ -55,6 +44,22 @@ export async function GET(request: NextRequest) {
   } catch { /* file doesn't exist */ }
 
   const status = profileReady ? "ready" : "processing";
+
+  // When profile is ready, update metadata so layout-client can trust it on future visits
+  if (profileReady && child.status === "processing") {
+    try {
+      const admin = createAdminClient();
+      const freshChildren = children.map((c: { agentId: string; [key: string]: unknown }) =>
+        c.agentId === agentId ? { ...c, status: "ready" } : c
+      );
+      await admin.auth.admin.updateUserById(user.id, {
+        user_metadata: { ...user.user_metadata, children: freshChildren },
+      });
+      console.log(`[onboarding/status] Profile ready — updated ${agentId} status to "ready"`);
+    } catch (err) {
+      console.error("[onboarding/status] Failed to update metadata:", err);
+    }
+  }
 
   return NextResponse.json({
     status,
