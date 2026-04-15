@@ -23,7 +23,7 @@ function ProcessingContent() {
           if (data.status === "ready") {
             setStatus("ready");
             clearInterval(interval);
-            setTimeout(() => router.push("/profile"), 1500);
+            setTimeout(() => router.push("/profile?refresh=1"), 1500);
           }
         }
       } catch {

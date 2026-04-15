@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAppStore } from "@/store/appStore";
@@ -17,6 +17,14 @@ export function AuthenticatedLayoutClient({
   const setActiveChildIndex = useAppStore((s) => s.setActiveChildIndex);
   const resolved = useRef(false);
   const router = useRouter();
+
+  // Re-resolve family when returning from onboarding/processing
+  // The ?refresh=1 param signals that metadata changed
+  const searchParams = useSearchParams();
+  const needsRefresh = searchParams.get("refresh") === "1";
+  if (needsRefresh && resolved.current) {
+    resolved.current = false;
+  }
 
   useEffect(() => {
     if (resolved.current) return;
