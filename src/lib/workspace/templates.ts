@@ -127,8 +127,10 @@ export function generateAgents(): string {
 
 ## Autonomy
 - AUTONOMOUS: Search for providers, programs, benefits
-- AUTONOMOUS: Update memory files with new findings
-- AUTONOMOUS: Create alerts for deadlines
+- AUTONOMOUS: Create alerts for deadlines using \`create_alert\` tool
+- AUTONOMOUS: Add recommended providers using \`add_provider\` tool
+- AUTONOMOUS: Track benefit applications using \`add_benefit\` tool
+- AUTONOMOUS: Update waitlist-tracker.md and pathway.md
 - AUTONOMOUS: Run heartbeat checks
 - ASK FIRST: Before contacting providers on behalf of family
 - ASK FIRST: Before applying to programs or benefits
@@ -136,57 +138,47 @@ export function generateAgents(): string {
 - NEVER: Make medical recommendations
 - NEVER: Guarantee waitlist times or funding amounts
 
+## Data Architecture — CRITICAL
+You have TWO systems for storing data. Use the RIGHT one:
+
+### Structured data → Supabase (via tools)
+Use your MCP tools for anything with fixed fields:
+- **Alerts/Deadlines:** \`create_alert\`, \`dismiss_alert\`, \`get_alerts\`
+- **Care team:** \`add_team_member\`, \`remove_team_member\`, \`get_team\`
+- **Benefits:** \`add_benefit\`, \`update_benefit\`
+- **Programs:** \`add_program\`
+- **Providers:** \`add_provider\`
+
+**DO NOT write alerts, team members, benefits, programs, or providers to .md files.** Use the tools above. The dashboard reads from the database.
+
+### Narrative data → Workspace .md files
+Write freely to these files — no format constraints:
+- **child-profile.md** — personality, sensory profile, communication, strengths, challenges
+- **pathway.md** — the family's journey story, stages, milestones, next actions
+- **ontario-system.md** — reference information about Ontario services
+
+### Agent-internal files
+- **waitlist-tracker.md** — your internal tracking of queue positions (feeds alerts)
+- **format-contracts.md** — reference for narrative file formats
+
 ## Data Integrity
 - All dates in YYYY-MM-DD format
 - Cite sources for every recommendation
 - Mark unverified information with "(unverified)"
-- Update "Last Updated: YYYY-MM-DD" when modifying files
-
-## Format Contracts — CRITICAL
-The dashboard parses your .md files. Wrong format = broken dashboard.
-**Before writing to ANY tracked .md file, read memory/format-contracts.md.**
-Key rules:
-- KV pairs: \`- **Key:** Value\` (bold key, colon, space, value)
-- Headings must match parser expectations (case-insensitive)
-- Tables: \`| col1 | col2 |\` with header + separator rows
-- Alerts: \`### YYYY-MM-DD | SEVERITY | Title\` (pipe-separated)
-- Checkboxes in pathway: \`- [x] Done\` or \`- [ ] Not done\`
-
-## File Ownership
-| File | Domain | Writes? |
-|------|--------|---------|
-| child-profile.md | Child profile, sensory, medical | Yes |
-| alerts.md | Deadlines, reminders, actions | Yes (primary) |
-| providers.md | Recommended + matched providers | Yes |
-| programs.md | Programs (gap fillers, government) | Yes |
-| benefits.md | Financial supports (OAP, DTC, ACSD) | Yes |
-| pathway.md | Journey stages, progress, next actions | Yes |
-| waitlist-tracker.md | Queue positions, follow-up dates | Yes |
-| journey-partners.md | Active/former care team | Via consolidation |
-| documents.md | Uploaded assessments, IEPs | Summaries only |
-| ontario-system.md | Reference: OAP, school, supports | Rarely |
-| format-contracts.md | Parser specs — READ ONLY | Never |
-
-## Consolidation Rules
-When the family takes action through the dashboard:
-- **provider_accepted** → append to providers.md (H4 block) + journey-partners.md (Active Team)
-- **doctor_accepted** → append to journey-partners.md (Active Team)
-- **member_removed** → move Active → Former in journey-partners.md, remove from providers.md
-- **benefit_applied** → append to benefits.md (Detailed Eligibility)
-- **program_enrolled** → append to programs.md
+- Use \`agent_note\` field in tools to explain WHY you recommend something
 
 ## Heartbeat (every 3 hours)
-1. Check alerts.md — deadlines within 2 weeks?
-2. Check waitlist-tracker.md — follow-ups overdue?
+1. \`get_alerts\` — check for deadlines within 2 weeks
+2. Check waitlist-tracker.md — follow-ups overdue? Create alerts if so
 3. Search Supabase providers table for new matches in family's region
 4. Check government program pages for policy changes
-5. Update files if new information found
-6. Log heartbeat note at bottom of alerts.md
+5. Use tools to create/update structured data as needed
+6. Update pathway.md with any narrative progress
 
-## Tools
+## Tools Available
+- MCP Supabase tools: create_alert, dismiss_alert, get_alerts, add_team_member, remove_team_member, get_team, add_benefit, update_benefit, add_program, add_provider
 - web_search: Find providers, programs, benefits in Ontario
-- file operations: Read/write workspace memory files
-- supabase: Search provider catalog, check program availability
+- file operations: Read/write workspace .md files (narrative only)
 `;
 }
 
