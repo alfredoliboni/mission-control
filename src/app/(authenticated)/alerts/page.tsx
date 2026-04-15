@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useAlerts, useAlertAction } from "@/hooks/useAlerts";
 import { useParsedAlerts } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { cn } from "@/lib/utils";
@@ -14,54 +15,41 @@ import {
   Stethoscope,
   Undo2,
 } from "lucide-react";
-import type { ParsedAlert } from "@/types/workspace";
+import type { AlertSeverity } from "@/types/workspace";
+import type { FamilyAlert } from "@/lib/supabase/queries/alerts";
 
 type StatusFilter = "active" | "resolved" | "all";
 
-const STORAGE_KEY = "alerts-state";
+// ── Normalized alert shape (common between DB and .md) ───────────────────
 
-interface PersistedState {
-  completedIds: string[];
-  dismissedIds: string[];
-  completedAt: Record<string, string>;
-  notes: Record<string, string[]>;
+interface NormalizedAlert {
+  /** DB UUID when from Supabase; "${date}|${title}" when from .md */
+  id: string;
+  date: string;
+  severity: AlertSeverity;
+  title: string;
+  description: string;
+  action: string;
+  status: "active" | "dismissed" | "completed";
+  completedAt: string | null;
+  notes: string[];
+  /** True when backed by DB — enables mutation calls */
+  fromDb: boolean;
 }
 
-function loadPersistedState(): PersistedState {
-  if (typeof window === "undefined") {
-    return { completedIds: [], dismissedIds: [], completedAt: {}, notes: {} };
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  return { completedIds: [], dismissedIds: [], completedAt: {}, notes: {} };
-}
-
-function savePersistedState(state: PersistedState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota exceeded */
-  }
-}
-
-function usePersistedAlertState() {
-  const [state, setState] = useState<PersistedState>(() => loadPersistedState());
-  const initialized = useRef(false);
-
-  useEffect(() => {
-    initialized.current = true;
-  }, []);
-
-  useEffect(() => {
-    if (!initialized.current) return;
-    savePersistedState(state);
-  }, [state]);
-
-  return [state, setState] as const;
+function normalizeDbAlert(a: FamilyAlert): NormalizedAlert {
+  return {
+    id: a.id,
+    date: a.date,
+    severity: a.severity,
+    title: a.title,
+    description: a.description ?? "",
+    action: a.action ?? "",
+    status: a.status,
+    completedAt: a.completedAt,
+    notes: a.notes,
+    fromDb: true,
+  };
 }
 
 // ── Parse action text into CTA buttons ───────────────────────────────────
@@ -133,20 +121,12 @@ const severityDot: Record<string, string> = {
 
 function AlertItem({
   alert,
-  isCompleted,
-  isDismissed,
-  completedAt,
-  alertNotes,
   onComplete,
   onDismiss,
   onAddNote,
   onUndo,
 }: {
-  alert: ParsedAlert;
-  isCompleted: boolean;
-  isDismissed: boolean;
-  completedAt?: string;
-  alertNotes?: string[];
+  alert: NormalizedAlert;
   onComplete: () => void;
   onDismiss: () => void;
   onAddNote: (note: string) => void;
@@ -155,6 +135,9 @@ function AlertItem({
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const actionCTAs = parseActionCTAs(alert.action);
+
+  const isCompleted = alert.status === "completed";
+  const isDismissed = alert.status === "dismissed" && !isCompleted;
 
   const handleSubmitNote = () => {
     if (noteText.trim()) {
@@ -169,7 +152,7 @@ function AlertItem({
       className={cn(
         "py-3 transition-all",
         isCompleted && "opacity-60",
-        isDismissed && !isCompleted && "opacity-40"
+        isDismissed && "opacity-40"
       )}
     >
       {/* Top row: dot + title + date */}
@@ -222,8 +205,8 @@ function AlertItem({
           )}
 
           {/* Completed timestamp */}
-          {isCompleted && completedAt && (
-            <p className="text-[10px] text-status-success mt-1">Completed {completedAt}</p>
+          {isCompleted && alert.completedAt && (
+            <p className="text-[10px] text-status-success mt-1">Completed {alert.completedAt}</p>
           )}
 
           {/* Undo button for resolved alerts */}
@@ -315,10 +298,10 @@ function AlertItem({
             </div>
           )}
 
-          {/* Persisted notes */}
-          {alertNotes && alertNotes.length > 0 && (
+          {/* Notes */}
+          {alert.notes.length > 0 && (
             <div className="mt-1.5 space-y-0.5">
-              {alertNotes.map((note, j) => (
+              {alert.notes.map((note, j) => (
                 <p key={j} className="text-[11px] text-muted-foreground italic">
                   Note: {note}
                 </p>
@@ -336,71 +319,72 @@ function AlertItem({
 // ═══════════════════════════════════════════════════════════════════════════
 
 export default function AlertsPage() {
-  const { data: alerts, isLoading } = useParsedAlerts();
+  const { data: dbAlerts, isLoading: dbLoading } = useAlerts();
+  const { data: mdAlerts, isLoading: mdLoading } = useParsedAlerts();
+  const alertAction = useAlertAction();
+
   const [filter, setFilter] = useState<StatusFilter>("active");
 
-  const [persisted, setPersisted] = usePersistedAlertState();
-  const completedIds = new Set(persisted.completedIds);
-  const dismissedIds = new Set(persisted.dismissedIds);
-  const completedAt = persisted.completedAt;
-  const notes = persisted.notes;
+  // Prefer DB if it has data; fall back to parsed .md
+  const hasDbData = dbAlerts && dbAlerts.length > 0;
+  const isLoading = dbLoading && mdLoading;
 
-  const alertKey = (date: string, title: string) => `${date}|${title}`;
+  // Build normalized list
+  const allAlerts: NormalizedAlert[] = hasDbData
+    ? (dbAlerts ?? []).map(normalizeDbAlert)
+    : (mdAlerts ?? []).map((a) => ({
+        id: `${a.date}|${a.title}`,
+        date: a.date,
+        severity: a.severity,
+        title: a.title,
+        description: a.description,
+        action: a.action,
+        status: a.status === "dismissed" ? "dismissed" : "active",
+        completedAt: null,
+        notes: [],
+        fromDb: false,
+      }));
 
-  const handleComplete = useCallback((key: string) => {
-    setPersisted((prev) => ({
-      ...prev,
-      completedIds: [...new Set([...prev.completedIds, key])],
-      completedAt: { ...prev.completedAt, [key]: new Date().toLocaleString() },
-    }));
-  }, [setPersisted]);
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleDismiss = useCallback((key: string) => {
-    setPersisted((prev) => ({
-      ...prev,
-      dismissedIds: [...new Set([...prev.dismissedIds, key])],
-    }));
-  }, [setPersisted]);
+  const handleComplete = (alert: NormalizedAlert) => {
+    if (alert.fromDb) {
+      alertAction.mutate({ alertId: alert.id, action: "complete" });
+    }
+    // .md alerts are read-only — no mutation possible without DB
+  };
 
-  const handleAddNote = useCallback((key: string, note: string) => {
-    setPersisted((prev) => ({
-      ...prev,
-      notes: { ...prev.notes, [key]: [...(prev.notes[key] || []), note] },
-    }));
-  }, [setPersisted]);
+  const handleDismiss = (alert: NormalizedAlert) => {
+    if (alert.fromDb) {
+      alertAction.mutate({ alertId: alert.id, action: "dismiss" });
+    }
+  };
 
-  const handleUndo = useCallback((key: string) => {
-    setPersisted((prev) => {
-      const { [key]: _removedAt, ...restCompletedAt } = prev.completedAt;
-      void _removedAt;
-      return {
-        ...prev,
-        completedIds: prev.completedIds.filter((id) => id !== key),
-        dismissedIds: prev.dismissedIds.filter((id) => id !== key),
-        completedAt: restCompletedAt,
-      };
-    });
-  }, [setPersisted]);
+  const handleReactivate = (alert: NormalizedAlert) => {
+    if (alert.fromDb) {
+      alertAction.mutate({ alertId: alert.id, action: "reactivate" });
+    }
+  };
 
-  // Compute counts
-  const allAlerts = alerts || [];
+  const handleAddNote = (alert: NormalizedAlert, note: string) => {
+    if (alert.fromDb) {
+      alertAction.mutate({ alertId: alert.id, note });
+    }
+  };
+
+  // ── Counts & filtering ────────────────────────────────────────────────────
+
   const counts = { active: 0, resolved: 0, all: allAlerts.length };
-
   for (const a of allAlerts) {
-    const key = alertKey(a.date, a.title);
-    const isResolved = completedIds.has(key) || dismissedIds.has(key) || a.status === "dismissed";
-    if (isResolved) {
-      counts.resolved++;
-    } else {
+    if (a.status === "active") {
       counts.active++;
+    } else {
+      counts.resolved++;
     }
   }
 
-  // Filter alerts
   const filtered = allAlerts.filter((a) => {
-    const key = alertKey(a.date, a.title);
-    const isResolved = completedIds.has(key) || dismissedIds.has(key) || a.status === "dismissed";
-
+    const isResolved = a.status === "dismissed" || a.status === "completed";
     switch (filter) {
       case "active":
         return !isResolved;
@@ -441,25 +425,16 @@ export default function AlertsPage() {
       <div className="bg-card border border-border rounded-xl px-5 transition-all">
         {filtered.length > 0 ? (
           <div className="divide-y divide-border">
-            {filtered.map((alert) => {
-              const key = alertKey(alert.date, alert.title);
-              const isCompleted = completedIds.has(key);
-              const isDismissed = dismissedIds.has(key) || alert.status === "dismissed";
-              return (
-                <AlertItem
-                  key={key}
-                  alert={alert}
-                  isCompleted={isCompleted}
-                  isDismissed={isDismissed && !isCompleted}
-                  completedAt={completedAt[key]}
-                  alertNotes={notes[key]}
-                  onComplete={() => handleComplete(key)}
-                  onDismiss={() => handleDismiss(key)}
-                  onAddNote={(note) => handleAddNote(key, note)}
-                  onUndo={() => handleUndo(key)}
-                />
-              );
-            })}
+            {filtered.map((alert) => (
+              <AlertItem
+                key={alert.id}
+                alert={alert}
+                onComplete={() => handleComplete(alert)}
+                onDismiss={() => handleDismiss(alert)}
+                onAddNote={(note) => handleAddNote(alert, note)}
+                onUndo={() => handleReactivate(alert)}
+              />
+            ))}
           </div>
         ) : (
           <p className="text-[13px] text-muted-foreground py-8 text-center">
