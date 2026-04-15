@@ -26,8 +26,6 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const FAMILY_ID = process.env.MCP_FAMILY_ID;
-const AGENT_ID = process.env.MCP_AGENT_ID ?? "agent";
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.stderr.write(
@@ -36,14 +34,44 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.exit(1);
 }
 
-if (!FAMILY_ID) {
-  process.stderr.write("ERROR: MCP_FAMILY_ID must be set\n");
-  process.exit(1);
-}
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
 });
+
+// ─── Agent → Family ID resolution (cached) ──────────────────────────────────
+// The MCP server is global — shared by all agents. Each agent call includes
+// context that tells us which workspace/agent is calling. We resolve the
+// family_id from Supabase user_metadata.children[].agentId at startup.
+
+let agentToFamily = {};
+let currentAgentId = process.env.MCP_AGENT_ID ?? null;
+let currentFamilyId = process.env.MCP_FAMILY_ID ?? null;
+
+async function loadAgentMap() {
+  const { data } = await supabase.auth.admin.listUsers();
+  if (!data?.users) return;
+  for (const u of data.users) {
+    const children = u.user_metadata?.children || [];
+    for (const child of children) {
+      if (child.agentId) {
+        agentToFamily[child.agentId] = u.id;
+      }
+    }
+    if (u.user_metadata?.agent_id) {
+      agentToFamily[u.user_metadata.agent_id] = u.id;
+    }
+  }
+  process.stderr.write(`MCP: loaded ${Object.keys(agentToFamily).length} agent→family mappings\n`);
+}
+
+function resolveFamily(agentId) {
+  if (agentId && agentToFamily[agentId]) return { familyId: agentToFamily[agentId], agentId };
+  if (currentFamilyId) return { familyId: currentFamilyId, agentId: currentAgentId || "agent" };
+  throw new Error(`Cannot resolve family for agent: ${agentId}. No MCP_FAMILY_ID set and agent not found in Supabase.`);
+}
+
+// Load map at startup
+await loadAgentMap();
 
 // ─── Tool definitions ───────────────────────────────────────────────────────
 
@@ -256,39 +284,43 @@ const TOOLS = [
 
 // ─── Tool implementations ───────────────────────────────────────────────────
 
-async function callTool(name, args) {
+async function callTool(name, args, callerAgentId) {
+  // Resolve which family this agent belongs to
+  const ctx = resolveFamily(callerAgentId);
+  const { familyId, agentId } = ctx;
+
   switch (name) {
     case "create_alert":
-      return createAlert(args);
+      return createAlert(args, familyId, agentId);
     case "dismiss_alert":
-      return dismissAlert(args);
+      return dismissAlert(args, familyId);
     case "add_team_member":
-      return addTeamMember(args);
+      return addTeamMember(args, familyId, agentId);
     case "remove_team_member":
-      return removeTeamMember(args);
+      return removeTeamMember(args, familyId);
     case "add_benefit":
-      return addBenefit(args);
+      return addBenefit(args, familyId, agentId);
     case "update_benefit":
-      return updateBenefit(args);
+      return updateBenefit(args, familyId);
     case "add_program":
-      return addProgram(args);
+      return addProgram(args, familyId, agentId);
     case "add_provider":
-      return addProvider(args);
+      return addProvider(args, familyId, agentId);
     case "get_alerts":
-      return getAlerts();
+      return getAlerts(familyId);
     case "get_team":
-      return getTeam();
+      return getTeam(familyId);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
 
-async function createAlert({ date, severity, title, description, action }) {
+async function createAlert({ date, severity, title, description, action }, familyId, agentId) {
   const { data, error } = await supabase
     .from("family_alerts")
     .insert({
-      family_id: FAMILY_ID,
-      agent_id: AGENT_ID,
+      family_id: familyId,
+      agent_id: agentId,
       date,
       severity: severity ?? "INFO",
       title,
@@ -304,12 +336,12 @@ async function createAlert({ date, severity, title, description, action }) {
   return { success: true, alert: data };
 }
 
-async function dismissAlert({ alertId }) {
+async function dismissAlert({ alertId }, familyId) {
   const { error } = await supabase
     .from("family_alerts")
     .update({ status: "dismissed", updated_at: new Date().toISOString() })
     .eq("id", alertId)
-    .eq("family_id", FAMILY_ID);
+    .eq("family_id", familyId);
 
   if (error) throw new Error(`dismiss_alert failed: ${error.message}`);
   return { success: true, alertId };
@@ -323,13 +355,13 @@ async function addTeamMember({
   phone,
   email,
   agent_note,
-}) {
+}, familyId, agentId) {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from("family_team_members")
     .insert({
-      family_id: FAMILY_ID,
-      agent_id: AGENT_ID,
+      family_id: familyId,
+      agent_id: agentId,
       name,
       role,
       organization: organization ?? null,
@@ -349,12 +381,12 @@ async function addTeamMember({
   return { success: true, member: data };
 }
 
-async function removeTeamMember({ name, reason }) {
+async function removeTeamMember({ name, reason }, familyId) {
   // Find by name within this family
   const { data: rows, error: findError } = await supabase
     .from("family_team_members")
     .select("id")
-    .eq("family_id", FAMILY_ID)
+    .eq("family_id", familyId)
     .eq("name", name)
     .neq("status", "former")
     .limit(1);
@@ -387,12 +419,12 @@ async function addBenefit({
   action,
   documents_needed,
   agent_note,
-}) {
+}, familyId, agentId) {
   const { data, error } = await supabase
     .from("family_benefits")
     .insert({
-      family_id: FAMILY_ID,
-      agent_id: AGENT_ID,
+      family_id: familyId,
+      agent_id: agentId,
       benefit_name,
       status: status ?? "not_started",
       applied_date: applied_date ?? null,
@@ -416,12 +448,12 @@ async function updateBenefit({
   status,
   applied_date,
   approved_date,
-}) {
+}, familyId) {
   // Find by name within this family
   const { data: rows, error: findError } = await supabase
     .from("family_benefits")
     .select("id")
-    .eq("family_id", FAMILY_ID)
+    .eq("family_id", familyId)
     .eq("benefit_name", benefit_name)
     .limit(1);
 
@@ -446,12 +478,12 @@ async function updateBenefit({
   return { success: true, benefit_name, status };
 }
 
-async function addProgram({ program_name, status, is_gap_filler, agent_note }) {
+async function addProgram({ program_name, status, is_gap_filler, agent_note }, familyId, agentId) {
   const { data, error } = await supabase
     .from("family_programs")
     .insert({
-      family_id: FAMILY_ID,
-      agent_id: AGENT_ID,
+      family_id: familyId,
+      agent_id: agentId,
       program_name,
       status: status ?? "recommended",
       is_gap_filler: is_gap_filler ?? false,
@@ -470,12 +502,12 @@ async function addProvider({
   status,
   is_gap_filler,
   agent_note,
-}) {
+}, familyId, agentId) {
   const { data, error } = await supabase
     .from("family_providers")
     .insert({
-      family_id: FAMILY_ID,
-      agent_id: AGENT_ID,
+      family_id: familyId,
+      agent_id: agentId,
       provider_name,
       priority: priority ?? "relevant",
       status: status ?? "recommended",
@@ -489,11 +521,11 @@ async function addProvider({
   return { success: true, provider: data };
 }
 
-async function getAlerts() {
+async function getAlerts(familyId) {
   const { data, error } = await supabase
     .from("family_alerts")
     .select("*")
-    .eq("family_id", FAMILY_ID)
+    .eq("family_id", familyId)
     .eq("status", "active")
     .order("date", { ascending: false });
 
@@ -501,11 +533,11 @@ async function getAlerts() {
   return { alerts: data ?? [] };
 }
 
-async function getTeam() {
+async function getTeam(familyId) {
   const { data, error } = await supabase
     .from("family_team_members")
     .select("*")
-    .eq("family_id", FAMILY_ID)
+    .eq("family_id", familyId)
     .order("started_at", { ascending: false });
 
   if (error) throw new Error(`get_team failed: ${error.message}`);
@@ -551,7 +583,9 @@ async function handleRequest(request) {
 
     if (method === "tools/call") {
       const { name, arguments: args } = params;
-      const result = await callTool(name, args ?? {});
+      // OpenClaw sets MCP_AGENT_ID env var per-agent, or we fall back to env
+      const callerAgentId = currentAgentId;
+      const result = await callTool(name, args ?? {}, callerAgentId);
       return {
         jsonrpc: "2.0",
         id,
