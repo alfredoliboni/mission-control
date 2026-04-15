@@ -1058,8 +1058,7 @@ export default function DocumentsPage() {
 
   const { data: profile } = useParsedProfile();
   const childName = profile?.basicInfo?.name || "your child";
-  const familyOrNull = useFamily();
-  const family = familyOrNull || { familyName: "Loading", children: [] };
+  const family = useFamily();
   const isMultiChild = family.children.length > 1;
 
   const [uploadOpen, setUploadOpen] = useState(false);
