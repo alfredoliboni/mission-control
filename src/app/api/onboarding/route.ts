@@ -138,6 +138,16 @@ export async function POST(request: NextRequest) {
             const result = await whisperRes.json();
             transcript = result.text || "";
             console.log("[onboarding] Audio transcribed:", transcript.slice(0, 100) + "...");
+
+            // Save transcript to workspace for reference
+            const home = process.env.HOME || process.env.USERPROFILE || "/root";
+            const transcriptPath = path.join(home, ".openclaw", `workspace-${slug}`, "memory", "audio-transcript.md");
+            try {
+              fs.writeFileSync(transcriptPath, `# Audio Onboarding Transcript\n\nTranscribed: ${new Date().toISOString().slice(0, 10)}\nAudio URL: ${audioUrl}\n\n---\n\n${transcript}\n`);
+              console.log("[onboarding] Transcript saved to workspace");
+            } catch {
+              console.warn("[onboarding] Could not save transcript file");
+            }
           }
         }
       } catch (err) {
