@@ -17,11 +17,12 @@ const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { profileMarkdown, childName, familyName, onboardingData } = body as {
+  const { profileMarkdown, childName, familyName, onboardingData, audioUrl } = body as {
     profileMarkdown: string;
     childName?: string;
     familyName?: string;
     onboardingData?: OnboardingData;
+    audioUrl?: string;
   };
 
   if (!profileMarkdown) {
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
           profileMarkdown,
           childName: name,
           files: workspaceBundle,
+          audioUrl: audioUrl || null,
         }),
       });
 
@@ -80,15 +82,55 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Step 1.5: Transcribe audio if provided
+  let transcript = "";
+  if (audioUrl) {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (OPENAI_API_KEY) {
+      try {
+        // Download audio from Supabase Storage
+        const audioRes = await fetch(audioUrl);
+        if (audioRes.ok) {
+          const audioBuffer = await audioRes.arrayBuffer();
+
+          // Send to Whisper API
+          const formData = new FormData();
+          formData.append("file", new Blob([audioBuffer], { type: "audio/webm" }), "onboarding.webm");
+          formData.append("model", "whisper-1");
+          formData.append("language", "pt"); // Portuguese
+
+          const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
+            body: formData,
+            signal: AbortSignal.timeout(120000), // 2 min timeout for long audio
+          });
+
+          if (whisperRes.ok) {
+            const result = await whisperRes.json();
+            transcript = result.text || "";
+            console.log("[onboarding] Audio transcribed:", transcript.slice(0, 100) + "...");
+          }
+        }
+      } catch (err) {
+        console.error("[onboarding] Whisper transcription failed:", err);
+      }
+    } else {
+      console.warn("[onboarding] OPENAI_API_KEY not set — skipping transcription");
+    }
+  }
+
   // Step 2: Send profile to agent via Gateway (agent curates the files)
   let welcome = "Welcome! Your Navigator is being set up. Check back in a few minutes.";
   if (COMPANION_API_DIRECT) {
     try {
-      const prompt = `A new family just completed onboarding for ${name}. Process this intake data and enhance the workspace files (child-profile.md, pathway.md, alerts.md, providers.md, benefits.md, programs.md). Here is their data:\n\n${profileMarkdown}`;
+      const prompt = transcript
+        ? `A new family just completed AUDIO onboarding for ${name}. Here is the transcription of what the parent said:\n\n---\n${transcript}\n---\n\nBased on this audio transcript:\n1. Write a complete child-profile.md with all details you can extract (name, age, diagnosis, sensory, communication, interests, strengths, challenges)\n2. Write a pathway.md reflecting their current journey stage\n3. Use your MCP tools to create structured data:\n   - create_alert for any upcoming deadlines mentioned\n   - add_benefit for any benefits/programs mentioned\n   - add_team_member for any providers/doctors mentioned\n4. Respond with a warm welcome message in Portuguese summarizing what you understood.`
+        : `A new family just completed onboarding for ${name}. Process this intake data and enhance the workspace files (child-profile.md, pathway.md, alerts.md, providers.md, benefits.md, programs.md). Here is their data:\n\n${profileMarkdown}`;
 
       const response = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
         method: "POST",
-        signal: AbortSignal.timeout(55000),
+        signal: AbortSignal.timeout(transcript ? 120000 : 55000), // 2 min for audio, 55s for wizard
         headers: {
           "Authorization": `Bearer ${COMPANION_API_TOKEN}`,
           "Content-Type": "application/json",
