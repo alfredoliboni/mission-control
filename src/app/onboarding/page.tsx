@@ -301,113 +301,71 @@ const SUPPLEMENT_SUGGESTIONS = [
 // ---------------------------------------------------------------------------
 
 function generateProfileMarkdown(data: FormData): string {
+  const today = new Date().toLocaleDateString("en-CA");
   const lines: string[] = [];
-  lines.push(`# Child Profile: ${data.fullName || data.nickname}`);
+
+  // Title — parser reads via h1 match
+  lines.push("# Child Profile");
   lines.push("");
-  lines.push("## Basic Information");
-  if (data.fullName) lines.push(`- **Name:** ${data.fullName}`);
-  lines.push(`- **Nickname:** ${data.nickname}`);
-  if (data.dateOfBirth) lines.push(`- **Date of Birth:** ${data.dateOfBirth}`);
-  if (data.postalCode) lines.push(`- **Postal Code:** ${data.postalCode}`);
+  lines.push(`Last Updated: ${today}`);
   lines.push("");
 
-  if (data.indigenousIdentity && data.indigenousIdentity !== "prefer-not-to-say") {
-    lines.push("## Cultural Background");
-    const label = INDIGENOUS_OPTIONS.find((o) => o.id === data.indigenousIdentity)?.label;
-    lines.push(`- **Indigenous Identity:** ${label}`);
-    if (data.connectNavigators)
-      lines.push("- **Connect with Indigenous community navigators:** Yes");
-    lines.push("");
+  // ## Basic Info — parser key: heading.includes("basic info")
+  lines.push("## Basic Info");
+  lines.push(`- Name: ${data.fullName || data.nickname}`);
+  if (data.nickname && data.nickname !== data.fullName) lines.push(`- Nickname: ${data.nickname}`);
+  if (data.dateOfBirth) lines.push(`- DOB: ${data.dateOfBirth}`);
+  if (data.comorbidDiagnoses.length > 0) {
+    lines.push(`- Diagnosis: ${data.comorbidDiagnoses.join(", ")}`);
   }
-
   if (data.journeyStage) {
-    lines.push("## Journey Stage");
     const stage = JOURNEY_STAGES.find((s) => s.id === data.journeyStage);
-    lines.push(`- **Current Stage:** ${stage?.title} \u2014 ${stage?.description}`);
+    lines.push(`- Stage: ${stage?.title || data.journeyStage}`);
+  }
+  if (data.postalCode) lines.push(`- Postal Code: ${data.postalCode}`);
+  if (data.indigenousIdentity && data.indigenousIdentity !== "prefer-not-to-say" && data.indigenousIdentity !== "non-indigenous") {
+    const label = INDIGENOUS_OPTIONS.find((o) => o.id === data.indigenousIdentity)?.label;
+    if (label) lines.push(`- Indigenous Identity: ${label}`);
+  }
+  lines.push("");
+
+  // ## Personal Profile — parser key: heading.includes("personal profile")
+  lines.push("## Personal Profile");
+  lines.push(`- Communication: ${data.communicationStyle || "Not documented"}`);
+  lines.push(`- Sensory: ${data.sensoryPreferences.length > 0 ? data.sensoryPreferences.join(", ") : "Not documented"}`);
+  lines.push(`- Interests: ${data.interests.length > 0 ? data.interests.join(", ") : "Not documented"}`);
+  lines.push(`- Strengths: ${data.strengths || "Not documented"}`);
+  lines.push(`- Challenges: ${data.challenges || "Not documented"}`);
+  if (data.personalityTraits.length > 0) lines.push(`- Personality: ${data.personalityTraits.join(", ")}`);
+  if (data.triggers.length > 0) lines.push(`- Triggers: ${data.triggers.join(", ")}`);
+  if (data.supportNeeds.length > 0) lines.push(`- Support Needs: ${data.supportNeeds.join(", ")}`);
+  lines.push("");
+
+  // ## Medical — parser key: heading.includes("medical")
+  lines.push("## Medical");
+  if (data.medications.length > 0) {
+    lines.push("- Medications:");
+    data.medications.forEach((m) => lines.push(`  - ${m.name} — ${m.dosage}, ${m.frequency}`));
+  } else {
+    lines.push("- Medications: None documented");
+  }
+  if (data.supplements.length > 0) {
+    lines.push("- Supplements:");
+    data.supplements.forEach((s) => lines.push(`  - ${s.name} — ${s.dosage}, ${s.frequency}`));
+  }
+  if (data.comorbidDiagnoses.length > 0) {
+    lines.push("- Diagnoses:");
+    data.comorbidDiagnoses.forEach((d) => lines.push(`  - ${d}`));
+  }
+  lines.push("");
+
+  // ## Notes
+  if (data.extraInfo) {
+    lines.push("## Notes");
+    lines.push(data.extraInfo);
     lines.push("");
   }
 
-  if (data.supportNeeds.length > 0) {
-    lines.push("## Support Needs");
-    data.supportNeeds.forEach((n) => lines.push(`- ${n}`));
-    lines.push("");
-  }
-
-  lines.push("## About the Child");
-  if (data.interests.length > 0) {
-    lines.push("### Interests");
-    data.interests.forEach((i) => lines.push(`- ${i}`));
-    lines.push("");
-  }
-  if (data.communicationStyle) {
-    lines.push(`### Communication Style`);
-    lines.push(`- ${data.communicationStyle}`);
-    lines.push("");
-  }
-  if (data.sensoryPreferences.length > 0) {
-    lines.push("### Sensory Preferences");
-    data.sensoryPreferences.forEach((s) => lines.push(`- ${s}`));
-    lines.push("");
-  }
-  if (data.personalityTraits.length > 0) {
-    lines.push("### Personality Traits");
-    data.personalityTraits.forEach((t) => lines.push(`- ${t}`));
-    lines.push("");
-  }
-  if (data.triggers.length > 0) {
-    lines.push("### Triggers");
-    data.triggers.forEach((t) => lines.push(`- ${t}`));
-    lines.push("");
-  }
-  if (data.strengths) {
-    lines.push("### Strengths");
-    lines.push(data.strengths);
-    lines.push("");
-  }
-  if (data.challenges) {
-    lines.push("### Challenges");
-    lines.push(data.challenges);
-    lines.push("");
-  }
-
-  if (data.comorbidDiagnoses.length > 0 || data.medications.length > 0 || data.supplements.length > 0) {
-    lines.push("## Medical Information");
-    if (data.comorbidDiagnoses.length > 0) {
-      lines.push("### Comorbid Diagnoses");
-      data.comorbidDiagnoses.forEach((d) => lines.push(`- ${d}`));
-      lines.push("");
-    }
-    if (data.medications.length > 0) {
-      lines.push("### Medications");
-      data.medications.forEach((m) =>
-        lines.push(`- **${m.name}** \u2014 ${m.dosage}, ${m.frequency}`)
-      );
-      lines.push("");
-    }
-    if (data.supplements.length > 0) {
-      lines.push("### Supplements");
-      data.supplements.forEach((s) =>
-        lines.push(`- **${s.name}** \u2014 ${s.dosage}, ${s.frequency}`)
-      );
-      lines.push("");
-    }
-  }
-
-  if (data.partners.length > 0) {
-    lines.push("## Care Team");
-    data.partners.forEach((p) => {
-      lines.push(`- **${p.name}** (${p.type}${p.organization ? `, ${p.organization}` : ""})`);
-      if (p.email) lines.push(`  - Email: ${p.email}`);
-      const perms: string[] = [];
-      if (p.canViewRecords) perms.push("View records");
-      if (p.canUploadRecords) perms.push("Upload records");
-      if (perms.length > 0) lines.push(`  - Permissions: ${perms.join(", ")}`);
-    });
-    lines.push("");
-  }
-
-  lines.push(`---`);
-  lines.push(`*Generated on ${new Date().toLocaleDateString("en-CA")}*`);
   return lines.join("\n");
 }
 
