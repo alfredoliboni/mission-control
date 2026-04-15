@@ -23,7 +23,9 @@ import {
   X,
   Heart,
   Loader2,
+  Plus,
 } from "lucide-react";
+import Link from "next/link";
 import { useFamily } from "@/hooks/useActiveAgent";
 import { useAppStore } from "@/store/appStore";
 import { useParsedJourneyPartners } from "@/hooks/useWorkspace";
@@ -407,6 +409,46 @@ export default function SettingsPage() {
           <InfoRow icon={MapPin} label="Province" value={parent.province} isEditing={editingParent} onChange={(v) => updateParent("province", v)} />
           <InfoRow icon={Heart} label="Language" value={parent.preferredLanguage} isEditing={editingParent} onChange={(v) => updateParent("preferredLanguage", v)} />
           <InfoRow icon={Mail} label="Preferred Contact" value={parent.preferredContact} isEditing={editingParent} onChange={(v) => updateParent("preferredContact", v)} />
+        </div>
+      </div>
+
+      {/* ── Family / Children ── */}
+      <div className="bg-card border border-border rounded-xl">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-foreground flex items-center gap-2">
+            <Heart className="size-4 text-muted-foreground" />
+            Family
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {family.children.map((child, index) => (
+            <div
+              key={child.agentId}
+              className="flex items-center gap-3 py-2"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-bold">
+                {child.childName.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-foreground">{child.childName}</p>
+                <p className="text-[11px] text-muted-foreground">{child.agentId}</p>
+              </div>
+              {index === activeChildIndex && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-status-success/8 text-status-success">
+                  Active
+                </span>
+              )}
+            </div>
+          ))}
+          <div className="pt-2">
+            <Link
+              href="/onboarding?mode=add-child"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add another child
+            </Link>
+          </div>
         </div>
       </div>
 

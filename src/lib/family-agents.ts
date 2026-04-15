@@ -125,13 +125,24 @@ export function isKnownFamilyEmail(email: string | undefined): boolean {
 
 /**
  * Creates a FamilyAgent from user metadata (for dynamically created agents).
- * Used when the user completed onboarding and has agent_id in their metadata.
+ * Supports both:
+ *   - New format: metadata.children array of {childName, agentId}
+ *   - Legacy format: single metadata.agent_id + metadata.child_name
  */
 export function getFamilyAgentFromMetadata(metadata: {
   agent_id?: string;
   child_name?: string;
   full_name?: string;
+  children?: Array<{ childName: string; agentId: string }>;
 }): FamilyAgent | null {
+  // New multi-child format
+  if (metadata.children && metadata.children.length > 0) {
+    return {
+      familyName: metadata.full_name || "Family",
+      children: metadata.children,
+    };
+  }
+  // Legacy single-child format
   if (!metadata.agent_id) return null;
   return {
     familyName: metadata.full_name || "Family",

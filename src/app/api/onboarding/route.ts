@@ -95,15 +95,36 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Step 3: Update user metadata
+  // Step 3: Update user metadata — append to children array (multi-child support)
   const admin = createAdminClient();
+  const existingMeta = user.user_metadata || {};
+  const existingChildren: Array<{ childName: string; agentId: string }> = existingMeta.children
+    ? [...existingMeta.children]
+    : [];
+
+  // Migrate from legacy single-child format if no children array yet
+  if (existingChildren.length === 0 && existingMeta.agent_id) {
+    existingChildren.push({
+      childName: existingMeta.child_name || "Child",
+      agentId: existingMeta.agent_id,
+    });
+  }
+
+  // Add the new child
+  existingChildren.push({ childName: name, agentId });
+
+  // Clean up large onboarding data from metadata (no longer needed)
+  const { onboarding_completed, onboarding_profile, ...cleanMeta } = existingMeta;
+
   await admin.auth.admin.updateUserById(user.id, {
     user_metadata: {
-      ...user.user_metadata,
+      ...cleanMeta,
       role: "parent",
-      full_name: familyName || user.user_metadata?.full_name,
-      child_name: childName,
-      agent_id: agentId,
+      full_name: familyName || existingMeta.full_name,
+      children: existingChildren,
+      // Keep legacy fields pointing to first child for backward compat
+      agent_id: existingChildren[0].agentId,
+      child_name: existingChildren[0].childName,
     },
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -416,15 +416,17 @@ function StepIcon({
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function OnboardingPage() {
+function OnboardingPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isAddChild = searchParams.get("mode") === "add-child";
   const [step, setStep] = useState(0); // Start at 0 until auth check completes
   const [transitioning, setTransitioning] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [completing, setCompleting] = useState(false);
 
   // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(isAddChild);
   const [authChecked, setAuthChecked] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -435,7 +437,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
+      if (user || isAddChild) {
         setIsLoggedIn(true);
         setStep(1); // Skip account creation step
       } else {
@@ -443,7 +445,7 @@ export default function OnboardingPage() {
       }
       setAuthChecked(true);
     });
-  }, []);
+  }, [isAddChild]);
 
   // Medication / Supplement add forms
   const [medForm, setMedForm] = useState({ name: "", dosage: "", frequency: "" });
@@ -524,16 +526,41 @@ export default function OnboardingPage() {
     setCompleting(true);
 
     try {
-      // Step 1: Create Supabase account
+      const isAudioMode = formData.onboardingMode === "audio";
+      const profile = isAudioMode ? "" : generateProfileMarkdown(formData);
+      const childName = formData.fullName || formData.nickname || "";
+
+      // ── Add-child mode: user is already logged in, just call the onboarding API ──
+      if (isAddChild) {
+        const res = await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            profileMarkdown: profile,
+            childName,
+            ...(isAudioMode && formData.audioUrl ? { audioUrl: formData.audioUrl } : {}),
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error || "Failed to add child. Please try again.");
+          setCompleting(false);
+          return;
+        }
+
+        toast.success(`${childName || "New child"} has been added!`);
+        router.push("/profile");
+        router.refresh();
+        return;
+      }
+
+      // ── New account mode: create Supabase account ──
       const supabase = createClient();
 
       // Sign out any existing session first (prevents overwriting another user's metadata)
       await supabase.auth.signOut();
 
-      // Generate profile BEFORE signup so we can include it in metadata
-      const isAudioMode = formData.onboardingMode === "audio";
-      const profile = isAudioMode ? "" : generateProfileMarkdown(formData);
-      const childName = formData.fullName || formData.nickname || "";
       const familyName = authEmail.split("@")[0].split("+").pop() || "family";
 
       const { error: signUpError } = await supabase.auth.signUp({
@@ -561,14 +588,14 @@ export default function OnboardingPage() {
 
       toast.success("Account created! Check your email to confirm, then sign in.");
 
-      // Step 2: Redirect to login — onboarding data is in user_metadata (not localStorage)
+      // Redirect to login — onboarding data is in user_metadata (not localStorage)
       router.push("/login");
     } catch (err) {
       toast.error("Something went wrong. Please try again.");
       setCompleting(false);
       console.error("Onboarding complete error:", err);
     }
-  }, [formData, router, isLoggedIn, authEmail, authPassword]);
+  }, [formData, router, isLoggedIn, isAddChild, authEmail, authPassword]);
 
   // ---------------------------------------------------------------------------
   // Multi-select helper
@@ -816,10 +843,14 @@ export default function OnboardingPage() {
       <>
         <StepIcon icon={AudioLines} bgClass="bg-primary/10 text-primary" />
         <h2 className="font-heading text-2xl font-bold text-center text-foreground">
-          How would you like to tell us about your child?
+          {isAddChild
+            ? "Add another child"
+            : "How would you like to tell us about your child?"}
         </h2>
         <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
-          Choose the option that&apos;s easiest for you.
+          {isAddChild
+            ? "Tell us about your other child. Choose the option that\u2019s easiest for you."
+            : "Choose the option that\u2019s easiest for you."}
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2259,5 +2290,20 @@ export default function OnboardingPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center text-warm-400">
+          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+          <span className="text-sm">Loading...</span>
+        </div>
+      }
+    >
+      <OnboardingPageInner />
+    </Suspense>
   );
 }
