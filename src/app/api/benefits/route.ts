@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getBenefits, updateBenefitStatus } from "@/lib/supabase/queries/benefits";
 
 /**
- * GET /api/benefits?agent=navigator-santos-alex
+ * GET /api/benefits?agent=navigator-{family}-{child}
  * Returns benefits array for the authenticated family, optionally filtered by agent.
  */
 export async function GET(request: NextRequest) {

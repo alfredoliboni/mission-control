@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getFamilyPrograms } from "@/lib/supabase/queries/family-programs";
 
 /**
- * GET /api/family-programs?agent=navigator-santos-alex
+ * GET /api/family-programs?agent=navigator-{family}-{child}
  * Returns FamilyProgram[] for the authenticated family, optionally filtered by agent.
  */
 export async function GET(request: NextRequest) {

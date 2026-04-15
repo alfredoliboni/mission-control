@@ -103,8 +103,8 @@ export function getFamilyAgentFlat(email: string | undefined, childIndex: number
 
 /**
  * Resolves the workspace directory path on the Orgo VM for a given agent.
- * navigator-santos → /root/.openclaw/workspace-santos/memory
- * navigator-santos-sofia → /root/.openclaw/workspace-santos-sofia/memory
+ * navigator-{family} → /root/.openclaw/workspace-{family}/memory
+ * navigator-{family}-{child} → /root/.openclaw/workspace-{family}-{child}/memory
  */
 export function getAgentWorkspacePath(agentId: string): string {
   // Strip "navigator-" prefix to get workspace suffix

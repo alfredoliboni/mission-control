@@ -23,7 +23,7 @@ export function useActiveAgent(): string | undefined {
 
 /**
  * Returns the resolved family from the Zustand store.
- * Falls back to default (Santos) if not yet resolved.
+ * Falls back to default generic family if not yet resolved.
  * No useState, no useEffect, no async — pure synchronous read.
  */
 export function useFamily(): FamilyAgent {

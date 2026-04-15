@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAlerts, updateAlertStatus, addAlertNote } from "@/lib/supabase/queries/alerts";
 
 /**
- * GET /api/alerts?agent=navigator-santos-alex
+ * GET /api/alerts?agent=navigator-{family}-{child}
  * Returns alerts array for the authenticated family, optionally filtered by agent.
  */
 export async function GET(request: NextRequest) {

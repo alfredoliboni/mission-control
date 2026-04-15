@@ -1095,7 +1095,7 @@ function OnboardingPageInner() {
               Child&apos;s full name <span className="text-destructive">*</span>
             </label>
             <Input
-              placeholder="e.g. Daniel Santos"
+              placeholder="e.g. Jamie Smith"
               value={formData.fullName}
               onChange={(e) =>
                 setFormData((p) => ({ ...p, fullName: e.target.value }))
@@ -2037,7 +2037,7 @@ function OnboardingPageInner() {
 
         {/* Free-form extra info */}
         <Textarea
-          placeholder="e.g. Alex does really well with visual schedules. He needs extra time for transitions. He loves going to the park but gets overwhelmed if it's too crowded. We've been on the OAP waitlist since 2024..."
+          placeholder="e.g. My child does really well with visual schedules. They need extra time for transitions. They love going to the park but get overwhelmed if it's too crowded. We've been on the OAP waitlist since last year..."
           value={formData.extraInfo}
           onChange={(e) =>
             setFormData((p) => ({ ...p, extraInfo: e.target.value }))

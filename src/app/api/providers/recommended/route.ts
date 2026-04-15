@@ -13,7 +13,7 @@ const NEED_TO_SERVICE_TERMS: Record<string, string[]> = {
 };
 
 /**
- * GET /api/providers/recommended?agent=navigator-santos&needs=OT,SLP&postal=N6A&exclude=Provider+Name1,Provider+Name2
+ * GET /api/providers/recommended?agent=navigator-{family}&needs=OT,SLP&postal=N6A&exclude=Provider+Name1,Provider+Name2
  *
  * Returns Supabase providers matching the child's needs and location.
  * - needs: comma-separated need labels (OT, SLP, ABA/IBI, etc.)

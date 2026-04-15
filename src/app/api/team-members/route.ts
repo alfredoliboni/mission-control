@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase/queries/team-members";
 
 /**
- * GET /api/team-members?agent=navigator-santos-alex
+ * GET /api/team-members?agent=navigator-{family}-{child}
  * Returns { active: TeamMember[], former: TeamMember[] } for the authenticated family.
  */
 export async function GET(request: NextRequest) {

@@ -251,9 +251,9 @@ export default function LandingPage() {
                 <Heart className="h-4 w-4 text-primary" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">Maria S.</p>
+                <p className="text-sm font-semibold text-foreground">Ontario Parent</p>
                 <p className="text-xs text-muted-foreground">
-                  Mother of Alex, age 4 — London, Ontario
+                  Parent of a child with ASD — Ontario, Canada
                 </p>
               </div>
             </div>

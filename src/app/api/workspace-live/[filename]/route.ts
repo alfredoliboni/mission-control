@@ -8,7 +8,7 @@ const WORKSPACE_FILE_SERVER = process.env.WORKSPACE_FILE_SERVER || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
 /**
- * GET /api/workspace-live/[filename]?agent=navigator-santos-sofia
+ * GET /api/workspace-live/[filename]?agent=navigator-{family}
  * Reads a raw .md file from the agent's workspace.
  * Mode 1 (dev): reads from local filesystem
  * Mode 2 (Vercel): fetches from remote workspace file server

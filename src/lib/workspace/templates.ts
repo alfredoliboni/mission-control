@@ -544,14 +544,14 @@ The Mission Control dashboard parses these files. Wrong format = broken dashboar
 
 ### KV Format (under Basic Info)
 \`\`\`markdown
-- **Name:** Alex Santos
-- **Date of Birth:** 2022-03-15
-- **Age:** 4
-- **Diagnosis:** ASD Level 2
-- **Current Stage:** Seeking Services
-- **Postal Code:** N6A 3K7
-- **Location:** London
-- **Family Language:** Portuguese/English
+- **Name:** [Child Name]
+- **Date of Birth:** YYYY-MM-DD
+- **Age:** [age]
+- **Diagnosis:** [diagnosis]
+- **Current Stage:** [stage]
+- **Postal Code:** [postal code]
+- **Location:** [city]
+- **Family Language:** [language(s)]
 \`\`\`
 
 ### Personal Profile Sub-sections (H3)
@@ -585,7 +585,7 @@ TABLE: \`role|name|organization|contact|notes\`
 \`\`\`markdown
 ### 2026-04-25 | 🔴 HIGH | DTC Application Deadline
 Description text here. Can be multiple lines.
-**Action:** Call Dr. Patel at 519-555-0456
+**Action:** Call [provider name] at [phone number]
 \`\`\`
 
 ### Severity Values
@@ -635,14 +635,14 @@ Must be: \`**Action:** description\`
 
 ### Provider Block (H4)
 \`\`\`markdown
-#### Thames Valley Children's Centre
+#### [Provider Name]
 - **Type:** Public, government-funded
 - **Services:** SLP, OT, ABA
-- **Relevance:** Matches child's needs for speech and occupational therapy
-- **Waitlist:** 3-6 months (unverified)
-- **Contact:** 519-685-8680 | tvcc.on.ca
+- **Relevance:** [why this matches child's needs]
+- **Waitlist:** [estimated wait] (unverified)
+- **Contact:** [phone] | [website]
 - **Funding:** OAP, OHIP
-- **Notes:** Multi-service — can coordinate intake
+- **Notes:** [relevant notes]
 \`\`\`
 
 ### Gap Filler Tag
@@ -712,13 +712,13 @@ Format: \`- [x] Item text — 2026-04-15\` (at end, after em dash)
 
 ### Partner Block
 \`\`\`markdown
-### Dana William
-- **Role:** Occupational Therapist
-- **Organization:** Dana William Clinic
-- **Services:** OT, Sensory Integration
-- **Contact:** 5196979760 | dana@example.com
-- **Status:** Active since 2026-04-10
-- **Source:** Added via Mission Control, 2026-04-10
+### [Provider Name]
+- **Role:** [Role]
+- **Organization:** [Organization Name]
+- **Services:** [service list]
+- **Contact:** [phone] | [email]
+- **Status:** Active since YYYY-MM-DD
+- **Source:** Added via Mission Control, YYYY-MM-DD
 \`\`\`
 
 ### Last Updated
