@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     audioUrl?: string;
   };
 
+  console.log(`[onboarding] POST received — childName: ${childName}, audioUrl: ${audioUrl ? "YES (" + audioUrl.slice(0, 60) + "...)" : "NO"}, profileMarkdown: ${profileMarkdown?.slice(0, 50)}...`);
+
   if (!profileMarkdown) {
     return NextResponse.json({ error: "Profile data required" }, { status: 400 });
   }

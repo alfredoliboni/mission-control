@@ -534,14 +534,16 @@ function OnboardingPageInner() {
 
       // ── Add-child mode: user is already logged in, just call the onboarding API ──
       if (isAddChild) {
+        const postBody = {
+          profileMarkdown: profile,
+          childName,
+          ...(isAudioMode && formData.audioUrl ? { audioUrl: formData.audioUrl } : {}),
+        };
+        console.log("[onboarding-ui] POST body:", JSON.stringify({ ...postBody, profileMarkdown: postBody.profileMarkdown.slice(0, 50) + "..." }));
         const res = await fetch("/api/onboarding", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            profileMarkdown: profile,
-            childName,
-            ...(isAudioMode && formData.audioUrl ? { audioUrl: formData.audioUrl } : {}),
-          }),
+          body: JSON.stringify(postBody),
         });
 
         if (!res.ok) {
