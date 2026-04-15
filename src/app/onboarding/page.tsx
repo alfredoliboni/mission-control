@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -22,6 +22,11 @@ import {
   FileText,
   Mail,
   Loader2,
+  Mic,
+  MicOff,
+  Square,
+  RotateCcw,
+  AudioLines,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -89,6 +94,9 @@ function AddCustomTag({ onAdd, placeholder }: { onAdd: (value: string) => void; 
 // ---------------------------------------------------------------------------
 
 interface FormData {
+  // Onboarding mode
+  onboardingMode: "wizard" | "audio" | "";
+  audioUrl: string;
   // Step 1
   fullName: string;
   nickname: string;
@@ -128,6 +136,8 @@ interface FormData {
 }
 
 const initialFormData: FormData = {
+  onboardingMode: "",
+  audioUrl: "",
   fullName: "",
   nickname: "",
   dateOfBirth: "",
@@ -155,7 +165,7 @@ const initialFormData: FormData = {
 // Constants
 // ---------------------------------------------------------------------------
 
-const TOTAL_ONBOARDING_STEPS = 8;
+const TOTAL_ONBOARDING_STEPS = 9;
 
 const INDIGENOUS_OPTIONS = [
   { id: "first-nations", label: "First Nations" },
@@ -296,6 +306,21 @@ const SUPPLEMENT_SUGGESTIONS = [
   "Melatonin",
 ];
 
+const AUDIO_PROMPTS = [
+  "Tell us your child's name and age",
+  "What was the diagnosis? When was it?",
+  "What therapies or services are you currently receiving?",
+  "What are your child's strengths? What do they love?",
+  "What are the biggest challenges day to day?",
+  "Do they take any medications?",
+  "What sensory things do they like or avoid?",
+  "Who is on your care team? (doctors, therapists, school)",
+  "Where are you in the journey? Just diagnosed? In therapy?",
+  "Is there anything else you'd like us to know?",
+];
+
+const MAX_RECORDING_SECONDS = 600; // 10 minutes
+
 // ---------------------------------------------------------------------------
 // Helper: generate profile markdown
 // ---------------------------------------------------------------------------
@@ -434,10 +459,23 @@ export default function OnboardingPage() {
     canUploadRecords: false,
   });
 
+  // Audio recording state
+  const [recordingState, setRecordingState] = useState<"idle" | "recording" | "paused" | "done" | "uploading" | "uploaded" | "error">("idle");
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   const firstStep = isLoggedIn ? 1 : 0;
-  const totalSteps = isLoggedIn ? TOTAL_ONBOARDING_STEPS : TOTAL_ONBOARDING_STEPS + 1;
+  const audioModeSteps = isLoggedIn ? 2 : 3; // choice + audio recording (+ signup if not logged in)
+  const wizardSteps = isLoggedIn ? TOTAL_ONBOARDING_STEPS : TOTAL_ONBOARDING_STEPS + 1;
+  const totalSteps = formData.onboardingMode === "audio" ? audioModeSteps : wizardSteps;
   const currentStepIndex = isLoggedIn ? step : step + 1; // 1-based for display
-  const progress = Math.round((currentStepIndex / totalSteps) * 100);
+  const progress = Math.round((Math.min(currentStepIndex, totalSteps) / totalSteps) * 100);
 
   // ---------------------------------------------------------------------------
   // Navigation
@@ -463,18 +501,20 @@ export default function OnboardingPage() {
           authPassword.length >= 6 &&
           authPassword === authConfirmPassword
         );
-      case 1:
+      case 1: // choice step — mode must be selected (handled by card click navigation)
+        return formData.onboardingMode !== "";
+      case 2: // child info (was step 1)
         return formData.fullName.trim().length > 0;
-      case 3:
+      case 4: // journey stage (was step 3)
         return formData.journeyStage !== "";
-      case 4:
+      case 5: // support needs (was step 4)
         return formData.supportNeeds.length > 0;
       default:
         return true;
     }
-  }, [step, authEmail, authPassword, authConfirmPassword, formData.fullName, formData.journeyStage, formData.supportNeeds]);
+  }, [step, authEmail, authPassword, authConfirmPassword, formData.onboardingMode, formData.fullName, formData.journeyStage, formData.supportNeeds]);
 
-  const isOptionalStep = step === 2 || step === 5 || step === 6 || step === 7 || step === 8;
+  const isOptionalStep = step === 3 || step === 6 || step === 7 || step === 8 || step === 9;
 
   // ---------------------------------------------------------------------------
   // Completion
@@ -491,8 +531,9 @@ export default function OnboardingPage() {
       await supabase.auth.signOut();
 
       // Generate profile BEFORE signup so we can include it in metadata
-      const profile = generateProfileMarkdown(formData);
-      const childName = formData.fullName || formData.nickname;
+      const isAudioMode = formData.onboardingMode === "audio";
+      const profile = isAudioMode ? "" : generateProfileMarkdown(formData);
+      const childName = formData.fullName || formData.nickname || "";
       const familyName = authEmail.split("@")[0].split("+").pop() || "family";
 
       const { error: signUpError } = await supabase.auth.signUp({
@@ -501,11 +542,13 @@ export default function OnboardingPage() {
         options: {
           data: {
             role: "parent",
-            full_name: childName,
-            child_name: childName,
+            full_name: childName || familyName,
+            child_name: childName || undefined,
             family_name: familyName,
-            onboarding_profile: profile,
+            onboarding_profile: isAudioMode ? undefined : profile,
             onboarding_completed: true,
+            onboarding_mode: formData.onboardingMode,
+            ...(isAudioMode && formData.audioUrl ? { onboarding_audio_url: formData.audioUrl } : {}),
           },
         },
       });
@@ -545,6 +588,143 @@ export default function OnboardingPage() {
       };
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Audio recording helpers
+  // ---------------------------------------------------------------------------
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  const stopAllTracks = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      // Determine best supported MIME type
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        clearTimer();
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioPreviewUrl(url);
+        setRecordingState("done");
+        stopAllTracks();
+      };
+
+      recorder.start(1000); // collect data every second
+      setRecordingState("recording");
+      setRecordingSeconds(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => {
+          if (prev + 1 >= MAX_RECORDING_SECONDS) {
+            recorder.stop();
+            return prev + 1;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      setMicError(
+        "Microphone access was denied. Please allow microphone access in your browser settings, or choose the form option instead."
+      );
+      setRecordingState("error");
+    }
+  }, [clearTimer, stopAllTracks]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
+
+  const resetRecording = useCallback(() => {
+    clearTimer();
+    stopAllTracks();
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+    }
+    setAudioBlob(null);
+    setAudioPreviewUrl(null);
+    setRecordingState("idle");
+    setRecordingSeconds(0);
+    setFormData((p) => ({ ...p, audioUrl: "" }));
+  }, [clearTimer, stopAllTracks, audioPreviewUrl]);
+
+  const uploadAudio = useCallback(async () => {
+    if (!audioBlob) return;
+    setRecordingState("uploading");
+    try {
+      const supabase = createClient();
+      const filename = `onboarding-${Date.now()}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from("onboarding-audio")
+        .upload(filename, audioBlob, { contentType: audioBlob.type });
+
+      if (uploadError) {
+        toast.error("Upload failed: " + uploadError.message);
+        setRecordingState("done");
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from("onboarding-audio")
+        .getPublicUrl(filename);
+
+      setFormData((p) => ({ ...p, audioUrl: data.publicUrl }));
+      setRecordingState("uploaded");
+      toast.success("Audio uploaded successfully!");
+    } catch {
+      toast.error("Upload failed. Please try again.");
+      setRecordingState("done");
+    }
+  }, [audioBlob]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimer();
+      stopAllTracks();
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Scroll to top on step change
@@ -634,6 +814,241 @@ export default function OnboardingPage() {
   function renderStep1() {
     return (
       <>
+        <StepIcon icon={AudioLines} bgClass="bg-primary/10 text-primary" />
+        <h2 className="font-heading text-2xl font-bold text-center text-foreground">
+          How would you like to tell us about your child?
+        </h2>
+        <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
+          Choose the option that&apos;s easiest for you.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Option A: Form wizard */}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData((p) => ({ ...p, onboardingMode: "wizard" }));
+              goTo(2);
+            }}
+            className={`group relative rounded-2xl border-2 px-6 py-8 text-left transition-all hover:shadow-md ${
+              formData.onboardingMode === "wizard"
+                ? "border-primary bg-primary/5"
+                : "border-warm-200 bg-white hover:border-primary/40"
+            }`}
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors">
+              <FileText className="h-6 w-6" />
+            </div>
+            <h3 className="font-heading text-lg font-bold text-foreground mb-1">
+              Fill out the form
+            </h3>
+            <p className="text-sm text-warm-400 leading-relaxed">
+              Answer a few questions step by step. Takes about 5-10 minutes.
+            </p>
+          </button>
+
+          {/* Option B: Audio recording */}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData((p) => ({ ...p, onboardingMode: "audio" }));
+              goTo(2);
+            }}
+            className={`group relative rounded-2xl border-2 px-6 py-8 text-left transition-all hover:shadow-md ${
+              formData.onboardingMode === "audio"
+                ? "border-primary bg-primary/5"
+                : "border-warm-200 bg-white hover:border-primary/40"
+            }`}
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+              <Mic className="h-6 w-6" />
+            </div>
+            <h3 className="font-heading text-lg font-bold text-foreground mb-1">
+              Record an audio
+            </h3>
+            <p className="text-sm text-warm-400 leading-relaxed">
+              Tell us about your child in your own words. Up to 10 minutes. We&apos;ll do the rest.
+            </p>
+          </button>
+        </div>
+
+        <p className="text-center text-xs text-warm-400 mt-6 leading-relaxed max-w-sm mx-auto">
+          We know forms are exhausting. If you&apos;d rather just talk to us, pick the audio option &mdash; our Navigator will handle the rest.
+        </p>
+      </>
+    );
+  }
+
+  function renderAudioStep() {
+    return (
+      <>
+        <StepIcon icon={Mic} bgClass="bg-primary/10 text-primary" />
+        <h2 className="font-heading text-2xl font-bold text-center text-foreground">
+          Tell us about your child
+        </h2>
+        <p className="text-center text-warm-400 mt-1 mb-6 leading-relaxed max-w-md mx-auto">
+          Just talk naturally. Use the prompts below as a guide &mdash; you don&apos;t
+          need to answer every one.
+        </p>
+
+        {/* Mic error state */}
+        {micError && (
+          <div className="mb-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div className="flex items-start gap-2">
+              <MicOff className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                <p>{micError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData((p) => ({ ...p, onboardingMode: "wizard" }));
+                    setMicError(null);
+                    goTo(2);
+                  }}
+                  className="mt-2 text-primary font-medium hover:underline"
+                >
+                  Switch to form instead
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recording UI */}
+        <div className="rounded-2xl border-2 border-warm-200 bg-white p-6 mb-6">
+          {/* Timer */}
+          <div className="text-center mb-4">
+            <p className="font-mono text-3xl font-bold text-foreground tabular-nums">
+              {formatTime(recordingSeconds)}
+            </p>
+            <p className="text-xs text-warm-400 mt-1">
+              {recordingState === "recording"
+                ? `Recording... (max ${formatTime(MAX_RECORDING_SECONDS)})`
+                : recordingState === "done" || recordingState === "uploaded"
+                  ? "Recording complete"
+                  : recordingState === "uploading"
+                    ? "Uploading..."
+                    : `Tap to start (max ${formatTime(MAX_RECORDING_SECONDS)})`}
+            </p>
+          </div>
+
+          {/* Pulse animation while recording */}
+          {recordingState === "recording" && (
+            <div className="flex items-center justify-center gap-1 mb-4 h-8">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1 bg-primary rounded-full"
+                  style={{
+                    height: `${12 + Math.random() * 20}px`,
+                    animation: `pulse 0.8s ease-in-out ${i * 0.1}s infinite alternate`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Control buttons */}
+          <div className="flex items-center justify-center gap-4">
+            {recordingState === "idle" || recordingState === "error" ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600 hover:shadow-xl transition-all active:scale-95"
+                aria-label="Start recording"
+              >
+                <Mic className="h-7 w-7" />
+              </button>
+            ) : recordingState === "recording" ? (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600 hover:shadow-xl transition-all animate-pulse active:scale-95"
+                aria-label="Stop recording"
+              >
+                <Square className="h-6 w-6" />
+              </button>
+            ) : recordingState === "done" ? (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={resetRecording}
+                  className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-warm-200 text-warm-400 hover:border-primary hover:text-primary transition-all"
+                  aria-label="Record again"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={uploadAudio}
+                  className="flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-white shadow-md hover:bg-primary/90 hover:shadow-lg transition-all"
+                >
+                  <Check className="h-4 w-4" />
+                  Use this recording
+                </button>
+              </div>
+            ) : recordingState === "uploading" ? (
+              <div className="flex items-center gap-2 text-warm-400">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Uploading audio...</span>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Audio playback preview */}
+          {(recordingState === "done" || recordingState === "uploaded") && audioPreviewUrl && (
+            <div className="mt-4 flex justify-center">
+              <audio controls src={audioPreviewUrl} className="w-full max-w-sm" />
+            </div>
+          )}
+        </div>
+
+        {/* Success message after upload */}
+        {recordingState === "uploaded" && (
+          <div className="rounded-xl bg-green-50 border border-green-200 px-5 py-4 mb-6 text-center">
+            <p className="text-sm font-medium text-green-800 mb-1">
+              Thank you! Your Navigator will process this and set up your profile.
+            </p>
+            <p className="text-xs text-green-600">
+              This may take a few minutes after you complete sign up.
+            </p>
+          </div>
+        )}
+
+        {/* Teleprompter-style prompts — always visible */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-warm-400 uppercase tracking-wider mb-3">
+            Talk about any of these topics:
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {AUDIO_PROMPTS.map((prompt, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-xl bg-warm-50 px-4 py-3 text-sm text-foreground"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="leading-relaxed">{prompt}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CSS for pulse animation */}
+        <style jsx>{`
+          @keyframes pulse {
+            0% { transform: scaleY(0.4); }
+            100% { transform: scaleY(1); }
+          }
+        `}</style>
+      </>
+    );
+  }
+
+  function renderStep2() {
+    return (
+      <>
         <StepIcon icon={User} bgClass="bg-primary/10 text-primary" />
         <h2 className="font-heading text-2xl font-bold text-center text-foreground">
           Welcome to The Companion
@@ -698,7 +1113,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep2() {
+  function renderStep3() {
     const showNavigator =
       formData.indigenousIdentity !== "" &&
       formData.indigenousIdentity !== "prefer-not-to-say";
@@ -764,7 +1179,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep3() {
+  function renderStep4() {
     return (
       <>
         <StepIcon icon={MapPin} bgClass="bg-primary/10 text-primary" />
@@ -817,7 +1232,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep4() {
+  function renderStep5() {
     return (
       <>
         <StepIcon icon={Heart} bgClass="bg-rose-50 text-rose-500" />
@@ -884,7 +1299,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep5() {
+  function renderStep6() {
     return (
       <>
         <StepIcon icon={Sparkles} bgClass="bg-amber-50 text-amber-500" />
@@ -1173,7 +1588,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep6() {
+  function renderStep7() {
     return (
       <>
         <StepIcon icon={Stethoscope} bgClass="bg-teal-50 text-teal-600" />
@@ -1402,7 +1817,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep7() {
+  function renderStep8() {
     return (
       <>
         <StepIcon icon={Users} bgClass="bg-indigo-50 text-indigo-600" />
@@ -1577,7 +1992,7 @@ export default function OnboardingPage() {
     );
   }
 
-  function renderStep8() {
+  function renderStep9() {
     return (
       <>
         <StepIcon icon={Upload} bgClass="bg-sky-50 text-sky-600" />
@@ -1704,13 +2119,14 @@ export default function OnboardingPage() {
   const stepRenderers: Record<number, () => React.ReactNode> = {
     0: renderStep0,
     1: renderStep1,
-    2: renderStep2,
+    2: formData.onboardingMode === "audio" ? renderAudioStep : renderStep2,
     3: renderStep3,
     4: renderStep4,
     5: renderStep5,
     6: renderStep6,
     7: renderStep7,
     8: renderStep8,
+    9: renderStep9,
   };
 
   // ---------------------------------------------------------------------------
@@ -1770,43 +2186,75 @@ export default function OnboardingPage() {
             </Card>
 
             {/* Navigation */}
-            <div className="w-full max-w-2xl mt-6 flex items-center justify-between">
-              <Button
-                variant="outline"
-                disabled={step === firstStep}
-                onClick={() => goTo(step - 1)}
-              >
-                <ArrowLeft className="h-4 w-4 mr-1.5" />
-                Back
-              </Button>
+            {(() => {
+              // Audio mode at step 2: show back + complete (after upload)
+              const isAudioComplete = formData.onboardingMode === "audio" && step === 2;
+              // Choice step: cards auto-navigate, only show back
+              const isChoiceStep = step === 1;
+              // Last wizard step
+              const isLastWizardStep = step === TOTAL_ONBOARDING_STEPS;
 
-              <div className="flex items-center gap-3">
-                {isOptionalStep && step < TOTAL_ONBOARDING_STEPS && (
-                  <Button variant="ghost" onClick={() => goTo(step + 1)}>
-                    Skip this step
-                  </Button>
-                )}
-
-                {step < TOTAL_ONBOARDING_STEPS ? (
+              return (
+                <div className="w-full max-w-2xl mt-6 flex items-center justify-between">
                   <Button
-                    disabled={!canProceed()}
-                    onClick={() => goTo(step + 1)}
+                    variant="outline"
+                    disabled={step === firstStep}
+                    onClick={() => {
+                      if (step === 2 && formData.onboardingMode !== "") {
+                        // Going back from step 2 should go to choice step
+                        resetRecording();
+                        goTo(1);
+                      } else {
+                        goTo(step - 1);
+                      }
+                    }}
                   >
-                    Continue
-                    <ArrowRight className="h-4 w-4 ml-1.5" />
+                    <ArrowLeft className="h-4 w-4 mr-1.5" />
+                    Back
                   </Button>
-                ) : (
-                  <Button onClick={handleComplete} disabled={completing}>
-                    {completing ? (
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+
+                  <div className="flex items-center gap-3">
+                    {isChoiceStep ? null : isAudioComplete ? (
+                      <Button
+                        onClick={handleComplete}
+                        disabled={completing || recordingState !== "uploaded"}
+                      >
+                        {completing ? (
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1.5" />
+                        )}
+                        {completing ? "Setting up..." : "Complete Setup"}
+                      </Button>
+                    ) : isLastWizardStep ? (
+                      <Button onClick={handleComplete} disabled={completing}>
+                        {completing ? (
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1.5" />
+                        )}
+                        {completing ? "Setting up..." : "Complete Setup"}
+                      </Button>
                     ) : (
-                      <Check className="h-4 w-4 mr-1.5" />
+                      <>
+                        {isOptionalStep && step < TOTAL_ONBOARDING_STEPS && (
+                          <Button variant="ghost" onClick={() => goTo(step + 1)}>
+                            Skip this step
+                          </Button>
+                        )}
+                        <Button
+                          disabled={!canProceed()}
+                          onClick={() => goTo(step + 1)}
+                        >
+                          Continue
+                          <ArrowRight className="h-4 w-4 ml-1.5" />
+                        </Button>
+                      </>
                     )}
-                    {completing ? "Setting up..." : "Complete Setup"}
-                  </Button>
-                )}
-              </div>
-            </div>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
       </main>
