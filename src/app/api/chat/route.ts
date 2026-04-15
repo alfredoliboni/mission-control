@@ -61,16 +61,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { getFamilyAgent } = await import("@/lib/family-agents");
-  const family = getFamilyAgent(user.email ?? undefined);
-
-  // Support ?agent= param for multi-child routing
+  // Resolve agentId: trust ?agent= param from frontend, then metadata, then hardcoded map
   const agentParam = request.nextUrl.searchParams.get("agent");
-  let agentId = family.children[0].agentId;
+  let agentId: string;
   if (agentParam) {
-    const isValidAgent = family.children.some((c) => c.agentId === agentParam);
-    if (isValidAgent) {
-      agentId = agentParam;
+    agentId = agentParam;
+  } else {
+    const metadata = user.user_metadata || {};
+    if (metadata.agent_id) {
+      agentId = metadata.agent_id;
+    } else {
+      const { getFamilyAgent } = await import("@/lib/family-agents");
+      const family = getFamilyAgent(user.email ?? undefined);
+      agentId = family.children[0].agentId;
     }
   }
 
