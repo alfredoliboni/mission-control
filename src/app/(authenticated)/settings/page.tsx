@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -65,21 +65,21 @@ interface PrivacySettings {
   smsNotifications: boolean;
 }
 
-// ── Demo data ────────────────────────────────────────────────────────────
+// ── Defaults (overridden by auth data) ──────────────────────────────────
 
-const DEMO_PARENT: ParentInfo = {
-  name: "Maria Santos",
-  email: "maria.santos@email.com",
-  phone: "(519) 555-0189",
-  address: "234 Oxford Street",
-  city: "London",
-  postalCode: "N6A 1T4",
+const EMPTY_PARENT: ParentInfo = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  city: "",
+  postalCode: "",
   province: "Ontario",
-  preferredLanguage: "Portuguese",
+  preferredLanguage: "",
   preferredContact: "Email",
 };
 
-const DEMO_PRIVACY: PrivacySettings = {
+const DEFAULT_PRIVACY: PrivacySettings = {
   shareWithProviders: true,
   shareWithSchool: true,
   anonymizedResearch: false,
@@ -265,8 +265,9 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const family = useFamily();
   const activeChildIndex = useAppStore((s) => s.activeChildIndex);
-  const [parent, setParent] = useState(DEMO_PARENT);
-  const [privacy, setPrivacy] = useState(DEMO_PRIVACY);
+  const [parent, setParent] = useState(EMPTY_PARENT);
+  const [privacy, setPrivacy] = useState(DEFAULT_PRIVACY);
+  const [parentLoaded, setParentLoaded] = useState(false);
   const [editingParent, setEditingParent] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
@@ -279,6 +280,31 @@ export default function SettingsPage() {
     ? activeChildIndex
     : 0;
   const [selectedChildIndex, setSelectedChildIndex] = useState(safeChildIndex);
+
+  // ── Load parent info from Supabase auth ──
+  useEffect(() => {
+    if (parentLoaded) return;
+    fetch("/api/auth/user")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.user) return;
+        const u = data.user;
+        const meta = u.user_metadata || {};
+        setParent({
+          name: meta.full_name || u.email?.split("@")[0] || "",
+          email: u.email || "",
+          phone: meta.phone || "",
+          address: meta.address || "",
+          city: meta.city || "",
+          postalCode: meta.postal_code || "",
+          province: "Ontario",
+          preferredLanguage: meta.preferred_language || "",
+          preferredContact: meta.preferred_contact || "Email",
+        });
+        setParentLoaded(true);
+      })
+      .catch(() => {});
+  }, [parentLoaded]);
 
   // ── Care Team: active/former from family_team_members (DB hook) ──
   const { data: teamData, isLoading: loadingTeam } = useTeamMembers();

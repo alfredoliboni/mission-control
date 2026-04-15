@@ -61,12 +61,11 @@ const FAMILY_AGENT_MAP: Record<string, FamilyAgent> = {
   },
 };
 
-// Default agent for demo mode or unknown users
+// Default agent for users not in hardcoded map (resolved via user_metadata instead)
 const DEFAULT_AGENT: FamilyAgent = {
-  familyName: "Santos",
+  familyName: "Family",
   children: [
-    { childName: "Alex Santos", agentId: "navigator-santos" },
-    { childName: "Sofia Santos", agentId: "navigator-santos-sofia" },
+    { childName: "Child", agentId: "navigator" },
   ],
 };
 
