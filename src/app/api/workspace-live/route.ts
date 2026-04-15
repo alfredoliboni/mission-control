@@ -44,29 +44,37 @@ export async function GET(request: NextRequest) {
     const files = fs.readdirSync(workspacePath)
       .filter((f) => f.endsWith(".md"))
       .sort();
+    console.log(`[workspace-live] LOCAL OK: ${agentId} → ${files.length} files from ${workspacePath}`);
     return NextResponse.json(files);
   } catch {
-    // Filesystem not available — try remote
+    console.log(`[workspace-live] LOCAL FAIL: ${agentId} → fs not available at ${workspacePath}, trying remote...`);
   }
 
   // Mode 2: Remote workspace file server (Vercel/production)
   if (WORKSPACE_FILE_SERVER) {
+    const url = `${WORKSPACE_FILE_SERVER}/files/${agentId}`;
     try {
       const headers: Record<string, string> = {};
       if (COMPANION_API_TOKEN) {
         headers["Authorization"] = `Bearer ${COMPANION_API_TOKEN}`;
       }
-      const res = await fetch(`${WORKSPACE_FILE_SERVER}/files/${agentId}`, { headers });
+      console.log(`[workspace-live] REMOTE: fetching ${url}`);
+      const res = await fetch(url, { headers });
       if (res.ok) {
         const files = await res.json();
+        console.log(`[workspace-live] REMOTE OK: ${agentId} → ${files.length} files`);
         return NextResponse.json(files);
       }
+      console.error(`[workspace-live] REMOTE FAIL: ${url} → HTTP ${res.status}`);
     } catch (err) {
-      console.error("Remote workspace fetch error:", err);
+      console.error(`[workspace-live] REMOTE ERROR: ${url} →`, err);
     }
+  } else {
+    console.error(`[workspace-live] NO REMOTE: WORKSPACE_FILE_SERVER not set`);
   }
 
-  // Fallback: return default file list
+  // Fallback
+  console.error(`[workspace-live] FALLBACK: returning default file list for ${agentId}`);
   return NextResponse.json([
     "alerts.md", "benefits.md", "child-profile.md", "documents.md",
     "ontario-system.md", "pathway.md", "programs.md", "providers.md",
