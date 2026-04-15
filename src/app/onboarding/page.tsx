@@ -551,9 +551,11 @@ function OnboardingPageInner() {
           return;
         }
 
-        toast.success(`${childName || "New child"} has been added!`);
-        router.push("/profile");
-        router.refresh();
+        const data = await res.json();
+        const newChildName = data.childName || childName;
+        const slug = newChildName.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+        const newAgentId = data.agentId || `navigator-${slug}`;
+        router.push(`/setup/processing?agent=${encodeURIComponent(newAgentId)}&child=${encodeURIComponent(newChildName)}`);
         return;
       }
 
