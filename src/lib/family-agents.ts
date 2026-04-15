@@ -10,6 +10,7 @@
 export interface FamilyChild {
   childName: string;
   agentId: string;
+  status?: "processing" | "ready";  // NEW — undefined treated as "ready" for backward compat
 }
 
 export interface FamilyAgent {
@@ -132,7 +133,7 @@ export function getFamilyAgentFromMetadata(metadata: {
   agent_id?: string;
   child_name?: string;
   full_name?: string;
-  children?: Array<{ childName: string; agentId: string }>;
+  children?: Array<{ childName: string; agentId: string; status?: "processing" | "ready" }>;
 }): FamilyAgent | null {
   // New multi-child format
   if (metadata.children && metadata.children.length > 0) {
