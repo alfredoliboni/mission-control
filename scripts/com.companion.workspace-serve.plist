@@ -7,14 +7,14 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/node</string>
+        <string>/opt/homebrew/bin/node</string>
         <string>/Users/luisaliboni/.openclaw/workspace/out/companion/mission-control/scripts/workspace-serve.mjs</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PORT</key>
-        <string>18790</string>
+        <string>18792</string>
         <key>WORKSPACE_ROOT</key>
         <string>/Users/luisaliboni/.openclaw</string>
     </dict>
