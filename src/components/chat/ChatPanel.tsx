@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { ChatMessage } from "./ChatMessage";
 import { useChat } from "@/hooks/useChat";
 import { useAppStore } from "@/store/appStore";
+import { useFamily } from "@/hooks/useActiveAgent";
 
 export function ChatPanel() {
-  const { chatOpen, setChatOpen } = useAppStore();
+  const { chatOpen, setChatOpen, activeChildIndex } = useAppStore();
   const { messages, isLoading, sendMessage } = useChat();
+  const family = useFamily();
+  const childName = family.children[activeChildIndex]?.childName || "your child";
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +74,7 @@ export function ChatPanel() {
                   🧭
                 </p>
                 <p className="text-sm text-warm-400">
-                  Ask me anything about Alex&apos;s pathway, benefits, or
+                  Ask me anything about {childName}&apos;s pathway, benefits, or
                   services.
                 </p>
               </div>

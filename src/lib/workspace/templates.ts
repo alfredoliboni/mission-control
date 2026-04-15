@@ -149,7 +149,7 @@ Use your MCP tools for anything with fixed fields:
 - **Programs:** \`add_program\`
 - **Providers:** \`add_provider\`
 
-**DO NOT write alerts, team members, benefits, programs, or providers to .md files.** Use the tools above. The dashboard reads from the database.
+**DO NOT read or write alerts, team members, benefits, programs, or providers from .md files.** Use the tools above — they are your ONLY source for this data. The .md files for these entities are legacy and may be outdated. Always use \`get_alerts\` and \`get_team\` to check current state.
 
 ### Narrative data → Workspace .md files
 Write freely to these files — no format constraints:
