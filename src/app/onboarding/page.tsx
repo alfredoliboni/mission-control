@@ -527,8 +527,10 @@ function OnboardingPageInner() {
 
     try {
       const isAudioMode = formData.onboardingMode === "audio";
-      const profile = isAudioMode ? "" : generateProfileMarkdown(formData);
       const childName = formData.fullName || formData.nickname || "";
+      const profile = isAudioMode
+        ? `# Audio Onboarding\n\nChild name: ${childName || "Not provided"}\nAudio URL: ${formData.audioUrl || "Not provided"}\n\nPlease process the audio recording to build the child's profile.`
+        : generateProfileMarkdown(formData);
 
       // ── Add-child mode: user is already logged in, just call the onboarding API ──
       if (isAddChild) {
@@ -944,6 +946,28 @@ function OnboardingPageInner() {
             </div>
           </div>
         )}
+
+        {/* Child name — required before recording */}
+        <div className="space-y-3 mb-6">
+          <label className="text-sm font-medium text-foreground">
+            What is your child&apos;s name? <span className="text-red-500">*</span>
+          </label>
+          <Input
+            value={formData.fullName}
+            onChange={(e) => setFormData(p => ({ ...p, fullName: e.target.value }))}
+            placeholder="e.g. Gustavo"
+            className="max-w-sm"
+          />
+          <label className="text-sm font-medium text-warm-400">
+            Nickname (optional)
+          </label>
+          <Input
+            value={formData.nickname}
+            onChange={(e) => setFormData(p => ({ ...p, nickname: e.target.value }))}
+            placeholder="e.g. Gugu"
+            className="max-w-sm"
+          />
+        </div>
 
         {/* Recording UI */}
         <div className="rounded-2xl border-2 border-warm-200 bg-white p-6 mb-6">
@@ -2248,7 +2272,7 @@ function OnboardingPageInner() {
                     {isChoiceStep ? null : isAudioComplete ? (
                       <Button
                         onClick={handleComplete}
-                        disabled={completing || recordingState !== "uploaded"}
+                        disabled={completing || recordingState !== "uploaded" || !formData.fullName.trim()}
                       >
                         {completing ? (
                           <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
