@@ -63,11 +63,31 @@ SUPABASE (minimal — NOT for agent content)
 
 - 5 test families deployed: Santos, Chen, Okafor, Tremblay, Rivera
 - 6 navigators total (incl. Sofia Santos)
-- Each has own workspace with: SOUL.md, AGENTS.md, USER.md, memory/*.md
+- Each has own workspace with: SOUL.md, IDENTITY.md, USER.md, AGENTS.md, memory/*.md
 - Model: Claude Sonnet 4.6 (fallback Haiku)
 - Heartbeat: configured via OpenClaw cron (6 navigators, every 3h)
 - Gateway port: 18789, token auth, Tailscale for secure access
 - Agent is headless (no Discord) — writes to workspace, dashboard reads
+
+## Workspace Memory System (Ray Fernando pattern)
+
+Three-tier memory system per workspace:
+
+**Tier 1 (root, injected every turn — keep short):**
+- SOUL.md (~500 tokens) — personality, voice, boundaries
+- IDENTITY.md (~200 tokens) — name, emoji, role, agent ID
+- USER.md (~300 tokens) — family context, top goals, preferences
+- AGENTS.md (~800 tokens) — autonomy rules, format contracts summary, consolidation rules, heartbeat
+
+**Tier 2 (memory/, on-demand — searchable):**
+- child-profile.md, alerts.md, benefits.md, providers.md, programs.md
+- pathway.md, ontario-system.md, documents.md, journey-partners.md
+- waitlist-tracker.md (NEW — tracks queue positions and follow-ups)
+- format-contracts.md (NEW — full parser specs, READ ONLY by agent)
+
+**Template generators:** `src/lib/workspace/templates.ts` — generates all workspace files during onboarding.
+
+**Format contracts are critical:** AGENTS.md warns the agent; format-contracts.md has the full spec. Wrong format = broken dashboard parsers.
 
 ## Stage-Specific Sections
 
@@ -81,19 +101,24 @@ The sidebar discovers these dynamically via `discoverSections()`.
 ## Key Directories
 
 - `src/lib/workspace/parsers/` — Markdown parsers (the heart of the app)
+- `src/lib/workspace/templates.ts` — Workspace file generators for onboarding
 - `src/hooks/useWorkspace.ts` — Data fetching hooks (workspace-live API)
+- `src/hooks/useActiveAgent.ts` — Resolves active agent/child (Zustand + metadata)
 - `src/components/sections/` — Feature-specific UI components
 - `src/components/layout/` — AppShell, Sidebar, TopBar
 - `src/components/chat/` — ChatBubble, ChatPanel, ChatMessage
 - `src/app/(authenticated)/` — Protected route pages
-- `src/app/api/` — API routes (workspace-live, chat, companion proxy)
+- `src/app/api/` — API routes (workspace-live, chat, consolidate, onboarding)
+- `src/app/api/consolidate/route.ts` — Writes to workspace .md when family acts
 - `src/lib/supabase/` — Supabase clients (browser, server, middleware)
 - `src/lib/workspace/parsers/__fixtures__/demo-data/` — Test fixture markdown files
+- `scripts/workspace-serve.mjs` — Persistent file server for workspace access
+- `scripts/com.companion.workspace-serve.plist` — launchd auto-start config
 
 ## Commands
 
 - `npm run dev` — Start dev server
-- `npm test` — Run all tests (vitest, 299 tests)
+- `npm test` — Run all tests (vitest, 321 tests)
 - `npm run test:watch` — Tests in watch mode
 - `npm run build` — Production build
 - `npm run lint` — ESLint
@@ -125,11 +150,11 @@ Format drift breaks parsers — always test after changing parser logic.
 
 ## Current State (April 2026)
 
-### Working (April 13, 2026)
+### Working (April 15, 2026)
 
 **Core:**
 - Frontend v2 (Cream Balance design, DM Sans, emojis, 65+ routes)
-- 299 vitest tests passing (14 test files, 10 parsers)
+- 321 vitest tests passing (15 test files, 10 parsers)
 - Supabase Auth (sign in/up, password reset, session validation, password visibility toggle)
 - 5 family accounts + 6 agents on Orgo.ai VM (incl. Sofia Santos)
 - Chat bubble → OpenClaw Gateway (Claude Sonnet 4.6, base64 encoding, 60s timeout)
@@ -177,11 +202,15 @@ Format drift breaks parsers — always test after changing parser logic.
 - Provider Dashboard (/portal/dashboard — authenticated, edit profile, real view count stats, My Families)
 - Care Team Portal (/team — limited view for doctors/schools)
 
-**Multi-child:**
+**Multi-child + Dynamic Users:**
 - Santos family: Alex (4yo) + Sofia (8yo, ASD L1 + ADHD)
 - Child switcher dropdown in TopBar
 - Per-child workspace routing (?agent= param)
 - Per-child stakeholder invites (child_name in stakeholder_links)
+- Dynamic user resolution: user_metadata.children[] → Zustand store → useActiveAgent()
+- Users not in hardcoded family-agents.ts resolved via metadata (no code changes needed)
+- Audio onboarding option with MediaRecorder API (10-min max, teleprompter prompts)
+- Chat fallback: shows visual indicator when Navigator is offline (isFallback flag)
 
 **Invite System:**
 - Accept/decline flow (/invite/[id] public page)

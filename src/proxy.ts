@@ -16,7 +16,6 @@ const PUBLIC_API_PREFIXES = [
   "/api/invite/",
   "/api/onboarding",
   "/api/community/posts",
-  "/api/debug-workspace",
 ];
 
 export async function proxy(request: NextRequest) {

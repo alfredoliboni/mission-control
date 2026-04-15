@@ -37,6 +37,7 @@ export function useChat() {
         role: "assistant",
         content: data.response,
         timestamp: new Date(),
+        isFallback: data.fallback === true,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

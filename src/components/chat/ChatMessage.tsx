@@ -23,6 +23,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : "bg-warm-100 text-foreground"
         )}
       >
+        {message.isFallback && !isUser && (
+          <div className="flex items-center gap-1.5 mb-1.5 text-[10px] text-amber-600 font-medium">
+            <span aria-hidden="true">&#9888;</span>
+            <span>Navigator offline — cached response</span>
+          </div>
+        )}
         {isUser ? (
           <p className="text-sm">{message.content}</p>
         ) : (

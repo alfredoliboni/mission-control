@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateWorkspaceBundle, type OnboardingData } from "@/lib/workspace/templates";
 
 const WORKSPACE_FILE_SERVER = process.env.WORKSPACE_FILE_SERVER || "";
 const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
@@ -16,10 +17,11 @@ const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { profileMarkdown, childName, familyName } = body as {
+  const { profileMarkdown, childName, familyName, onboardingData } = body as {
     profileMarkdown: string;
     childName?: string;
     familyName?: string;
+    onboardingData?: OnboardingData;
   };
 
   if (!profileMarkdown) {
@@ -37,6 +39,17 @@ export async function POST(request: NextRequest) {
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
   const agentId = `navigator-${slug}`;
 
+  // Generate workspace bundle from templates
+  const templateData: OnboardingData = onboardingData || {
+    childName: name,
+    familyName: familyName || name,
+  };
+  // Ensure names are set even if onboardingData was partial
+  templateData.childName = templateData.childName || name;
+  templateData.familyName = templateData.familyName || familyName || name;
+
+  const workspaceBundle = generateWorkspaceBundle(templateData);
+
   // Step 1: Create agent + workspace via file server (runs on Mac Mini)
   if (WORKSPACE_FILE_SERVER) {
     try {
@@ -51,6 +64,7 @@ export async function POST(request: NextRequest) {
           agentId,
           profileMarkdown,
           childName: name,
+          files: workspaceBundle,
         }),
       });
 

@@ -17,9 +17,6 @@
     },
     "src/app/api/documents/analyze/route.ts": {
       "maxDuration": 120
-    },
-    "src/app/api/debug-workspace/route.ts": {
-      "maxDuration": 30
     }
   }
 }

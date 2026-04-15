@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgent, getFamilyAgentFromMetadata, isKnownFamilyEmail, getAgentWorkspacePath } from "@/lib/family-agents";
+import { getFamilyAgent, getAgentWorkspacePath } from "@/lib/family-agents";
 import fs from "fs";
 import path from "path";
 
