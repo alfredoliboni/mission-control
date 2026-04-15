@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useParsedBenefits } from "@/hooks/useWorkspace";
+import { useBenefitsDB, useBenefitAction } from "@/hooks/useBenefitsDB";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import type { BenefitStatus, BenefitStatusRow, BenefitDetail } from "@/types/workspace";
 import { cn } from "@/lib/utils";
@@ -19,9 +20,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-/* ── reminder persistence ────────────────────────────────────────── */
-
-const REMINDER_STORAGE_KEY = "benefits-reminders";
+/* ── reminder state (ephemeral — no localStorage) ────────────────────── */
 
 interface BenefitReminder {
   benefitName: string;
@@ -29,24 +28,7 @@ interface BenefitReminder {
   setAt: string;
 }
 
-function loadReminders(): BenefitReminder[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(REMINDER_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return [];
-}
-
-function saveReminders(reminders: BenefitReminder[]) {
-  try {
-    localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(reminders));
-  } catch { /* quota exceeded */ }
-}
-
-/* ── applied status persistence ──────────────────────────────────── */
-
-const TRACKING_STORAGE_KEY = "benefits-tracking";
+/* ── tracking types (used for .md fallback path only) ────────────────── */
 
 type TrackingStatus = "applied" | "pending_review" | "approved" | "denied";
 
@@ -56,21 +38,6 @@ interface BenefitTracking {
   updatedAt: string;
 }
 
-function loadTracking(): Record<string, BenefitTracking> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(TRACKING_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return {};
-}
-
-function saveTracking(tracking: Record<string, BenefitTracking>) {
-  try {
-    localStorage.setItem(TRACKING_STORAGE_KEY, JSON.stringify(tracking));
-  } catch { /* quota exceeded */ }
-}
-
 const TRACKING_CONFIG: Record<TrackingStatus, { label: string; emoji: string; dotColor: string; next?: TrackingStatus[] }> = {
   applied: { label: "Applied", emoji: "📨", dotColor: "bg-status-current", next: ["pending_review", "approved", "denied"] },
   pending_review: { label: "Pending Review", emoji: "⏳", dotColor: "bg-status-caution", next: ["approved", "denied"] },
@@ -78,7 +45,7 @@ const TRACKING_CONFIG: Record<TrackingStatus, { label: string; emoji: string; do
   denied: { label: "Denied", emoji: "❌", dotColor: "bg-status-blocked", next: ["applied"] },
 };
 
-/* ── status config ─────────────────────────────────────────────── */
+/* ── status config ─────────────────────────────────────────────────── */
 
 const statusConfig: Record<
   BenefitStatus,
@@ -134,7 +101,7 @@ const statusConfig: Record<
   },
 };
 
-/* ── Detail row ────────────────────────────────────────────────── */
+/* ── Detail row ────────────────────────────────────────────────────── */
 
 function DetailRow({
   icon,
@@ -154,7 +121,18 @@ function DetailRow({
   );
 }
 
-/* ── Benefit card ──────────────────────────────────────────────── */
+/* ── Normalized benefit row (shared between DB and .md paths) ────────── */
+
+interface NormalizedBenefit extends BenefitStatusRow {
+  // Detail fields
+  eligibility?: string;
+  action?: string;
+  documentsNeeded?: string;
+  // DB id for mutations (undefined when using .md fallback)
+  dbId?: string;
+}
+
+/* ── Benefit card ──────────────────────────────────────────────────── */
 
 function BenefitCard({
   row,
@@ -165,17 +143,23 @@ function BenefitCard({
   tracking,
   hasReminder,
 }: {
-  row: BenefitStatusRow;
+  row: NormalizedBenefit;
   detail?: BenefitDetail;
   onSetReminder: (benefitName: string, option: "1week" | "1month") => void;
-  onMarkApplied: (benefitName: string) => void;
-  onUpdateTracking: (benefitName: string, status: TrackingStatus) => void;
+  onMarkApplied: (benefitName: string, dbId?: string) => void;
+  onUpdateTracking: (benefitName: string, status: TrackingStatus, dbId?: string) => void;
   tracking?: BenefitTracking;
   hasReminder: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const cfg = statusConfig[row.status];
+
+  // Merge inline detail fields (DB path) with separate BenefitDetail (md path)
+  const eligibility = detail?.eligibility || row.eligibility || "";
+  const actionText = detail?.action || row.action || "";
+  const documentsNeeded = detail?.documentsNeeded || row.documentsNeeded || "";
+  const hasInlineDetail = !!(eligibility || actionText || documentsNeeded || detail?.amount || detail?.unlocks || detail?.howApplied || detail?.expectedResponse || detail?.renewal || detail?.status);
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -232,7 +216,7 @@ function BenefitCard({
           )}
 
           {/* Collapsible eligibility details */}
-          {detail && (
+          {hasInlineDetail && (
             <div className="mt-3">
               <button
                 onClick={() => setExpanded(!expanded)}
@@ -248,23 +232,23 @@ function BenefitCard({
 
               {expanded && (
                 <div className="mt-2 pl-4 border-l-2 border-primary/10 space-y-1.5">
-                  {detail.eligibility && (
-                    <DetailRow icon={<Shield className="h-3 w-3" />} label="Eligibility" value={detail.eligibility} />
+                  {eligibility && (
+                    <DetailRow icon={<Shield className="h-3 w-3" />} label="Eligibility" value={eligibility} />
                   )}
-                  {detail.amount && (
-                    <DetailRow icon={<DollarSign className="h-3 w-3" />} label="Amount" value={detail.amount} />
+                  {(detail?.amount || row.amount) && (
+                    <DetailRow icon={<DollarSign className="h-3 w-3" />} label="Amount" value={detail?.amount || row.amount || ""} />
                   )}
-                  {detail.unlocks && <DetailRow label="Unlocks" value={detail.unlocks} />}
-                  {detail.howApplied && <DetailRow label="How Applied" value={detail.howApplied} />}
-                  {detail.expectedResponse && <DetailRow label="Expected Response" value={detail.expectedResponse} />}
-                  {detail.documentsNeeded && <DetailRow label="Documents" value={detail.documentsNeeded} />}
-                  {detail.renewal && (
+                  {detail?.unlocks && <DetailRow label="Unlocks" value={detail.unlocks} />}
+                  {detail?.howApplied && <DetailRow label="How Applied" value={detail.howApplied} />}
+                  {detail?.expectedResponse && <DetailRow label="Expected Response" value={detail.expectedResponse} />}
+                  {documentsNeeded && <DetailRow label="Documents" value={documentsNeeded} />}
+                  {detail?.renewal && (
                     <DetailRow icon={<RefreshCw className="h-3 w-3" />} label="Renewal" value={detail.renewal} />
                   )}
-                  {detail.status && <DetailRow label="Status" value={detail.status} />}
-                  {detail.action && (
+                  {detail?.status && <DetailRow label="Status" value={detail.status} />}
+                  {actionText && (
                     <p className="text-[12px] font-medium text-status-caution mt-2">
-                      ⚠️ {detail.action}
+                      ⚠️ {actionText}
                     </p>
                   )}
                 </div>
@@ -279,7 +263,7 @@ function BenefitCard({
               {!tracking && row.status === "not_started" && (
                 <div className="space-y-1">
                   <button
-                    onClick={() => onMarkApplied(row.benefit)}
+                    onClick={() => onMarkApplied(row.benefit, row.dbId)}
                     className="inline-flex items-center gap-1 text-[11px] font-medium text-status-current hover:bg-status-current/8 px-2 py-1 rounded-md transition-colors"
                   >
                     <CheckCircle className="h-3.5 w-3.5" />
@@ -311,7 +295,7 @@ function BenefitCard({
                       {TRACKING_CONFIG[tracking.status].next!.map((nextStatus) => (
                         <button
                           key={nextStatus}
-                          onClick={() => onUpdateTracking(row.benefit, nextStatus)}
+                          onClick={() => onUpdateTracking(row.benefit, nextStatus, row.dbId)}
                           className={cn(
                             "inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors border",
                             nextStatus === "approved" && "text-status-success border-status-success/30 hover:bg-status-success/8",
@@ -379,7 +363,7 @@ function BenefitCard({
   );
 }
 
-/* ── Page ──────────────────────────────────────────────────────── */
+/* ── Page ──────────────────────────────────────────────────────────── */
 
 // Statuses that indicate the family IS eligible / has engaged
 const eligibleStatuses = new Set<BenefitStatus>([
@@ -392,20 +376,121 @@ const eligibleStatuses = new Set<BenefitStatus>([
 ]);
 
 export default function BenefitsPage() {
-  const { data: benefits, isLoading } = useParsedBenefits();
-  const [reminders, setReminders] = useState<BenefitReminder[]>(() => loadReminders());
-  const [trackingData, setTrackingData] = useState<Record<string, BenefitTracking>>(() => loadTracking());
+  // DB source (primary)
+  const { data: dbBenefits, isLoading: dbLoading } = useBenefitsDB();
+  const benefitAction = useBenefitAction();
 
-  const initialized = useRef(false);
-  useEffect(() => { initialized.current = true; }, []);
-  useEffect(() => {
-    if (!initialized.current) return;
-    saveReminders(reminders);
-  }, [reminders]);
-  useEffect(() => {
-    if (!initialized.current) return;
-    saveTracking(trackingData);
-  }, [trackingData]);
+  // .md source (fallback)
+  const { data: mdBenefits, isLoading: mdLoading } = useParsedBenefits();
+
+  const hasDbData = !!(dbBenefits && dbBenefits.length > 0);
+  const isLoading = hasDbData ? dbLoading : mdLoading;
+
+  // Ephemeral reminders (no localStorage)
+  const [reminders, setReminders] = useState<BenefitReminder[]>([]);
+
+  // Fallback-only tracking state (used when DB unavailable)
+  const [fallbackTracking, setFallbackTracking] = useState<Record<string, BenefitTracking>>({});
+
+  /* ── Normalize DB or .md data to a unified shape ─────────────────── */
+
+  const normalizedBenefits: NormalizedBenefit[] = hasDbData
+    ? dbBenefits!.map((b) => ({
+        benefit: b.benefitName,
+        status: (b.status as BenefitStatus) ?? "not_started",
+        statusDisplay: b.status,
+        applied: b.appliedDate || "",
+        approved: b.approvedDate || "",
+        renewal: b.renewalDate || "",
+        amount: b.amount || "",
+        notes: b.agentNote || "",
+        // Detail fields inlined from DB
+        eligibility: b.eligibilityDetail || "",
+        action: b.action || "",
+        documentsNeeded: b.documentsNeeded || "",
+        dbId: b.id,
+      }))
+    : mdBenefits
+    ? mdBenefits.statusTable.map((row) => ({ ...row }))
+    : [];
+
+  /* ── Derive tracking state from DB status ────────────────────────── */
+  // When using DB data, the status IS the truth — build a BenefitTracking
+  // object from DB fields so the card UI renders consistently.
+  function getTracking(row: NormalizedBenefit): BenefitTracking | undefined {
+    if (hasDbData) {
+      const dbRow = dbBenefits!.find((b) => b.id === row.dbId);
+      if (!dbRow) return undefined;
+      // Only show tracking UI for statuses that represent user action
+      if (dbRow.status === "pending" || dbRow.status === "active" || dbRow.status === "renewed") {
+        const trackingStatus: TrackingStatus =
+          dbRow.status === "pending" ? "applied" :
+          dbRow.status === "active" ? "approved" :
+          "approved";
+        return {
+          status: trackingStatus,
+          appliedDate: dbRow.appliedDate || dbRow.createdAt,
+          updatedAt: dbRow.updatedAt,
+        };
+      }
+      if (dbRow.status === "approved") {
+        return {
+          status: "approved",
+          appliedDate: dbRow.appliedDate || dbRow.createdAt,
+          updatedAt: dbRow.updatedAt,
+        };
+      }
+      return undefined;
+    }
+    // Fallback path: use in-memory tracking
+    return fallbackTracking[row.benefit];
+  }
+
+  /* ── Sort rows ───────────────────────────────────────────────────── */
+
+  const sortedRows = [...normalizedBenefits].sort((a, b) => {
+    const aEligible = eligibleStatuses.has(a.status) ? 0 : 1;
+    const bEligible = eligibleStatuses.has(b.status) ? 0 : 1;
+    return aEligible - bEligible;
+  });
+
+  /* ── Kanban split ────────────────────────────────────────────────── */
+
+  const recommended: NormalizedBenefit[] = [];
+  const applied: NormalizedBenefit[] = [];
+  const resolved: NormalizedBenefit[] = [];
+
+  for (const row of sortedRows) {
+    const t = getTracking(row);
+    if (t && (t.status === "approved" || t.status === "denied")) {
+      resolved.push(row);
+    } else if (t || row.status === "pending" || row.status === "waiting" || row.status === "registered") {
+      applied.push(row);
+    } else if (row.status === "approved" || row.status === "active" || row.status === "renewed") {
+      resolved.push(row);
+    } else {
+      recommended.push(row);
+    }
+  }
+
+  /* ── Detail lookup (md path only) ───────────────────────────────── */
+
+  function findDetail(benefitName: string): BenefitDetail | undefined {
+    if (!mdBenefits || hasDbData) return undefined;
+    const lower = benefitName.toLowerCase();
+    return mdBenefits.details.find((d) => {
+      const dLower = d.name.toLowerCase();
+      return (
+        lower.includes(dLower) ||
+        dLower.includes(lower) ||
+        lower
+          .split("(")
+          .some((part) => dLower.includes(part.trim().replace(")", "")))
+      );
+    });
+  }
+
+  /* ── Reminder handler ────────────────────────────────────────────── */
 
   const handleSetReminder = useCallback((benefitName: string, option: "1week" | "1month") => {
     const now = new Date();
@@ -427,170 +512,184 @@ export default function BenefitsPage() {
     });
   }, []);
 
-  const handleMarkApplied = useCallback((benefitName: string) => {
-    const now = new Date().toISOString();
-    setTrackingData((prev) => ({
-      ...prev,
-      [benefitName]: { status: "applied", appliedDate: now, updatedAt: now },
-    }));
-    toast.success("Marked as Applied", {
-      description: `${benefitName} is now being tracked. Update the status when you hear back.`,
-    });
-  }, []);
+  /* ── Mark as Applied ─────────────────────────────────────────────── */
 
-  const handleUpdateTracking = useCallback((benefitName: string, status: TrackingStatus) => {
-    setTrackingData((prev) => ({
-      ...prev,
-      [benefitName]: {
-        ...prev[benefitName],
-        status,
-        updatedAt: new Date().toISOString(),
-      },
-    }));
+  const handleMarkApplied = useCallback((benefitName: string, dbId?: string) => {
+    const today = new Date().toISOString().split("T")[0];
+
+    if (dbId) {
+      // DB path: persist to Supabase
+      benefitAction.mutate(
+        { benefitId: dbId, status: "pending", dates: { applied: today } },
+        {
+          onSuccess: () => {
+            toast.success("Marked as Applied", {
+              description: `${benefitName} is now being tracked. Update the status when you hear back.`,
+            });
+          },
+          onError: () => {
+            toast.error("Could not update status", {
+              description: "Please try again or tell your Navigator in the chat.",
+            });
+          },
+        }
+      );
+    } else {
+      // Fallback path: in-memory only
+      const now = new Date().toISOString();
+      setFallbackTracking((prev) => ({
+        ...prev,
+        [benefitName]: { status: "applied", appliedDate: now, updatedAt: now },
+      }));
+      toast.success("Marked as Applied", {
+        description: `${benefitName} is now being tracked. Update the status when you hear back.`,
+      });
+    }
+  }, [benefitAction]);
+
+  /* ── Update tracking / status ────────────────────────────────────── */
+
+  const handleUpdateTracking = useCallback((benefitName: string, status: TrackingStatus, dbId?: string) => {
+    const today = new Date().toISOString().split("T")[0];
     const cfg = TRACKING_CONFIG[status];
-    toast.success(`${cfg.emoji} ${benefitName}`, {
-      description: `Status updated to: ${cfg.label}`,
-    });
-  }, []);
+
+    if (dbId) {
+      // DB path: map TrackingStatus → BenefitStatus + dates
+      const dbStatus = status === "approved" ? "approved" : status === "denied" ? "denied" : "pending";
+      const dates = status === "approved" ? { approved: today } : status === "applied" ? { applied: today } : undefined;
+
+      benefitAction.mutate(
+        { benefitId: dbId, status: dbStatus, dates },
+        {
+          onSuccess: () => {
+            toast.success(`${cfg.emoji} ${benefitName}`, {
+              description: `Status updated to: ${cfg.label}`,
+            });
+          },
+          onError: () => {
+            toast.error("Could not update status", {
+              description: "Please try again or tell your Navigator in the chat.",
+            });
+          },
+        }
+      );
+    } else {
+      // Fallback path: in-memory only
+      setFallbackTracking((prev) => ({
+        ...prev,
+        [benefitName]: {
+          ...prev[benefitName],
+          status,
+          updatedAt: new Date().toISOString(),
+        },
+      }));
+      toast.success(`${cfg.emoji} ${benefitName}`, {
+        description: `Status updated to: ${cfg.label}`,
+      });
+    }
+  }, [benefitAction]);
+
+  /* ── hasReminder helper ──────────────────────────────────────────── */
 
   const hasReminder = useCallback((benefitName: string) => {
     return reminders.some((r) => r.benefitName === benefitName);
   }, [reminders]);
 
-  // Match detail entries to status rows by name similarity
-  function findDetail(benefitName: string): BenefitDetail | undefined {
-    if (!benefits) return undefined;
-    const lower = benefitName.toLowerCase();
-    return benefits.details.find((d) => {
-      const dLower = d.name.toLowerCase();
-      return (
-        lower.includes(dLower) ||
-        dLower.includes(lower) ||
-        lower
-          .split("(")
-          .some((part) => dLower.includes(part.trim().replace(")", "")))
-      );
-    });
-  }
+  /* ── Render ──────────────────────────────────────────────────────── */
 
-  // Sort: eligible/active benefits first, not_started/unknown last
-  const sortedRows = benefits
-    ? [...benefits.statusTable].sort((a, b) => {
-        const aEligible = eligibleStatuses.has(a.status) ? 0 : 1;
-        const bEligible = eligibleStatuses.has(b.status) ? 0 : 1;
-        return aEligible - bEligible;
-      })
-    : [];
+  const renderCard = (row: NormalizedBenefit, i: number) => (
+    <BenefitCard
+      key={i}
+      row={row}
+      detail={findDetail(row.benefit)}
+      onSetReminder={handleSetReminder}
+      onMarkApplied={handleMarkApplied}
+      tracking={getTracking(row)}
+      onUpdateTracking={handleUpdateTracking}
+      hasReminder={hasReminder(row.benefit)}
+    />
+  );
 
+  // Use lastUpdated / agentMonitoring from md source when available
+  const lastUpdated = mdBenefits?.lastUpdated;
+  const agentMonitoring = mdBenefits?.agentMonitoring;
+  const hasBenefits = normalizedBenefits.length > 0;
 
   return (
     <WorkspaceSection
       title="Benefits"
       icon="💰"
-      lastUpdated={benefits?.lastUpdated}
-      agentMonitoring={benefits?.agentMonitoring}
+      lastUpdated={lastUpdated}
+      agentMonitoring={agentMonitoring}
       isLoading={isLoading}
     >
-      {benefits && (() => {
-        // Split benefits into 3 columns based on status
-        const recommended: BenefitStatusRow[] = [];
-        const applied: BenefitStatusRow[] = [];
-        const resolved: BenefitStatusRow[] = [];
+      {hasBenefits && (
+        <div className="space-y-6">
+          <p className="text-[13px] text-muted-foreground -mt-2">
+            {applied.length + resolved.length} benefits in progress or approved
+            {recommended.length > 0 && ` · ${recommended.length} recommended by your Navigator`}
+          </p>
 
-        for (const row of sortedRows) {
-          const t = trackingData[row.benefit];
-          if (t && (t.status === "approved" || t.status === "denied")) {
-            resolved.push(row);
-          } else if (t || row.status === "pending" || row.status === "waiting" || row.status === "registered") {
-            applied.push(row);
-          } else if (row.status === "approved" || row.status === "active" || row.status === "renewed") {
-            resolved.push(row);
-          } else {
-            recommended.push(row);
-          }
-        }
-
-        const renderCard = (row: BenefitStatusRow, i: number) => (
-          <BenefitCard
-            key={i}
-            row={row}
-            detail={findDetail(row.benefit)}
-            onSetReminder={handleSetReminder}
-            onMarkApplied={handleMarkApplied}
-            tracking={trackingData[row.benefit]}
-            onUpdateTracking={handleUpdateTracking}
-            hasReminder={hasReminder(row.benefit)}
-          />
-        );
-
-        return (
-          <div className="space-y-6">
-            <p className="text-[13px] text-muted-foreground -mt-2">
-              {applied.length + resolved.length} benefits in progress or approved
-              {recommended.length > 0 && ` · ${recommended.length} recommended by your Navigator`}
-            </p>
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Column 1: Recommended by Agent */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🎯</span>
-                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Recommended
-                  </h3>
-                  <span className="text-[10px] bg-primary/8 text-primary px-1.5 py-0.5 rounded-full font-medium">
-                    {recommended.length}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {recommended.length > 0
-                    ? recommended.map(renderCard)
-                    : <p className="text-[12px] text-muted-foreground py-4 text-center">All benefits have been actioned</p>
-                  }
-                </div>
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Column 1: Recommended by Agent */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎯</span>
+                <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Recommended
+                </h3>
+                <span className="text-[10px] bg-primary/8 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                  {recommended.length}
+                </span>
               </div>
-
-              {/* Column 2: Applied / In Progress */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">📨</span>
-                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Applied
-                  </h3>
-                  <span className="text-[10px] bg-status-caution/8 text-status-caution px-1.5 py-0.5 rounded-full font-medium">
-                    {applied.length}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {applied.length > 0
-                    ? applied.map(renderCard)
-                    : <p className="text-[12px] text-muted-foreground py-4 text-center">No applications in progress</p>
-                  }
-                </div>
+                {recommended.length > 0
+                  ? recommended.map(renderCard)
+                  : <p className="text-[12px] text-muted-foreground py-4 text-center">All benefits have been actioned</p>
+                }
               </div>
+            </div>
 
-              {/* Column 3: Approved / Denied */}
+            {/* Column 2: Applied / In Progress */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">📨</span>
+                <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Applied
+                </h3>
+                <span className="text-[10px] bg-status-caution/8 text-status-caution px-1.5 py-0.5 rounded-full font-medium">
+                  {applied.length}
+                </span>
+              </div>
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">✅</span>
-                  <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Result
-                  </h3>
-                  <span className="text-[10px] bg-status-success/8 text-status-success px-1.5 py-0.5 rounded-full font-medium">
-                    {resolved.length}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {resolved.length > 0
-                    ? resolved.map(renderCard)
-                    : <p className="text-[12px] text-muted-foreground py-4 text-center">No results yet</p>
-                  }
-                </div>
+                {applied.length > 0
+                  ? applied.map(renderCard)
+                  : <p className="text-[12px] text-muted-foreground py-4 text-center">No applications in progress</p>
+                }
+              </div>
+            </div>
+
+            {/* Column 3: Approved / Denied */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✅</span>
+                <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Result
+                </h3>
+                <span className="text-[10px] bg-status-success/8 text-status-success px-1.5 py-0.5 rounded-full font-medium">
+                  {resolved.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {resolved.length > 0
+                  ? resolved.map(renderCard)
+                  : <p className="text-[12px] text-muted-foreground py-4 text-center">No results yet</p>
+                }
               </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </WorkspaceSection>
   );
 }
