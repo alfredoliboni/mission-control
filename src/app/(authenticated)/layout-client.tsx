@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAppStore } from "@/store/appStore";
@@ -17,18 +17,20 @@ export function AuthenticatedLayoutClient({
   const setActiveChildIndex = useAppStore((s) => s.setActiveChildIndex);
   const resolved = useRef(false);
   const router = useRouter();
-
-  // Re-resolve family when returning from onboarding/processing
-  // The ?refresh=1 param signals that metadata changed
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
   const needsRefresh = searchParams.get("refresh") === "1";
-  if (needsRefresh && resolved.current) {
-    resolved.current = false;
-  }
 
   useEffect(() => {
-    if (resolved.current) return;
+    // Skip if already resolved — UNLESS ?refresh=1 forces re-resolve
+    if (resolved.current && !needsRefresh) return;
     resolved.current = true;
+
+    // Clean the refresh param from URL
+    if (needsRefresh) {
+      router.replace(pathname);
+    }
 
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -59,13 +61,20 @@ export function AuthenticatedLayoutClient({
         return;
       }
 
-      // Find first ready child (skip processing ones)
-      const readyIndex = family.children.findIndex((c) => c.status !== "processing");
-      if (readyIndex >= 0) {
-        setActiveChildIndex(readyIndex);
+      // Set active child to the latest ready child (likely the new one)
+      const readyChildren = family.children
+        .map((c, i) => ({ ...c, index: i }))
+        .filter((c) => c.status !== "processing");
+
+      if (readyChildren.length > 0) {
+        // If refreshing after onboarding, select the LAST ready child (the new one)
+        const targetIndex = needsRefresh
+          ? readyChildren[readyChildren.length - 1].index
+          : readyChildren[0].index;
+        setActiveChildIndex(targetIndex);
       }
     });
-  }, [setResolvedFamily, setActiveChildIndex, router]);
+  }, [needsRefresh, setResolvedFamily, setActiveChildIndex, router, pathname]);
 
   return (
     <QueryProvider>
