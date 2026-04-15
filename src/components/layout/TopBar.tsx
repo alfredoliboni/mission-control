@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, ChevronDown, Bell } from "lucide-react";
 import { useParsedProfile } from "@/hooks/useWorkspace";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -36,6 +37,7 @@ export function TopBar() {
   const { data: profile } = useParsedProfile();
   const family = useFamily();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -138,14 +140,25 @@ export function TopBar() {
                 {family.children.map((child, index) => (
                   <button
                     key={child.agentId}
-                    onClick={() => handleChildSwitch(index)}
+                    onClick={() => {
+                      if (child.status === "processing") {
+                        router.push(`/setup/processing?agent=${encodeURIComponent(child.agentId)}&child=${encodeURIComponent(child.childName)}`);
+                      } else {
+                        handleChildSwitch(index);
+                      }
+                    }}
                     className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                       index === safeIndex
                         ? "bg-warm-50 font-semibold text-foreground"
                         : "text-muted-foreground hover:bg-warm-50 hover:text-foreground"
                     }`}
                   >
-                    {child.childName}
+                    <span>{child.childName}</span>
+                    {child.status === "processing" ? (
+                      <span className="text-[10px] text-amber-500 font-medium"> Setting up...</span>
+                    ) : (
+                      <span className="text-[10px] text-green-600 font-medium"> ACTIVE</span>
+                    )}
                   </button>
                 ))}
               </div>
