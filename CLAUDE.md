@@ -61,33 +61,69 @@ SUPABASE (minimal — NOT for agent content)
 
 ## Agent Details (Orgo.ai)
 
-- 5 test families deployed: Santos, Chen, Okafor, Tremblay, Rivera
-- 6 navigators total (incl. Sofia Santos)
+- 7 workspaces deployed: Santos, Santos-Sofia, Chen, Okafor, Tremblay, Rivera, Daniel-Liboni
+- 7 navigators total
 - Each has own workspace with: SOUL.md, IDENTITY.md, USER.md, AGENTS.md, memory/*.md
+- Workspace file server: localhost:18792 (launchd auto-start, scripts/workspace-serve.mjs)
 - Model: Claude Sonnet 4.6 (fallback Haiku)
 - Heartbeat: configured via OpenClaw cron (6 navigators, every 3h)
 - Gateway port: 18789, token auth, Tailscale for secure access
 - Agent is headless (no Discord) — writes to workspace, dashboard reads
 
+## Hybrid Data Architecture (April 2026)
+
+**Rule: each entity has ONE source of truth.** Structured data → Supabase. Narrative → workspace .md.
+
+### Supabase = Source of Truth (structured)
+
+| Table | Purpose | Replaces |
+|-------|---------|----------|
+| `family_alerts` | Deadlines, actions, dismiss/complete tracking | alerts.md + localStorage |
+| `family_team_members` | Unified care team (doctors, therapists, stakeholders) | journey-partners.md + stakeholder_links + profile doctors |
+| `family_benefits` | Benefit applications, status, eligibility details | benefits.md + localStorage |
+| `family_programs` | Family ↔ program junction with agent_note | programs.md enrolled |
+| `family_providers` | Family ↔ provider junction with priority + agent_note | providers.md "my providers" |
+| `providers` | Public provider catalog (already existed) | — |
+| `programs` | Public program catalog | — |
+
+### Workspace .md = Source of Truth (narrative only)
+
+| File | Purpose |
+|------|---------|
+| `child-profile.md` | Personality, sensory, communication, strengths, challenges |
+| `pathway.md` | Family journey story, stages, milestones |
+| `ontario-system.md` | Reference: how Ontario services work |
+| `waitlist-tracker.md` | Agent internal tracking (feeds alerts) |
+| `format-contracts.md` | Agent reference for narrative file formats |
+
+### The Pattern
+```
+Agent DISCOVERS → Supabase catalog table (row)
+Agent RECOMMENDS → Supabase family_* junction table (row + agent_note)
+Family ACTS → Supabase junction UPDATE (status change)
+Agent NARRATES → Workspace .md (pathway, profile — the story)
+```
+
+### Key Design Decisions
+- `family_team_members` merges journey-partners.md + stakeholder_links into ONE table
+- Junction tables have `agent_note` TEXT field for personalized context
+- `family_alerts` has `related_entity_type` + `related_entity_id` to link alerts to benefits/providers
+- localStorage tracking eliminated — all state in DB
+- Dashboard reads structured data from Supabase, narrative from workspace parsers
+- Consolidation route writes to DB tables, not .md files
+
+**Full migration plan:** `docs/superpowers/plans/2026-04-15-hybrid-architecture-phase1.md`
+**Migration SQL:** `supabase/migrations/20260415_hybrid_schema.sql`
+**Seed script:** `scripts/seed-to-db.mjs` (one-time migration from .md → DB)
+
 ## Workspace Memory System (Ray Fernando pattern)
 
-Three-tier memory system per workspace:
+Agent-facing workspace files (Tier 1 injected every turn, Tier 2 on-demand):
 
-**Tier 1 (root, injected every turn — keep short):**
-- SOUL.md (~500 tokens) — personality, voice, boundaries
-- IDENTITY.md (~200 tokens) — name, emoji, role, agent ID
-- USER.md (~300 tokens) — family context, top goals, preferences
-- AGENTS.md (~800 tokens) — autonomy rules, format contracts summary, consolidation rules, heartbeat
+**Tier 1 (root):** SOUL.md, IDENTITY.md, USER.md, AGENTS.md
+**Tier 2 (memory/):** child-profile.md, pathway.md, ontario-system.md, waitlist-tracker.md, format-contracts.md
 
-**Tier 2 (memory/, on-demand — searchable):**
-- child-profile.md, alerts.md, benefits.md, providers.md, programs.md
-- pathway.md, ontario-system.md, documents.md, journey-partners.md
-- waitlist-tracker.md (NEW — tracks queue positions and follow-ups)
-- format-contracts.md (NEW — full parser specs, READ ONLY by agent)
-
-**Template generators:** `src/lib/workspace/templates.ts` — generates all workspace files during onboarding.
-
-**Format contracts are critical:** AGENTS.md warns the agent; format-contracts.md has the full spec. Wrong format = broken dashboard parsers.
+**Template generators:** `src/lib/workspace/templates.ts`
 
 ## Stage-Specific Sections
 
@@ -109,8 +145,15 @@ The sidebar discovers these dynamically via `discoverSections()`.
 - `src/components/chat/` — ChatBubble, ChatPanel, ChatMessage
 - `src/app/(authenticated)/` — Protected route pages
 - `src/app/api/` — API routes (workspace-live, chat, consolidate, onboarding)
-- `src/app/api/consolidate/route.ts` — Writes to workspace .md when family acts
+- `src/app/api/consolidate/route.ts` — Writes to Supabase when family acts (was .md, now DB)
+- `src/app/api/alerts/route.ts` — GET + PATCH alerts from Supabase
+- `src/app/api/team-members/route.ts` — GET + POST + PATCH team members
+- `src/app/api/benefits/route.ts` — GET + PATCH benefits
 - `src/lib/supabase/` — Supabase clients (browser, server, middleware)
+- `src/lib/supabase/queries/` — Typed CRUD functions for all 5 family tables
+- `src/hooks/useAlerts.ts` — DB-backed alerts hook (replaces useParsedAlerts)
+- `src/hooks/useTeamMembers.ts` — DB-backed team members hook
+- `src/hooks/useBenefitsDB.ts` — DB-backed benefits hook
 - `src/lib/workspace/parsers/__fixtures__/demo-data/` — Test fixture markdown files
 - `scripts/workspace-serve.mjs` — Persistent file server for workspace access
 - `scripts/com.companion.workspace-serve.plist` — launchd auto-start config
@@ -118,7 +161,7 @@ The sidebar discovers these dynamically via `discoverSections()`.
 ## Commands
 
 - `npm run dev` — Start dev server
-- `npm test` — Run all tests (vitest, 321 tests)
+- `npm test` — Run all tests (vitest, 388 tests)
 - `npm run test:watch` — Tests in watch mode
 - `npm run build` — Production build
 - `npm run lint` — ESLint
@@ -141,12 +184,12 @@ The sidebar discovers these dynamically via `discoverSections()`.
 - CSS variables in `src/app/globals.css` drive the entire color system
 - Cards with hover lift, gradient avatar, severity dots (not heavy badges)
 
-## Format Contract
+## Format Contract (narrative files only)
 
-The agent's markdown format is a machine-readable contract.
-Each parser expects specific heading names, table columns, and KV formats.
-See `PRD.md` section 3 for the full specification.
-Format drift breaks parsers — always test after changing parser logic.
+Format contracts now only apply to narrative .md files (child-profile, pathway, ontario-system).
+Structured data (alerts, benefits, providers, programs, team members) is in Supabase — no parser needed.
+See `src/lib/workspace/templates.ts` → `generateFormatContracts()` for the narrative file spec.
+Format drift breaks narrative parsers — always test after changing parser logic.
 
 ## Current State (April 2026)
 
@@ -154,7 +197,7 @@ Format drift breaks parsers — always test after changing parser logic.
 
 **Core:**
 - Frontend v2 (Cream Balance design, DM Sans, emojis, 65+ routes)
-- 321 vitest tests passing (15 test files, 10 parsers)
+- 388 vitest tests passing (20 test files, 10 parsers + 5 query modules)
 - Supabase Auth (sign in/up, password reset, session validation, password visibility toggle)
 - 5 family accounts + 6 agents on Orgo.ai VM (incl. Sofia Santos)
 - Chat bubble → OpenClaw Gateway (Claude Sonnet 4.6, base64 encoding, 60s timeout)
@@ -171,7 +214,7 @@ Format drift breaks parsers — always test after changing parser logic.
 - Providers: three tabs (my providers + recommended + search all), interactive Leaflet map, enrichment from Supabase, "Why?" explanations, Priority Now banner with child-specific needs, fuzzy search (trigram similarity), provider view tracking
 - Programs: two tabs, gap filler explanations, enrichment, Priority Now banner
 - Benefits: 3-column Kanban (Recommended → Applied → Result), status tracking
-- Alerts: severity dots, undo/reactivate
+- Alerts: severity dots, undo/reactivate — now reads from Supabase (DB-first, .md fallback)
 - Ontario System: visual vertical timeline with hover details
 - Employment + University: parsers + structured pages (adolescent)
 
@@ -226,24 +269,30 @@ Format drift breaks parsers — always test after changing parser logic.
 ### Pending
 
 **High Priority:**
-- **Provider architecture change** — providers.md should be "My Providers" (confirmed/active), Supabase providers table should be the match source. "Your Matches" reads from DB, not workspace
+- **Apply DB migration** — run `supabase/migrations/20260415_hybrid_schema.sql` against production Supabase
+- **Run seed script** — `node scripts/seed-to-db.mjs` to migrate existing .md data to DB tables
+- **Switch benefits + settings pages** — use DB hooks instead of workspace parsers (alerts page already switched)
+- **Agent tools** — create OpenClaw MCP server/skills for agent to write to Supabase instead of .md
 
 **Medium Priority:**
 - **PWA** — installable on mobile (manifest.json + service worker)
 - **Monitoring/logging** — Sentry or similar for production
+- **Remove obsolete parsers** — alerts.ts, journey-partners.ts, benefits.ts, providers.ts, programs.ts (after migration verified)
 
 **Low Priority / Future:**
 - Agent reads uploaded documents permanently (copies to workspace)
 - 211 Ontario API integration
 - Stripe billing for provider subscriptions
-- Real-time WebSocket for messages (currently polling)
+- Real-time via Supabase Realtime (replace 30s polling)
 
 ## Rules
 
-- Never use a database for agent-produced content — workspace `.md` is source of truth
-- All parsers must have corresponding test files
-- Test fixture data in `src/lib/workspace/parsers/__fixtures__/demo-data/` must stay in sync with parser expectations
+- **Hybrid architecture:** structured data → Supabase, narrative → workspace .md
+- **Single source of truth:** each entity lives in ONE place, never duplicated
+- **Agent writes structured data via tools** (Supabase insert/update), not markdown format contracts
+- **Agent writes narrative freely** to workspace .md (child profile, pathway) — no format constraints for narrative
+- Narrative parsers (profile, pathway, ontario-system) must have test files
 - CSS variables in `globals.css` drive the entire color system
-- Run `npm test` before committing parser changes
+- Run `npm test` before committing
 - The agent is the product, the dashboard is the window
 - Claude Code is the primary development tool (not Alfredo/OpenClaw)

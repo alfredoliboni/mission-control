@@ -70,6 +70,8 @@ export async function GET(request: NextRequest) {
   // Fallback
   return NextResponse.json([
     "alerts.md", "benefits.md", "child-profile.md", "documents.md",
+    "journey-partners.md", "messages.md",
     "ontario-system.md", "pathway.md", "programs.md", "providers.md",
+    "waitlist-tracker.md",
   ]);
 }
