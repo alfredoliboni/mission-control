@@ -11,49 +11,59 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const agentId = request.nextUrl.searchParams.get("agent");
-  if (!agentId) return NextResponse.json({ error: "agent param required" }, { status: 400 });
+  if (!agentId) return NextResponse.json({ error: "agent required" }, { status: 400 });
 
-  // Find child in user metadata
+  // Find child in metadata
   const children = user.user_metadata?.children || [];
   const child = children.find((c: { agentId: string }) => c.agentId === agentId);
   if (!child) return NextResponse.json({ error: "Child not found" }, { status: 404 });
 
-  // If already marked as ready in metadata, return immediately
+  // If already marked ready in metadata
   if (child.status === "ready" || !child.status) {
-    return NextResponse.json({ status: "ready", childName: child.childName, agentId });
+    return NextResponse.json({
+      status: "ready",
+      workspaceCreated: true,
+      filesCreated: true,
+      transcribed: true,
+      profileReady: true,
+      childName: child.childName,
+      agentId,
+    });
   }
 
-  // Check if workspace has real data (child-profile.md has a real name)
-  const workspacePath = getAgentWorkspacePath(agentId);
-  const profilePath = path.join(workspacePath, "child-profile.md");
+  // Check real filesystem state
+  const memoryPath = getAgentWorkspacePath(agentId); // returns .../memory
+  const wsDir = path.dirname(memoryPath); // workspace root
 
+  const workspaceCreated = fs.existsSync(wsDir);
+
+  let filesCreated = 0;
   try {
-    const content = fs.readFileSync(profilePath, "utf-8");
-    // Check if profile has been curated (has a real name, not template placeholder)
-    const hasRealName = content.includes("## Basic Info") &&
-      !content.includes("- **Name:** \n") &&
-      !content.match(/- \*\*Name:\*\*\s*$/m);
+    filesCreated = fs.readdirSync(memoryPath).filter((f: string) => f.endsWith(".md")).length;
+  } catch { /* directory doesn't exist */ }
 
-    // Also check if the name in the profile is not the template default
-    const nameMatch = content.match(/- \*\*Name:\*\*\s*(.+)/);
-    const profileName = nameMatch ? nameMatch[1].trim() : "";
-    const isTemplate = !profileName || profileName === child.childName; // same as what we set = uncurated
+  const transcriptPath = path.join(memoryPath, "audio-transcript.md");
+  const transcribed = fs.existsSync(transcriptPath);
 
-    // Consider ready if profile has been modified beyond the template
-    // Simple heuristic: if the file has more than the template lines
-    const lineCount = content.split("\n").length;
-    const isReady = lineCount > 30 && !content.includes("To be assessed");
+  // Check if profile has real data (not template)
+  let profileReady = false;
+  try {
+    const profileContent = fs.readFileSync(path.join(memoryPath, "child-profile.md"), "utf-8");
+    profileReady = !profileContent.includes("To be assessed") &&
+                   !profileContent.includes("To be confirmed") &&
+                   profileContent.split("\n").length > 25;
+  } catch { /* file doesn't exist */ }
 
-    // Suppress unused variable warnings
-    void hasRealName;
-    void isTemplate;
+  const status = profileReady ? "ready" : "processing";
 
-    if (isReady) {
-      return NextResponse.json({ status: "ready", childName: child.childName, agentId });
-    }
-  } catch {
-    // File doesn't exist yet — still processing
-  }
-
-  return NextResponse.json({ status: "processing", childName: child.childName, agentId });
+  return NextResponse.json({
+    status,
+    workspaceCreated,
+    filesCreated: filesCreated > 0,
+    fileCount: filesCreated,
+    transcribed,
+    profileReady,
+    childName: child.childName,
+    agentId,
+  });
 }

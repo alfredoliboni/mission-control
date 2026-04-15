@@ -1,7 +1,18 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+
+interface StatusData {
+  status: "processing" | "ready";
+  workspaceCreated?: boolean;
+  filesCreated?: boolean;
+  fileCount?: number;
+  transcribed?: boolean;
+  profileReady?: boolean;
+  childName?: string;
+  agentId?: string;
+}
 
 function ProcessingContent() {
   const params = useSearchParams();
@@ -9,29 +20,34 @@ function ProcessingContent() {
   const agentId = params.get("agent") || "";
   const childName = params.get("child") || "your child";
   const [elapsed, setElapsed] = useState(0);
-  const [status, setStatus] = useState<"processing" | "ready">("processing");
+  const [data, setData] = useState<StatusData | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    setElapsed((e) => e + 5);
+    try {
+      const res = await fetch(`/api/onboarding/status?agent=${encodeURIComponent(agentId)}`);
+      if (res.ok) {
+        const result: StatusData = await res.json();
+        setData(result);
+        if (result.status === "ready") {
+          setTimeout(() => router.push("/profile?refresh=1"), 1500);
+        }
+      }
+    } catch {
+      // ignore network errors — keep polling
+    }
+  }, [agentId, router]);
 
   // Poll for status every 5 seconds
   useEffect(() => {
-    if (!agentId || status === "ready") return;
-    const interval = setInterval(async () => {
-      setElapsed((e) => e + 5);
-      try {
-        const res = await fetch(`/api/onboarding/status?agent=${encodeURIComponent(agentId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "ready") {
-            setStatus("ready");
-            clearInterval(interval);
-            setTimeout(() => router.push("/profile?refresh=1"), 1500);
-          }
-        }
-      } catch {
-        // ignore network errors — keep polling
-      }
-    }, 5000);
+    if (!agentId || data?.status === "ready") return;
+
+    // Initial fetch immediately
+    fetchStatus();
+
+    const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
-  }, [agentId, status, router]);
+  }, [agentId, data?.status, fetchStatus]);
 
   return (
     <div className="min-h-screen bg-[#faf9f6] flex items-center justify-center px-4">
@@ -41,13 +57,13 @@ function ProcessingContent() {
           Setting up {childName}&apos;s Navigator
         </h1>
         <p className="text-sm text-warm-400">
-          {status === "ready"
+          {data?.status === "ready"
             ? "All set! Redirecting..."
             : "This usually takes 1–2 minutes"}
         </p>
 
         {/* Spinner */}
-        {status !== "ready" && (
+        {data?.status !== "ready" && (
           <div className="flex justify-center">
             <div
               className="h-8 w-8 rounded-full animate-spin"
@@ -61,23 +77,25 @@ function ProcessingContent() {
 
         {/* Progress steps */}
         <div className="text-left bg-white rounded-xl p-6 shadow-sm border border-border space-y-3">
-          <Step done>Workspace created</Step>
-          <Step done={elapsed > 10}>Navigator initialized</Step>
-          <Step done={status === "ready"} loading={status !== "ready"}>
-            Analyzing your information
+          <Step done={data?.workspaceCreated}>Workspace created</Step>
+          <Step done={data?.filesCreated}>
+            Files initialized ({data?.fileCount || 0} files)
           </Step>
-          <Step done={status === "ready"}>Profile ready</Step>
+          <Step done={data?.transcribed}>Audio transcribed</Step>
+          <Step done={data?.profileReady} loading={!!data && !data.profileReady}>
+            Navigator analyzing your information
+          </Step>
         </div>
 
         {/* Timeout message */}
-        {elapsed > 300 && status !== "ready" && (
+        {elapsed > 300 && data?.status !== "ready" && (
           <p className="text-xs text-warm-300 mt-4">
             Taking longer than expected. You can close this page and check back later.
           </p>
         )}
 
         {/* Ready message */}
-        {status === "ready" && (
+        {data?.status === "ready" && (
           <p className="text-sm text-green-600 font-medium">
             ✓ Ready! Redirecting to {childName}&apos;s profile...
           </p>
