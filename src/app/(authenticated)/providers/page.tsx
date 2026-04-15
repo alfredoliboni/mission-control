@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useParsedProviders, useParsedProfile } from "@/hooks/useWorkspace";
+import { useFamilyProviders } from "@/hooks/useFamilyProviders";
 import { useActiveAgent } from "@/hooks/useActiveAgent";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ import {
   Plus,
   Loader2,
 } from "lucide-react";
-import type { ParsedProvider, ParsedProviders, ParsedProfile } from "@/types/workspace";
+import type { ParsedProvider, ParsedProfile } from "@/types/workspace";
 import { extractNeeds, buildRecommendationSummary } from "@/lib/needs";
 
 // -- Types -------------------------------------------------------------------
@@ -121,29 +122,20 @@ function buildFullAddress(
 
 // -- Enrichment hook ---------------------------------------------------------
 
-function useEnrichedProviders(providers: ParsedProviders | undefined) {
-  const allWorkspace = useMemo(() => {
-    if (!providers) return [];
-    return [
-      ...providers.highestPriority,
-      ...providers.relevant,
-      ...providers.other,
-    ];
-  }, [providers]);
-
+function useEnrichedProviders(allProviders: ParsedProvider[]) {
   const { data: enriched, isLoading: enrichLoading } = useQuery<{
     providers: EnrichedProvider[];
   }>({
     queryKey: [
       "providers-enrich",
-      allWorkspace.map((p) => p.name).join("|"),
+      allProviders.map((p) => p.name).join("|"),
     ],
     queryFn: async () => {
       const res = await fetch("/api/providers/enrich", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          providers: allWorkspace.map((p) => ({
+          providers: allProviders.map((p) => ({
             name: p.name,
             type: p.type,
             services: p.services,
@@ -160,7 +152,7 @@ function useEnrichedProviders(providers: ParsedProviders | undefined) {
       if (!res.ok) throw new Error("Enrich failed");
       return res.json();
     },
-    enabled: allWorkspace.length > 0,
+    enabled: allProviders.length > 0,
     staleTime: 60_000,
     retry: 1,
   });
@@ -1129,26 +1121,63 @@ function RecommendedTabContent({
 // -- Main Page ---------------------------------------------------------------
 
 export default function ProvidersPage() {
-  const { data: providers, isLoading } = useParsedProviders();
+  const { data: dbProviders } = useFamilyProviders();
+  const { data: mdProviders, isLoading } = useParsedProviders();
   const { data: profile } = useParsedProfile();
   const agentId = useActiveAgent();
   const [activeTab, setActiveTab] = useState<Tab>("recommended");
   const [matchSearch, setMatchSearch] = useState("");
 
-  const { enrichMap, enrichLoading } = useEnrichedProviders(providers);
+  // DB-first, .md fallback: build the three priority buckets for "My Providers"
+  const hasDbProviders = dbProviders && dbProviders.length > 0;
+
+  const { myHighest, myRelevant, myOther } = useMemo<{
+    myHighest: ParsedProvider[];
+    myRelevant: ParsedProvider[];
+    myOther: ParsedProvider[];
+  }>(() => {
+    if (hasDbProviders) {
+      const toProvider = (p: (typeof dbProviders)[number]): ParsedProvider => ({
+        name: p.providerName,
+        type: "",
+        services: "",
+        relevance: p.agentNote || "",
+        waitlist: "",
+        contact: "",
+        funding: "",
+        notes: p.agentNote || "",
+        priority: p.priority as ParsedProvider["priority"],
+        isGapFiller: p.isGapFiller,
+      });
+      return {
+        myHighest: dbProviders.filter((p) => p.priority === "highest").map(toProvider),
+        myRelevant: dbProviders.filter((p) => p.priority === "relevant").map(toProvider),
+        myOther: dbProviders.filter((p) => p.priority === "other").map(toProvider),
+      };
+    }
+    // Fallback: workspace .md
+    return {
+      myHighest: mdProviders?.highestPriority ?? [],
+      myRelevant: mdProviders?.relevant ?? [],
+      myOther: mdProviders?.other ?? [],
+    };
+  }, [hasDbProviders, dbProviders, mdProviders]);
+
+  const allMyProviders = useMemo(
+    () => [...myHighest, ...myRelevant, ...myOther],
+    [myHighest, myRelevant, myOther]
+  );
+
+  const { enrichMap, enrichLoading } = useEnrichedProviders(allMyProviders);
 
   const childName = profile?.basicInfo.name || "your child";
   const postalCode = profile?.basicInfo.postalCode || "";
 
-  // Collect all workspace provider names for exclusion from recommendations
-  const workspaceProviderNames = useMemo(() => {
-    if (!providers) return [];
-    return [
-      ...providers.highestPriority,
-      ...providers.relevant,
-      ...providers.other,
-    ].map((p) => p.name);
-  }, [providers]);
+  // Collect all provider names for exclusion from recommendations
+  const workspaceProviderNames = useMemo(
+    () => allMyProviders.map((p) => p.name),
+    [allMyProviders]
+  );
 
   const filterProviders = (list: ParsedProvider[]): ParsedProvider[] =>
     list.filter(
@@ -1157,11 +1186,7 @@ export default function ProvidersPage() {
         p.services.toLowerCase().includes(matchSearch.toLowerCase())
     );
 
-  const totalCount = providers
-    ? providers.highestPriority.length +
-      providers.relevant.length +
-      providers.other.length
-    : 0;
+  const totalCount = myHighest.length + myRelevant.length + myOther.length;
 
   function renderProviderGrid(list: ParsedProvider[]) {
     const filtered = filterProviders(list);
@@ -1190,14 +1215,17 @@ export default function ProvidersPage() {
     { key: "search", label: "Search All", icon: "🔍" },
   ];
 
+  // Show the page once either DB or .md data is available (or both are still loading)
+  const pageReady = hasDbProviders || !!mdProviders;
+
   return (
     <WorkspaceSection
       title="Service Providers"
       icon="🏥"
-      lastUpdated={providers?.lastUpdated}
-      isLoading={isLoading}
+      lastUpdated={mdProviders?.lastUpdated}
+      isLoading={isLoading && !hasDbProviders}
     >
-      {providers && (
+      {pageReady && (
         <div className="space-y-5">
           {/* Tabs */}
           <div className="flex items-center gap-0 border-b border-border">
@@ -1258,32 +1286,32 @@ export default function ProvidersPage() {
               {!enrichLoading && (
                 <>
                   {/* Highest Priority */}
-                  {filterProviders(providers.highestPriority).length > 0 && (
+                  {filterProviders(myHighest).length > 0 && (
                     <section>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                         Highest Priority
                       </p>
-                      {renderProviderGrid(providers.highestPriority)}
+                      {renderProviderGrid(myHighest)}
                     </section>
                   )}
 
                   {/* Relevant */}
-                  {filterProviders(providers.relevant).length > 0 && (
+                  {filterProviders(myRelevant).length > 0 && (
                     <section>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                         Relevant
                       </p>
-                      {renderProviderGrid(providers.relevant)}
+                      {renderProviderGrid(myRelevant)}
                     </section>
                   )}
 
                   {/* Other / gap fillers */}
-                  {filterProviders(providers.other).length > 0 && (
+                  {filterProviders(myOther).length > 0 && (
                     <section>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                         Other Providers
                       </p>
-                      {renderProviderGrid(providers.other)}
+                      {renderProviderGrid(myOther)}
                     </section>
                   )}
                 </>
