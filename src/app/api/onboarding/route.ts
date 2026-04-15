@@ -11,82 +11,6 @@ const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
 /**
- * Fallback curation: parse transcript and fill profile directly
- * when the Gateway agent is unavailable or fails.
- */
-async function fallbackCurate(
-  admin: ReturnType<typeof createAdminClient>,
-  userId: string,
-  agentId: string,
-  childName: string,
-  transcript: string,
-  memoryDir: string,
-  templateData: OnboardingData
-) {
-  console.log("[onboarding] Fallback: parsing transcript and filling profile directly");
-
-  // Basic transcript parsing
-  const parsed = parseTranscriptBasic(transcript, childName);
-
-  // Merge parsed data with template data
-  const enrichedData: OnboardingData = {
-    ...templateData,
-    ...parsed,
-    childName: childName,
-  };
-
-  // Rewrite child-profile.md with enriched data
-  const { generateChildProfile } = await import("@/lib/workspace/templates");
-  const profileContent = generateChildProfile(enrichedData);
-  fs.writeFileSync(path.join(memoryDir, "child-profile.md"), profileContent);
-  console.log("[onboarding] Fallback: child-profile.md updated with parsed data");
-
-  // Update metadata status to ready
-  const freshUser = await admin.auth.admin.getUserById(userId);
-  const freshMeta = freshUser.data.user?.user_metadata || {};
-  const freshChildren = freshMeta.children || [];
-  const updated = freshChildren.map((c: { agentId: string; [key: string]: unknown }) =>
-    c.agentId === agentId ? { ...c, status: "ready" } : c
-  );
-  await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { ...freshMeta, children: updated },
-  });
-  console.log("[onboarding] Fallback: status → ready");
-}
-
-function parseTranscriptBasic(transcript: string, _childName: string): Partial<OnboardingData> {
-  const t = transcript.toLowerCase();
-  const result: Partial<OnboardingData> = {};
-
-  // Extract diagnosis
-  const diagnoses: string[] = [];
-  if (/autismo|autism|asd|tea/i.test(t)) diagnoses.push("ASD");
-  if (/tdah|adhd/i.test(t)) diagnoses.push("ADHD");
-  if (/ansiedade|anxiety/i.test(t)) diagnoses.push("Anxiety");
-  if (diagnoses.length > 0) result.diagnosis = diagnoses.join(", ");
-
-  // Extract interests
-  const interestMatch = transcript.match(/(?:gosta de|loves?|adora|interesse[s]?[: ]+)([^.!?\n]+)/i);
-  if (interestMatch) {
-    result.interests = interestMatch[1].split(/[,e&]+/).map(s => s.trim()).filter(Boolean);
-  }
-
-  // Extract sensory
-  const sensoryMatch = transcript.match(/(?:sensor|sensorial|sensory)[^.!?\n]+/i);
-  if (sensoryMatch) result.sensoryProfile = sensoryMatch[0];
-
-  // Extract communication
-  const commMatch = transcript.match(/(?:verbal|não verbal|non.verbal|fala[^.]*|comunicação[^.]*)/i);
-  if (commMatch) result.communicationStyle = commMatch[0];
-
-  // Extract age/DOB
-  const ageMatch = transcript.match(/(\d+)\s*(?:anos|years|meses|months)/i);
-  if (ageMatch) result.age = ageMatch[0];
-
-  return result;
-}
-
-/**
  * POST /api/onboarding
  * Creates a new family agent + workspace via the file server on Mac Mini,
  * then sends the profile to the Gateway so the agent can curate files.
@@ -324,17 +248,11 @@ export async function POST(request: NextRequest) {
           console.error("[onboarding] Failed to update status:", err);
         }
       } else {
-        console.error("[onboarding] Gateway returned non-OK, using fallback");
-        await fallbackCurate(admin, user.id, agentId, name, transcript, memoryDir, templateData);
+        console.error("[onboarding] Gateway returned non-OK — agent will retry on next heartbeat");
       }
-    }).catch(async (err) => {
-      console.error("[onboarding] Gateway failed, using fallback:", err.message);
-      // FALLBACK: parse transcript and fill profile directly
-      await fallbackCurate(admin, user.id, agentId, name, transcript, memoryDir, templateData);
+    }).catch((err) => {
+      console.error("[onboarding] Gateway failed — agent will retry on next heartbeat:", err.message);
     });
-  } else if (transcript) {
-    // If no Gateway configured, use fallback immediately
-    await fallbackCurate(admin, user.id, agentId, name, transcript, memoryDir, templateData);
   }
 
   // Return immediately — don't wait for agent
