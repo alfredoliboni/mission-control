@@ -28,7 +28,7 @@ import {
 import Link from "next/link";
 import { useFamily } from "@/hooks/useActiveAgent";
 import { useAppStore } from "@/store/appStore";
-import { useParsedJourneyPartners } from "@/hooks/useWorkspace";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -280,10 +280,13 @@ export default function SettingsPage() {
     : 0;
   const [selectedChildIndex, setSelectedChildIndex] = useState(safeChildIndex);
 
-  // ── Care Team: fetch pending/declined/revoked from Supabase API ──
+  // ── Care Team: active/former from family_team_members (DB hook) ──
+  const { data: teamData, isLoading: loadingTeam } = useTeamMembers();
+
+  // ── Pending/declined/revoked: still from stakeholder_links via /api/care-team ──
   const {
-    data: partners = [],
-    isLoading: loadingPartners,
+    data: invitePartners = [],
+    isLoading: loadingInvites,
   } = useQuery({
     queryKey: ["care-team"],
     queryFn: fetchCareTeam,
@@ -291,8 +294,7 @@ export default function SettingsPage() {
     retry: 1,
   });
 
-  // ── Active Team: read from workspace journey-partners.md ──
-  const { data: journeyPartners, isLoading: loadingWorkspaceTeam } = useParsedJourneyPartners();
+  const loadingPartners = loadingTeam || loadingInvites;
 
   // ── Invite mutation ──
   const inviteMutation = useMutation({
@@ -327,26 +329,26 @@ export default function SettingsPage() {
     setParent((p) => ({ ...p, [key]: value }));
   };
 
-  // Active team comes from workspace (journey-partners.md), with Supabase as fallback
-  const workspaceActiveTeam = journeyPartners?.activeTeam ?? [];
-  const supabaseActivePartners = partners.filter((p) => p.status === "active" || p.status === "accepted");
-  const activePartners = workspaceActiveTeam.length > 0
-    ? workspaceActiveTeam.map((wp) => ({
-        id: wp.name, // workspace partners don't have Supabase ID
-        name: wp.name,
-        role: wp.role,
-        organization: wp.organization,
-        email: wp.contact?.includes("@") ? wp.contact : "",
-        status: "active" as Partner["status"],
-        lastAccess: "—",
-        permissions: ["View profile"],
-        childName: undefined,
-        childAgentId: undefined,
-      }))
-    : supabaseActivePartners;
-  const pendingPartners = partners.filter((p) => p.status === "pending");
-  const declinedPartners = partners.filter((p) => p.status === "declined");
-  const revokedPartners = partners.filter((p) => p.status === "revoked");
+  // Map TeamMember (DB hook) → Partner display shape
+  const mapTeamMember = (m: import("@/lib/supabase/queries/team-members").TeamMember): Partner => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    organization: m.organization ?? "—",
+    email: m.email ?? "",
+    status: "active" as Partner["status"],
+    lastAccess: "—",
+    permissions: Object.keys(m.permissions).length > 0 ? Object.keys(m.permissions) : ["View profile"],
+    childName: m.childName ?? undefined,
+    childAgentId: undefined,
+  });
+
+  // Active team exclusively from Supabase family_team_members (no workspace fallback)
+  const activePartners = (teamData?.active ?? []).map(mapTeamMember);
+  // Pending/declined/revoked come from stakeholder_links (invite flow)
+  const pendingPartners = invitePartners.filter((p) => p.status === "pending");
+  const declinedPartners = invitePartners.filter((p) => p.status === "declined");
+  const revokedPartners = invitePartners.filter((p) => p.status === "revoked");
 
   return (
     <div className="space-y-6">
@@ -556,7 +558,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Loading state */}
-          {(loadingPartners || loadingWorkspaceTeam) && (
+          {loadingPartners && (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="size-4 mr-2 animate-spin" />
               <span className="text-[13px]">Loading care team...</span>
@@ -604,7 +606,7 @@ export default function SettingsPage() {
           )}
 
           {/* Empty state */}
-          {!loadingPartners && !loadingWorkspaceTeam && activePartners.length === 0 && pendingPartners.length === 0 && partners.length === 0 && (
+          {!loadingPartners && activePartners.length === 0 && pendingPartners.length === 0 && invitePartners.length === 0 && (
             <div className="text-center py-8">
               <Users className="size-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-[13px] text-muted-foreground">No care team members yet. Invite providers above.</p>
