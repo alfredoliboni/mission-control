@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParsedPrograms, useParsedProfile } from "@/hooks/useWorkspace";
+import { useFamilyPrograms } from "@/hooks/useFamilyPrograms";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -814,10 +815,61 @@ function PriorityBanner({
 // -- Main Page ---------------------------------------------------------------
 
 export default function ProgramsPage() {
-  const { data: programs, isLoading } = useParsedPrograms();
+  const { data: mdPrograms, isLoading } = useParsedPrograms();
+  const { data: dbPrograms } = useFamilyPrograms();
   const { data: profile } = useParsedProfile();
   const [activeTab, setActiveTab] = useState<Tab>("matches");
   const [matchSearch, setMatchSearch] = useState("");
+
+  // DB-first with .md fallback for Matched Programs tab
+  const hasDbPrograms = dbPrograms && dbPrograms.length > 0;
+  const matchedPrograms: ParsedPrograms | undefined = useMemo(() => {
+    if (hasDbPrograms) {
+      return {
+        gapFillers: dbPrograms.filter((p) => p.isGapFiller).map((p) => ({
+          name: p.programName,
+          category: "gap_filler" as const,
+          type: "",
+          cost: "",
+          ages: "",
+          schedule: "",
+          location: "",
+          whyGapFiller: p.agentNote || "",
+          register: "",
+          status: p.status,
+          url: "",
+          phone: "",
+          email: "",
+          details: {},
+          isGapFiller: true,
+        })),
+        government: dbPrograms.filter((p) => !p.isGapFiller).map((p) => ({
+          name: p.programName,
+          category: "government" as const,
+          type: "",
+          cost: "",
+          ages: "",
+          schedule: "",
+          location: "",
+          whyGapFiller: p.agentNote || "",
+          register: "",
+          status: p.status,
+          url: "",
+          phone: "",
+          email: "",
+          details: {},
+          isGapFiller: false,
+        })),
+        educational: [],
+        lastUpdated: mdPrograms?.lastUpdated ?? "",
+      };
+    }
+    return mdPrograms;
+  }, [hasDbPrograms, dbPrograms, mdPrograms]);
+
+  // Use matchedPrograms for enrichment and display; fall back to mdPrograms shape
+  // Resolved to a non-undefined value for TypeScript narrowing in the render
+  const programs = matchedPrograms ?? mdPrograms;
 
   const { enrichMap, enrichLoading } = useEnrichedPrograms(programs);
 
@@ -867,7 +919,7 @@ export default function ProgramsPage() {
     <WorkspaceSection
       title="Programs"
       icon="📚"
-      lastUpdated={programs?.lastUpdated}
+      lastUpdated={mdPrograms?.lastUpdated}
       isLoading={isLoading}
     >
       {programs && (
