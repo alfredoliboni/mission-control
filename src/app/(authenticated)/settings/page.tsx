@@ -261,7 +261,8 @@ async function removeCareTeamMember(id: string): Promise<void> {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const family = useFamily();
+  const familyOrNull = useFamily();
+  const family = familyOrNull || { familyName: "Loading", children: [] };
   const activeChildIndex = useAppStore((s) => s.activeChildIndex);
   const [parent, setParent] = useState(DEMO_PARENT);
   const [privacy, setPrivacy] = useState(DEMO_PRIVACY);

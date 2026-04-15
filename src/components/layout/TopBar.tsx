@@ -34,7 +34,8 @@ const NOTIFICATION_ICONS: Record<string, string> = {
 export function TopBar() {
   const { toggleSidebar, activeChildIndex, setActiveChildIndex } = useAppStore();
   const { data: profile } = useParsedProfile();
-  const family = useFamily();
+  const familyOrNull = useFamily();
+  const family = familyOrNull || { familyName: "Loading", children: [] };
   const queryClient = useQueryClient();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

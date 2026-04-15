@@ -8,10 +8,13 @@ import { createClient } from "@/lib/supabase/client";
 
 /**
  * Returns the active child's agentId based on the current user session.
+ * Returns undefined until the user session is resolved.
  */
 export function useActiveAgent(): string | undefined {
   const activeChildIndex = useAppStore((s) => s.activeChildIndex);
   const family = useFamily();
+
+  if (!family) return undefined; // Not resolved yet
 
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
@@ -20,16 +23,21 @@ export function useActiveAgent(): string | undefined {
 }
 
 /**
- * Returns the full family with children for UI rendering (e.g., child switcher).
- * Resolves dynamic agents from Supabase user metadata for new users.
+ * Returns the full family with children for UI rendering.
+ * Returns null until the user session is resolved — this prevents
+ * workspace hooks from firing with the wrong (default) agent.
  */
-export function useFamily(): FamilyAgent {
-  const [family, setFamily] = useState<FamilyAgent>(() => getFamilyAgent(undefined));
+export function useFamily(): FamilyAgent | null {
+  const [family, setFamily] = useState<FamilyAgent | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user) {
+        // Not logged in — use default
+        setFamily(getFamilyAgent(undefined));
+        return;
+      }
 
       const email = user.email;
       if (email && isKnownFamilyEmail(email)) {
@@ -45,7 +53,7 @@ export function useFamily(): FamilyAgent {
         return;
       }
 
-      // Fallback to default
+      // Fallback
       setFamily(getFamilyAgent(email));
     });
   }, []);
