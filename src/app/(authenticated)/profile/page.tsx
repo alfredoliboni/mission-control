@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParsedProfile, useParsedJourneyPartners } from "@/hooks/useWorkspace";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Button } from "@/components/ui/button";
@@ -221,7 +221,7 @@ function SubLabel({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export default function ProfilePage() {
-  const { data: profile, isLoading } = useParsedProfile();
+  const { data: profile, isLoading, refetch } = useParsedProfile();
   const { data: journeyPartners } = useParsedJourneyPartners();
 
   const initializedRef = useRef(false);
@@ -316,6 +316,20 @@ export default function ProfilePage() {
 
   const data = profileData;
 
+  const isProcessing = data && (
+    !data.basicInfo.name ||
+    data.basicInfo.name === "Child" ||
+    data.basicInfo.diagnosis === "ASD (details in child-profile.md)"
+  );
+
+  useEffect(() => {
+    if (!isProcessing) return;
+    const interval = setInterval(() => {
+      refetch();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isProcessing, refetch]);
+
   // Build meta line for profile header
   const metaParts = [
     data?.basicInfo.age && `Age ${data.basicInfo.age}`,
@@ -328,6 +342,21 @@ export default function ProfilePage() {
     <WorkspaceSection title="Profile" icon="👤" isLoading={isLoading}>
       {data && (
         <div className="space-y-4">
+          {/* ── Processing Banner ───────────────────────────────────── */}
+          {isProcessing && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+              <div className="animate-spin h-5 w-5 border-2 border-amber-400 border-t-transparent rounded-full" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Your Navigator is processing your information
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  This may take a few minutes. The page will update automatically.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ── Profile Header Card ─────────────────────────────────── */}
           <div className="bg-card border border-border rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
             <SectionHeader title="Basic Information" {...sectionProps("basic")} />
