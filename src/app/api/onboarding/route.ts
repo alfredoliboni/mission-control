@@ -127,60 +127,57 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Step 1.5: Transcribe audio if provided
+  // Step 1.5: Transcribe audio if provided (using local Whisper CLI)
   let transcript = "";
   console.log(`[onboarding] audioUrl: ${audioUrl ? audioUrl.slice(0, 80) + "..." : "NOT PROVIDED"}`);
   if (audioUrl) {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    console.log(`[onboarding] OPENAI_API_KEY: ${OPENAI_API_KEY ? "SET (" + OPENAI_API_KEY.slice(0, 10) + "...)" : "NOT SET"}`);
-    if (OPENAI_API_KEY) {
-      try {
-        // Download audio from Supabase Storage
-        console.log(`[onboarding] Downloading audio from: ${audioUrl}`);
-        const audioRes = await fetch(audioUrl);
-        console.log(`[onboarding] Audio download: ${audioRes.status} ${audioRes.statusText}, size: ${audioRes.headers.get("content-length") || "unknown"}`);
-        if (audioRes.ok) {
-          const audioBuffer = await audioRes.arrayBuffer();
-          console.log(`[onboarding] Audio buffer: ${audioBuffer.byteLength} bytes`);
+    try {
+      // Download audio from Supabase Storage to temp file
+      console.log(`[onboarding] Downloading audio...`);
+      const audioRes = await fetch(audioUrl);
+      console.log(`[onboarding] Audio download: ${audioRes.status}, size: ${audioRes.headers.get("content-length") || "unknown"}`);
 
-          // Send to Whisper API
-          const whisperForm = new FormData();
-          whisperForm.append("file", new Blob([audioBuffer], { type: "audio/webm" }), "onboarding.webm");
-          whisperForm.append("model", "whisper-1");
-          whisperForm.append("language", "pt");
+      if (audioRes.ok) {
+        const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
+        const tmpAudio = path.join("/tmp", `onboarding-${Date.now()}.webm`);
+        fs.writeFileSync(tmpAudio, audioBuffer);
+        console.log(`[onboarding] Audio saved to: ${tmpAudio} (${audioBuffer.byteLength} bytes)`);
 
-          console.log("[onboarding] Sending to Whisper API...");
-          const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
-            body: whisperForm,
-            signal: AbortSignal.timeout(120000),
+        // Transcribe with local Whisper CLI (Apple Silicon)
+        console.log("[onboarding] Running local Whisper (model: small, language: pt)...");
+        try {
+          execSync(`whisper "${tmpAudio}" --model small --language pt --output_format txt --output_dir /tmp/`, {
+            timeout: 300000, // 5 min for long audio
+            stdio: "pipe",
           });
 
-          console.log(`[onboarding] Whisper response: ${whisperRes.status} ${whisperRes.statusText}`);
-          if (whisperRes.ok) {
-            const result = await whisperRes.json();
-            transcript = result.text || "";
+          // Read the output .txt file
+          const txtFile = tmpAudio.replace(".webm", ".txt");
+          if (fs.existsSync(txtFile)) {
+            transcript = fs.readFileSync(txtFile, "utf-8").trim();
             console.log(`[onboarding] Transcript (${transcript.length} chars): ${transcript.slice(0, 200)}`);
-          } else {
-            const errBody = await whisperRes.text().catch(() => "");
-            console.error(`[onboarding] Whisper FAILED: ${whisperRes.status} — ${errBody.slice(0, 200)}`);
-          }
 
-          // Save transcript to workspace
-          if (transcript) {
-            const transcriptPath = path.join(memoryDir, "audio-transcript.md");
-            fs.writeFileSync(transcriptPath, `# Audio Onboarding Transcript\n\nTranscribed: ${new Date().toISOString().slice(0, 10)}\nAudio URL: ${audioUrl}\n\n---\n\n${transcript}\n`);
-            console.log(`[onboarding] Transcript saved to: ${transcriptPath}`);
+            // Clean up temp files
+            fs.unlinkSync(tmpAudio);
+            fs.unlinkSync(txtFile);
+          } else {
+            console.error("[onboarding] Whisper ran but no .txt output found");
           }
-        } else {
-          console.error(`[onboarding] Audio download FAILED: ${audioRes.status}`);
+        } catch (whisperErr) {
+          console.error("[onboarding] Whisper CLI failed:", whisperErr);
         }
-      } catch (err) {
-        console.error("[onboarding] Whisper transcription error:", err);
+
+        // Save transcript to workspace
+        if (transcript) {
+          const transcriptPath = path.join(memoryDir, "audio-transcript.md");
+          fs.writeFileSync(transcriptPath, `# Audio Onboarding Transcript\n\nTranscribed: ${new Date().toISOString().slice(0, 10)}\nAudio URL: ${audioUrl}\n\n---\n\n${transcript}\n`);
+          console.log(`[onboarding] Transcript saved to: ${transcriptPath}`);
+        }
+      } else {
+        console.error(`[onboarding] Audio download FAILED: ${audioRes.status}`);
       }
-    } else {
-      console.warn("[onboarding] OPENAI_API_KEY not set — skipping transcription");
+    } catch (err) {
+      console.error("[onboarding] Transcription error:", err);
     }
   } else {
     console.log("[onboarding] No audioUrl — wizard mode, skipping transcription");
