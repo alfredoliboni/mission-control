@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAgentWorkspacePath } from "@/lib/family-agents";
-import fs from "fs";
-import path from "path";
+import { addTeamMember, removeTeamMember } from "@/lib/supabase/queries/team-members";
+import { insertBenefit } from "@/lib/supabase/queries/benefits";
+import { addFamilyProgram } from "@/lib/supabase/queries/family-programs";
+import { addFamilyProvider } from "@/lib/supabase/queries/family-providers";
 
 type ConsolidateAction =
   | "provider_accepted"
@@ -32,191 +33,18 @@ interface ConsolidateBody {
   };
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+/** Split a contact string into phone/email when possible. */
+function splitContact(contact?: string, email?: string): { phone?: string; email?: string } {
+  if (!contact && !email) return {};
 
-// ── Journey Partners helpers ─────────────────────────────────────────────
+  // If a dedicated email field is already provided, use it
+  const resolvedEmail = email || (contact && contact.includes("@") ? contact : undefined);
+  const resolvedPhone = contact && !contact.includes("@") ? contact : undefined;
 
-function buildJourneyPartnerBlock(data: ConsolidateBody["data"]): string {
-  const lines: string[] = [""];
-  lines.push(`### ${data.name}`);
-  if (data.role) lines.push(`- Role: ${data.role}`);
-  if (data.organization) lines.push(`- Organization: ${data.organization}`);
-  if (data.services) lines.push(`- Services: ${data.services}`);
-  if (data.contact) lines.push(`- Contact: ${data.contact}`);
-  lines.push(`- Status: Active since ${today()}`);
-  lines.push(`- Source: Added via Mission Control, ${today()}`);
-  lines.push("");
-  return lines.join("\n");
-}
-
-function appendToJourneyPartnersActive(
-  filepath: string,
-  block: string
-): void {
-  if (!fs.existsSync(filepath)) {
-    // Create new file with structure
-    const content = `# Journey Partners\n\nLast Updated: ${today()}\n\n## Active Team\n${block}\n## Former Team\n`;
-    fs.writeFileSync(filepath, content);
-    return;
-  }
-
-  let content = fs.readFileSync(filepath, "utf-8");
-  // Update Last Updated
-  content = content.replace(
-    /Last Updated: .+/,
-    `Last Updated: ${today()}`
-  );
-
-  // Insert before "## Former Team" if it exists, otherwise append after "## Active Team"
-  if (content.includes("## Former Team")) {
-    content = content.replace(
-      "## Former Team",
-      `${block}\n## Former Team`
-    );
-  } else if (content.includes("## Active Team")) {
-    content = content + block;
-  } else {
-    content = content + `\n## Active Team\n${block}`;
-  }
-
-  fs.writeFileSync(filepath, content);
-}
-
-function moveToFormerTeam(
-  filepath: string,
-  name: string,
-  reason: string
-): void {
-  if (!fs.existsSync(filepath)) return;
-
-  let content = fs.readFileSync(filepath, "utf-8");
-  content = content.replace(
-    /Last Updated: .+/,
-    `Last Updated: ${today()}`
-  );
-
-  // Find the ### block for this member in Active Team
-  const activeRegex = new RegExp(
-    `(### ${escapeRegex(name)}\\n(?:- .+\\n?)*)`,
-    "m"
-  );
-  const match = content.match(activeRegex);
-
-  if (match) {
-    // Remove from Active Team
-    content = content.replace(match[0], "");
-
-    // Build former block
-    const formerBlock = [
-      "",
-      `### ${name}`,
-      `- Role: ${extractField(match[0], "Role")}`,
-      `- Status: Removed ${today()}`,
-      `- Reason: ${reason || "Removed by family"}`,
-      "",
-    ].join("\n");
-
-    // Insert into Former Team
-    if (content.includes("## Former Team")) {
-      content = content.replace(
-        "## Former Team",
-        `## Former Team\n${formerBlock}`
-      );
-    } else {
-      content = content + `\n## Former Team\n${formerBlock}`;
-    }
-  }
-
-  fs.writeFileSync(filepath, content);
-}
-
-function extractField(block: string, field: string): string {
-  const regex = new RegExp(`- ${field}:\\s*(.+)`, "i");
-  const match = block.match(regex);
-  return match ? match[1].trim() : "";
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// ── Provider helpers ─────────────────────────────────────────────────────
-
-function buildProviderBlock(data: ConsolidateBody["data"]): string {
-  const lines: string[] = [""];
-  lines.push(`#### ${data.name}`);
-  if (data.type) lines.push(`- **Type:** ${data.type}`);
-  if (data.services) lines.push(`- **Services:** ${data.services}`);
-  lines.push(`- **Relevance:** Added via consolidation, ${today()}`);
-  if (data.contact) lines.push(`- **Contact:** ${data.contact}`);
-  lines.push("");
-  return lines.join("\n");
-}
-
-function removeFromProviders(filepath: string, name: string): void {
-  if (!fs.existsSync(filepath)) return;
-  let content = fs.readFileSync(filepath, "utf-8");
-
-  // Remove #### block for this provider
-  const regex = new RegExp(
-    `\\n?#### ${escapeRegex(name)}\\n(?:- .+\\n?)*`,
-    "m"
-  );
-  content = content.replace(regex, "");
-  fs.writeFileSync(filepath, content);
-}
-
-// ── Benefit helpers ──────────────────────────────────────────────────────
-
-function appendBenefitApplied(
-  filepath: string,
-  data: ConsolidateBody["data"]
-): void {
-  const block = [
-    "",
-    `### ${data.name}`,
-    `- **Status:** Applied`,
-    `- **Amount:** ${data.amount || "TBD"}`,
-    `- **Applied:** ${today()}`,
-    "",
-  ].join("\n");
-
-  if (!fs.existsSync(filepath)) {
-    const content = `# Benefits\n\nLast Updated: ${today()}\n\n## Detailed Eligibility\n${block}`;
-    fs.writeFileSync(filepath, content);
-    return;
-  }
-
-  fs.appendFileSync(filepath, block);
-}
-
-// ── Program helpers ──────────────────────────────────────────────────────
-
-function appendProgramEnrolled(
-  filepath: string,
-  data: ConsolidateBody["data"]
-): void {
-  const block = [
-    "",
-    `### ${data.name}`,
-    `- **Type:** ${data.type || "Program"}`,
-    `- **Cost:** ${data.cost || "TBD"}`,
-    `- **Ages:** ${data.ages || "TBD"}`,
-    `- **Schedule:** ${data.schedule || "TBD"}`,
-    `- **Location:** ${data.location || "TBD"}`,
-    `- **Status:** Enrolled ${today()}`,
-    "",
-  ].join("\n");
-
-  if (!fs.existsSync(filepath)) {
-    const content = `# Programs\n\nLast Updated: ${today()}\n\n## 📗 Programs\n${block}`;
-    fs.writeFileSync(filepath, content);
-    return;
-  }
-
-  fs.appendFileSync(filepath, block);
+  return {
+    phone: resolvedPhone || undefined,
+    email: resolvedEmail || undefined,
+  };
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────
@@ -245,48 +73,106 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const workspace = getAgentWorkspacePath(agentId);
-    const jpPath = path.join(workspace, "journey-partners.md");
-    const provPath = path.join(workspace, "providers.md");
-    const benPath = path.join(workspace, "benefits.md");
-    const progPath = path.join(workspace, "programs.md");
-
     switch (action) {
       case "provider_accepted": {
-        // Append to both providers.md and journey-partners.md Active Team
-        const provBlock = buildProviderBlock(data);
-        fs.appendFileSync(provPath, provBlock);
+        const { phone, email } = splitContact(data.contact, data.email);
 
-        const jpBlock = buildJourneyPartnerBlock(data);
-        appendToJourneyPartnersActive(jpPath, jpBlock);
+        // Insert into family_providers
+        await addFamilyProvider(supabase, {
+          familyId: user.id,
+          agentId,
+          providerName: data.name,
+          status: "active",
+        });
+
+        // Insert into family_team_members — provider becomes care team member
+        await addTeamMember(supabase, {
+          familyId: user.id,
+          agentId,
+          name: data.name,
+          role: data.role ?? "Provider",
+          organization: data.organization,
+          services: data.services,
+          phone,
+          email,
+          status: "active",
+          source: "consolidate",
+        });
         break;
       }
 
       case "doctor_accepted": {
-        // Append to journey-partners.md Active Team only
-        const jpBlock = buildJourneyPartnerBlock(data);
-        appendToJourneyPartnersActive(jpPath, jpBlock);
+        const { phone, email } = splitContact(data.contact, data.email);
+
+        // Insert into family_team_members only
+        await addTeamMember(supabase, {
+          familyId: user.id,
+          agentId,
+          name: data.name,
+          role: data.role ?? "Doctor",
+          organization: data.organization,
+          services: data.services,
+          phone,
+          email,
+          status: "active",
+          source: "consolidate",
+        });
         break;
       }
 
       case "member_removed": {
-        // Move from Active to Former in journey-partners.md, remove from providers.md
-        moveToFormerTeam(
-          jpPath,
-          data.name,
-          data.reason || "Removed by family"
-        );
-        removeFromProviders(provPath, data.name);
+        // Find the active member by name in family_team_members
+        const { data: rows, error: findError } = await supabase
+          .from("family_team_members")
+          .select("id")
+          .eq("family_id", user.id)
+          .eq("name", data.name)
+          .eq("status", "active")
+          .limit(1);
+
+        if (findError) {
+          throw new Error(`member_removed lookup: ${findError.message}`);
+        }
+
+        if (rows && rows.length > 0) {
+          await removeTeamMember(
+            supabase,
+            rows[0].id,
+            data.reason ?? "Removed by family"
+          );
+        }
+
+        // Set family_providers status to 'declined' if they exist there
+        await supabase
+          .from("family_providers")
+          .update({ status: "declined", updated_at: new Date().toISOString() })
+          .eq("family_id", user.id)
+          .eq("provider_name", data.name)
+          .neq("status", "declined");
+
         break;
       }
 
       case "benefit_applied": {
-        appendBenefitApplied(benPath, data);
+        await insertBenefit(supabase, {
+          familyId: user.id,
+          agentId,
+          benefitName: data.name,
+          status: "pending",
+          amount: data.amount,
+          appliedDate: new Date().toISOString().slice(0, 10),
+        });
         break;
       }
 
       case "program_enrolled": {
-        appendProgramEnrolled(progPath, data);
+        await addFamilyProgram(supabase, {
+          familyId: user.id,
+          agentId,
+          programName: data.name,
+          status: "enrolled",
+          enrolledAt: new Date().toISOString().slice(0, 10),
+        });
         break;
       }
 
