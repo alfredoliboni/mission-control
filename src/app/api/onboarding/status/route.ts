@@ -34,13 +34,18 @@ export async function GET(request: NextRequest) {
   const transcriptPath = path.join(memoryPath, "audio-transcript.md");
   const transcribed = fs.existsSync(transcriptPath);
 
-  // Check if profile has real data (not template)
+  // Check if profile has real data (not just template)
   let profileReady = false;
   try {
     const profileContent = fs.readFileSync(path.join(memoryPath, "child-profile.md"), "utf-8");
-    profileReady = !profileContent.includes("To be assessed") &&
-                   !profileContent.includes("To be confirmed") &&
-                   profileContent.split("\n").length > 25;
+    // Profile is ready if EITHER:
+    // 1. Agent curated it (no more "To be assessed" placeholders), OR
+    // 2. Fallback injected the transcript (has "Parent's Description" section)
+    const agentCurated = !profileContent.includes("To be assessed") &&
+                         !profileContent.includes("To be confirmed") &&
+                         profileContent.split("\n").length > 25;
+    const fallbackInjected = profileContent.includes("Parent's Description");
+    profileReady = agentCurated || fallbackInjected;
   } catch { /* file doesn't exist */ }
 
   const status = profileReady ? "ready" : "processing";
