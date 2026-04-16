@@ -135,10 +135,38 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Restart gateway so it recognizes the new agent
+        // Restart gateway so it recognizes the new agent, then wait for it to be healthy
         console.log("[onboarding] Restarting gateway to load new agent...");
-        execSync("openclaw gateway restart", { timeout: 30000, stdio: "pipe" });
-        console.log("[onboarding] Gateway restarted");
+        execSync("openclaw gateway restart", { timeout: 60000, stdio: "pipe" });
+        console.log("[onboarding] Gateway restart issued — waiting for health...");
+
+        // Wait for gateway to become healthy AND chat endpoint available (up to 90s)
+        const gwStart = Date.now();
+        let gatewayReady = false;
+        while (Date.now() - gwStart < 90000) {
+          try {
+            const health = await fetch("http://localhost:18789/health", { signal: AbortSignal.timeout(3000) });
+            if (health.ok) {
+              // Also check chat endpoint is responding (not just health)
+              const chatTest = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
+                method: "POST",
+                signal: AbortSignal.timeout(5000),
+                headers: { "Authorization": `Bearer ${COMPANION_API_TOKEN}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ model: `openclaw/${agentId}`, messages: [{ role: "user", content: "/new" }] }),
+              });
+              if (chatTest.ok) {
+                gatewayReady = true;
+                console.log(`[onboarding] Gateway + chat ready after ${Math.round((Date.now() - gwStart) / 1000)}s`);
+                break;
+              }
+            }
+          } catch {}
+          await new Promise(r => setTimeout(r, 5000));
+          console.log(`[onboarding] Waiting for gateway... ${Math.round((Date.now() - gwStart) / 1000)}s`);
+        }
+        if (!gatewayReady) {
+          console.warn("[onboarding] Gateway not ready after 90s — agent prompt will be skipped");
+        }
       } catch (err) {
         console.error("[onboarding] Agent registration failed:", err);
       }
