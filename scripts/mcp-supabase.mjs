@@ -75,6 +75,13 @@ await loadAgentMap();
 
 // ─── Tool definitions ───────────────────────────────────────────────────────
 
+const AGENT_ID_PROP = {
+  agent_id: {
+    type: "string",
+    description: "Your agent ID (from IDENTITY.md, e.g. navigator-gustavo-liboni). REQUIRED for correct family resolution.",
+  },
+};
+
 const TOOLS = [
   {
     name: "create_alert",
@@ -83,6 +90,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         date: {
           type: "string",
           description: "Alert date in YYYY-MM-DD format",
@@ -99,7 +107,7 @@ const TOOLS = [
           description: "What the family should do",
         },
       },
-      required: ["date", "severity", "title"],
+      required: ["agent_id", "date", "severity", "title"],
     },
   },
   {
@@ -108,9 +116,10 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         alertId: { type: "string", description: "UUID of the alert to dismiss" },
       },
-      required: ["alertId"],
+      required: ["agent_id", "alertId"],
     },
   },
   {
@@ -120,6 +129,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         name: { type: "string" },
         role: {
           type: "string",
@@ -134,7 +144,7 @@ const TOOLS = [
           description: "Why this person is a good fit for the family",
         },
       },
-      required: ["name", "role"],
+      required: ["agent_id", "name", "role"],
     },
   },
   {
@@ -144,13 +154,14 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         name: {
           type: "string",
           description: "Name of the team member to remove",
         },
         reason: { type: "string", description: "Why they are being removed" },
       },
-      required: ["name", "reason"],
+      required: ["agent_id", "name", "reason"],
     },
   },
   {
@@ -160,6 +171,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         benefit_name: { type: "string" },
         status: {
           type: "string",
@@ -179,7 +191,7 @@ const TOOLS = [
         documents_needed: { type: "string" },
         agent_note: { type: "string" },
       },
-      required: ["benefit_name"],
+      required: ["agent_id", "benefit_name"],
     },
   },
   {
@@ -189,6 +201,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         benefit_name: {
           type: "string",
           description: "Exact benefit name to look up",
@@ -207,7 +220,7 @@ const TOOLS = [
         applied_date: { type: "string" },
         approved_date: { type: "string" },
       },
-      required: ["benefit_name", "status"],
+      required: ["agent_id", "benefit_name", "status"],
     },
   },
   {
@@ -216,6 +229,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         program_name: { type: "string" },
         status: {
           type: "string",
@@ -230,7 +244,7 @@ const TOOLS = [
         is_gap_filler: { type: "boolean" },
         agent_note: { type: "string" },
       },
-      required: ["program_name"],
+      required: ["agent_id", "program_name"],
     },
   },
   {
@@ -239,6 +253,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        ...AGENT_ID_PROP,
         provider_name: { type: "string" },
         priority: {
           type: "string",
@@ -257,7 +272,7 @@ const TOOLS = [
         is_gap_filler: { type: "boolean" },
         agent_note: { type: "string" },
       },
-      required: ["provider_name"],
+      required: ["agent_id", "provider_name"],
     },
   },
   {
@@ -266,7 +281,9 @@ const TOOLS = [
       "Get all active alerts for this family. Returns alerts ordered by date descending.",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        ...AGENT_ID_PROP,
+      },
       required: [],
     },
   },
@@ -276,7 +293,9 @@ const TOOLS = [
       "Get all team members for this family (active and former).",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        ...AGENT_ID_PROP,
+      },
       required: [],
     },
   },
@@ -285,8 +304,10 @@ const TOOLS = [
 // ─── Tool implementations ───────────────────────────────────────────────────
 
 async function callTool(name, args, callerAgentId) {
-  // Resolve which family this agent belongs to
-  const ctx = resolveFamily(callerAgentId);
+  // Prefer agent_id from the tool arguments (agent identifies itself)
+  // Fall back to callerAgentId from env var
+  const effectiveAgentId = args.agent_id || callerAgentId;
+  const ctx = resolveFamily(effectiveAgentId);
   const { familyId, agentId } = ctx;
 
   switch (name) {

@@ -179,6 +179,7 @@ Write freely to these files — no format constraints:
 - MCP Supabase tools: create_alert, dismiss_alert, get_alerts, add_team_member, remove_team_member, get_team, add_benefit, update_benefit, add_program, add_provider
 - web_search: Find providers, programs, benefits in Ontario
 - file operations: Read/write workspace .md files (narrative only)
+- IMPORTANT: Always pass your agent_id (from IDENTITY.md) in every MCP tool call
 `;
 }
 
