@@ -118,13 +118,8 @@ export async function POST(request: NextRequest) {
       // Try to register agent with OpenClaw
       try {
         console.log(`[onboarding] Registering agent ${agentId} with workspace ${wsDir}`);
-        // Try add first, if exists try update workspace
-        try {
-          execSync(`openclaw agents add ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" });
-        } catch {
-          // Agent already exists — update workspace path
-          execSync(`openclaw agents update ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" }).toString();
-        }
+        execSync(`openclaw agents delete ${agentId} --force`, { timeout: 10000, stdio: "pipe" }).toString().trim();
+        execSync(`openclaw agents add ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" });
         console.log(`[onboarding] Agent registered: ${agentId}`);
       } catch (err) {
         console.error("[onboarding] Agent registration failed:", err);
