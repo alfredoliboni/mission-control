@@ -118,9 +118,27 @@ export async function POST(request: NextRequest) {
       // Try to register agent with OpenClaw
       try {
         console.log(`[onboarding] Registering agent ${agentId} with workspace ${wsDir}`);
-        execSync(`openclaw agents delete ${agentId} --force`, { timeout: 10000, stdio: "pipe" }).toString().trim();
+        try { execSync(`openclaw agents delete ${agentId} --force`, { timeout: 10000, stdio: "pipe" }); } catch {}
         execSync(`openclaw agents add ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" });
         console.log(`[onboarding] Agent registered: ${agentId}`);
+
+        // Copy models.json and auth-profiles.json from main agent
+        // New agents get wrong provider URLs by default — main agent has the correct ones
+        const mainAgentDir = path.join(home, ".openclaw", "agents", "main", "agent");
+        const newAgentDir = path.join(home, ".openclaw", "agents", agentId, "agent");
+        for (const configFile of ["models.json", "auth-profiles.json"]) {
+          const src = path.join(mainAgentDir, configFile);
+          const dst = path.join(newAgentDir, configFile);
+          if (fs.existsSync(src)) {
+            fs.copyFileSync(src, dst);
+            console.log(`[onboarding] Copied ${configFile} from main agent`);
+          }
+        }
+
+        // Restart gateway so it recognizes the new agent
+        console.log("[onboarding] Restarting gateway to load new agent...");
+        execSync("openclaw gateway restart", { timeout: 30000, stdio: "pipe" });
+        console.log("[onboarding] Gateway restarted");
       } catch (err) {
         console.error("[onboarding] Agent registration failed:", err);
       }
@@ -265,15 +283,46 @@ ${profileMarkdown}`;
         user: agentId,
       }),
     }).then(async (res) => {
-      // DON'T mark as "ready" here — the status endpoint checks the filesystem
-      // to verify the agent ACTUALLY curated the data (not just that Gateway returned 200)
       if (res.ok) {
-        console.log(`[onboarding] Gateway returned 200 for ${agentId} — agent is processing`);
+        console.log(`[onboarding] Gateway returned 200 for ${agentId}`);
       } else {
         console.error(`[onboarding] Gateway returned ${res.status} for ${agentId}`);
       }
-    }).catch((err) => {
+
+      // Check if agent actually curated the profile — if not, inject transcript directly
+      const profilePath = path.join(memoryDir, "child-profile.md");
+      try {
+        const content = fs.readFileSync(profilePath, "utf-8");
+        if (content.includes("To be assessed")) {
+          console.log("[onboarding] Agent did NOT curate profile — injecting transcript directly");
+          // Replace the Extra Information section with the raw transcript
+          const updated = content
+            .replace(/### Needs\n- To be assessed/, `### Needs\n- See parent's description below`)
+            .replace(/## Extra Information[\s\S]*$/,
+              `## Extra Information\n\n### Parent's Description (from audio onboarding)\n${transcript || profileMarkdown}\n\nLast Updated: ${new Date().toISOString().slice(0, 10)}\n`)
+            .replace(/- \*\*Diagnosis:\*\* ASD/, `- **Diagnosis:** ${transcript?.match(/ASD|autismo|autism|TDAH|ADHD/i)?.[0] || "ASD"} (pending confirmation)`)
+            .replace("To be assessed\nAvoids: to be assessed\nCalming: to be assessed", "See parent's description below");
+          fs.writeFileSync(profilePath, updated);
+          console.log("[onboarding] Profile updated with transcript");
+        } else {
+          console.log("[onboarding] Agent curated profile successfully");
+        }
+      } catch (err) {
+        console.error("[onboarding] Profile check failed:", err);
+      }
+    }).catch(async (err) => {
       console.error("[onboarding] Gateway failed:", err.message);
+      // Inject transcript directly since agent couldn't process
+      if (transcript) {
+        const profilePath = path.join(memoryDir, "child-profile.md");
+        try {
+          const content = fs.readFileSync(profilePath, "utf-8");
+          const updated = content.replace(/## Extra Information[\s\S]*$/,
+            `## Extra Information\n\n### Parent's Description (from audio onboarding)\n${transcript}\n\nLast Updated: ${new Date().toISOString().slice(0, 10)}\n`);
+          fs.writeFileSync(profilePath, updated);
+          console.log("[onboarding] Fallback: injected transcript into profile");
+        } catch {}
+      }
     });
   }
 
