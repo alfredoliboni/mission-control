@@ -34,6 +34,19 @@ export async function GET(request: NextRequest) {
   const transcriptPath = path.join(memoryPath, "audio-transcript.md");
   const transcribed = fs.existsSync(transcriptPath);
 
+  // Check gateway health
+  let gatewayHealthy = false;
+  try {
+    const health = await fetch("http://localhost:18789/health", { signal: AbortSignal.timeout(3000) });
+    gatewayHealthy = health.ok;
+  } catch {}
+
+  // Check curation state
+  const curationRunning = fs.existsSync(path.join(wsDir, ".curation-running"));
+  const curationComplete = fs.existsSync(path.join(wsDir, ".curation-complete"));
+  const curationPending = fs.existsSync(path.join(wsDir, ".curation-pending"));
+  void curationPending; // checked but not returned (used by curate endpoint)
+
   // Check if profile has real data (not just template)
   let profileReady = false;
   try {
@@ -73,6 +86,9 @@ export async function GET(request: NextRequest) {
     fileCount: filesCreated,
     transcribed,
     profileReady,
+    gatewayHealthy,
+    curationTriggered: curationRunning || curationComplete,
+    curationComplete,
     childName: child.childName,
     agentId,
   });

@@ -10,6 +10,9 @@ interface StatusData {
   fileCount?: number;
   transcribed?: boolean;
   profileReady?: boolean;
+  gatewayHealthy?: boolean;
+  curationTriggered?: boolean;
+  curationComplete?: boolean;
   childName?: string;
   agentId?: string;
 }
@@ -21,6 +24,8 @@ function ProcessingContent() {
   const childName = params.get("child") || "your child";
   const [elapsed, setElapsed] = useState(0);
   const [data, setData] = useState<StatusData | null>(null);
+  const [curationAttempted, setCurationAttempted] = useState(false);
+  const [curationAttempts, setCurationAttempts] = useState(0);
 
   const fetchStatus = useCallback(async () => {
     setElapsed((e) => e + 5);
@@ -32,11 +37,30 @@ function ProcessingContent() {
         if (result.status === "ready") {
           setTimeout(() => router.push("/profile?refresh=1"), 1500);
         }
+        // Trigger curation when gateway is healthy and curation hasn't started yet
+        if (result.gatewayHealthy && !result.curationTriggered && !curationAttempted && curationAttempts < 3) {
+          setCurationAttempted(true);
+          try {
+            const curate = await fetch("/api/onboarding/curate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ agentId }),
+            });
+            const curated = await curate.json();
+            if (!curated.triggered) {
+              setCurationAttempted(false);
+              setCurationAttempts(a => a + 1);
+            }
+          } catch {
+            setCurationAttempted(false);
+            setCurationAttempts(a => a + 1);
+          }
+        }
       }
     } catch {
       // ignore network errors — keep polling
     }
-  }, [agentId, router]);
+  }, [agentId, router, curationAttempted, curationAttempts]);
 
   // Poll for status every 5 seconds
   useEffect(() => {
@@ -78,17 +102,24 @@ function ProcessingContent() {
         {/* Progress steps */}
         <div className="text-left bg-white rounded-xl p-6 shadow-sm border border-border space-y-3">
           <Step done={data?.workspaceCreated}>Workspace created</Step>
-          <Step done={data?.filesCreated}>
-            Files initialized ({data?.fileCount || 0} files)
-          </Step>
+          <Step done={data?.filesCreated}>Files initialized ({data?.fileCount || 0} files)</Step>
           <Step done={data?.transcribed}>Audio transcribed</Step>
-          <Step done={data?.profileReady} loading={!!data && !data.profileReady}>
-            Navigator analyzing your information
+          <Step done={data?.gatewayHealthy} loading={!data?.gatewayHealthy}>Navigator coming online</Step>
+          <Step done={data?.curationComplete} loading={data?.curationTriggered && !data?.curationComplete}>
+            Analyzing your information
           </Step>
+          <Step done={data?.profileReady}>Profile ready</Step>
         </div>
 
-        {/* Timeout message */}
-        {elapsed > 300 && data?.status !== "ready" && (
+        {/* Timeout message after 3 min + 3 failed attempts */}
+        {curationAttempts >= 3 && !data?.profileReady && (
+          <p className="text-xs text-warm-300 mt-4">
+            Your Navigator is still setting up. You can close this page — processing will continue in the background.
+          </p>
+        )}
+
+        {/* Fallback timeout message */}
+        {elapsed > 300 && curationAttempts < 3 && data?.status !== "ready" && (
           <p className="text-xs text-warm-300 mt-4">
             Taking longer than expected. You can close this page and check back later.
           </p>

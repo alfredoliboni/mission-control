@@ -12,11 +12,12 @@ const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
 /**
  * POST /api/onboarding
- * Creates a new family agent + workspace via the file server on Mac Mini,
- * then sends the profile to the Gateway so the agent can curate files.
+ * Creates a new family agent + workspace via the file server on Mac Mini.
+ * Writes a .curation-pending marker file — the processing page frontend
+ * triggers curation via a separate POST to /api/onboarding/curate once the
+ * gateway is healthy.
  *
  * Flow: Vercel → File Server (Mac Mini via Tailscale) → openclaw agents add + workspace
- *       Vercel → Gateway (Mac Mini via Tailscale) → agent processes profile (fire-and-forget)
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -140,32 +141,23 @@ export async function POST(request: NextRequest) {
         execSync("openclaw gateway restart", { timeout: 60000, stdio: "pipe" });
         console.log("[onboarding] Gateway restart issued — waiting for health...");
 
-        // Wait for gateway to become healthy AND chat endpoint available (up to 90s)
+        // Wait for gateway health only (not chat endpoint)
         const gwStart = Date.now();
         let gatewayReady = false;
         while (Date.now() - gwStart < 90000) {
           try {
             const health = await fetch("http://localhost:18789/health", { signal: AbortSignal.timeout(3000) });
             if (health.ok) {
-              // Also check chat endpoint is responding (not just health)
-              const chatTest = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
-                method: "POST",
-                signal: AbortSignal.timeout(5000),
-                headers: { "Authorization": `Bearer ${COMPANION_API_TOKEN}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ model: `openclaw/${agentId}`, messages: [{ role: "user", content: "/new" }] }),
-              });
-              if (chatTest.ok) {
-                gatewayReady = true;
-                console.log(`[onboarding] Gateway + chat ready after ${Math.round((Date.now() - gwStart) / 1000)}s`);
-                break;
-              }
+              gatewayReady = true;
+              console.log(`[onboarding] Gateway healthy after ${Math.round((Date.now() - gwStart) / 1000)}s`);
+              break;
             }
           } catch {}
           await new Promise(r => setTimeout(r, 5000));
           console.log(`[onboarding] Waiting for gateway... ${Math.round((Date.now() - gwStart) / 1000)}s`);
         }
         if (!gatewayReady) {
-          console.warn("[onboarding] Gateway not ready after 90s — agent prompt will be skipped");
+          console.warn("[onboarding] Gateway not ready after 90s — curation will be triggered by frontend");
         }
       } catch (err) {
         console.error("[onboarding] Agent registration failed:", err);
@@ -265,94 +257,13 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // Step 3: Send to agent — fire and forget with fallback
-  if (COMPANION_API_DIRECT) {
-    const agentPrompt = transcript
-      ? `IMPORTANT: A new family just completed AUDIO onboarding for ${name}. Below is the transcription of what the parent said. You MUST do ALL of these steps NOW:
-
-1. REWRITE memory/child-profile.md with all details you can extract from the transcript (name, DOB, diagnosis, sensory profile, communication, interests, strengths, challenges). Replace all "To be assessed" and "To be confirmed" placeholders with real data from the transcript.
-
-2. REWRITE memory/pathway.md reflecting their current journey stage based on what the parent described.
-
-3. Use your MCP tools to create structured data:
-   - create_alert for any upcoming deadlines or appointments mentioned
-   - add_team_member for any doctors, therapists, or providers mentioned (even with incomplete info — missing phone/email is OK)
-   - add_benefit for any benefits or programs mentioned (OAP, DTC, etc.)
-
-4. Respond in Portuguese with a warm welcome summarizing what you understood.
-
-TRANSCRIPT:
----
-${transcript}
----
-
-DO NOT just acknowledge this message. Actually update the files and use the tools NOW.`
-      : `IMPORTANT: A new family just completed onboarding for ${name}. You MUST process this data NOW:
-
-1. REWRITE memory/child-profile.md with the data below. Replace all placeholders.
-2. REWRITE memory/pathway.md with their current journey stage.
-3. Use MCP tools: create_alert, add_team_member, add_benefit for any structured data.
-4. Respond with a welcome message.
-
-DATA:
-${profileMarkdown}`;
-
-    // Fire and forget with fallback on failure
-    fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
-      method: "POST",
-      signal: AbortSignal.timeout(transcript ? 120000 : 55000),
-      headers: {
-        "Authorization": `Bearer ${COMPANION_API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: `openclaw/${agentId}`,
-        messages: [{ role: "user", content: agentPrompt }],
-        user: agentId,
-      }),
-    }).then(async (res) => {
-      if (res.ok) {
-        console.log(`[onboarding] Gateway returned 200 for ${agentId}`);
-      } else {
-        console.error(`[onboarding] Gateway returned ${res.status} for ${agentId}`);
-      }
-
-      // Check if agent actually curated the profile — if not, inject transcript directly
-      const profilePath = path.join(memoryDir, "child-profile.md");
-      try {
-        const content = fs.readFileSync(profilePath, "utf-8");
-        if (content.includes("To be assessed")) {
-          console.log("[onboarding] Agent did NOT curate profile — injecting transcript directly");
-          // Replace the Extra Information section with the raw transcript
-          const updated = content
-            .replace(/### Needs\n- To be assessed/, `### Needs\n- See parent's description below`)
-            .replace(/## Extra Information[\s\S]*$/,
-              `## Extra Information\n\n### Parent's Description (from audio onboarding)\n${transcript || profileMarkdown}\n\nLast Updated: ${new Date().toISOString().slice(0, 10)}\n`)
-            .replace(/- \*\*Diagnosis:\*\* ASD/, `- **Diagnosis:** ${transcript?.match(/ASD|autismo|autism|TDAH|ADHD/i)?.[0] || "ASD"} (pending confirmation)`)
-            .replace("To be assessed\nAvoids: to be assessed\nCalming: to be assessed", "See parent's description below");
-          fs.writeFileSync(profilePath, updated);
-          console.log("[onboarding] Profile updated with transcript");
-        } else {
-          console.log("[onboarding] Agent curated profile successfully");
-        }
-      } catch (err) {
-        console.error("[onboarding] Profile check failed:", err);
-      }
-    }).catch(async (err) => {
-      console.error("[onboarding] Gateway failed:", err.message);
-      // Inject transcript directly since agent couldn't process
-      if (transcript) {
-        const profilePath = path.join(memoryDir, "child-profile.md");
-        try {
-          const content = fs.readFileSync(profilePath, "utf-8");
-          const updated = content.replace(/## Extra Information[\s\S]*$/,
-            `## Extra Information\n\n### Parent's Description (from audio onboarding)\n${transcript}\n\nLast Updated: ${new Date().toISOString().slice(0, 10)}\n`);
-          fs.writeFileSync(profilePath, updated);
-          console.log("[onboarding] Fallback: injected transcript into profile");
-        } catch {}
-      }
-    });
-  }
+  // Write curation pending marker
+  fs.writeFileSync(path.join(wsDir, ".curation-pending"), JSON.stringify({
+    created: Date.now(),
+    agentId,
+    hasTranscript: !!transcript,
+  }));
+  console.log("[onboarding] Curation pending marker written");
 
   // Return immediately — don't wait for agent
   return NextResponse.json({
