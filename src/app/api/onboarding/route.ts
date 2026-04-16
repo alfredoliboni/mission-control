@@ -118,7 +118,13 @@ export async function POST(request: NextRequest) {
       // Try to register agent with OpenClaw
       try {
         console.log(`[onboarding] Registering agent ${agentId} with workspace ${wsDir}`);
-        execSync(`openclaw agents add ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" });
+        // Try add first, if exists try update workspace
+        try {
+          execSync(`openclaw agents add ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" });
+        } catch {
+          // Agent already exists — update workspace path
+          execSync(`openclaw agents update ${agentId} --workspace ${wsDir}`, { timeout: 10000, stdio: "pipe" }).toString();
+        }
         console.log(`[onboarding] Agent registered: ${agentId}`);
       } catch (err) {
         console.error("[onboarding] Agent registration failed:", err);
@@ -221,8 +227,34 @@ export async function POST(request: NextRequest) {
   // Step 3: Send to agent — fire and forget with fallback
   if (COMPANION_API_DIRECT) {
     const agentPrompt = transcript
-      ? `A new family just completed AUDIO onboarding for ${name}. Transcription:\n\n---\n${transcript}\n---\n\nExtract all data, write child-profile.md, pathway.md, and use MCP tools for structured data.`
-      : `A new family just completed onboarding for ${name}. Process this intake data:\n\n${profileMarkdown}`;
+      ? `IMPORTANT: A new family just completed AUDIO onboarding for ${name}. Below is the transcription of what the parent said. You MUST do ALL of these steps NOW:
+
+1. REWRITE memory/child-profile.md with all details you can extract from the transcript (name, DOB, diagnosis, sensory profile, communication, interests, strengths, challenges). Replace all "To be assessed" and "To be confirmed" placeholders with real data from the transcript.
+
+2. REWRITE memory/pathway.md reflecting their current journey stage based on what the parent described.
+
+3. Use your MCP tools to create structured data:
+   - create_alert for any upcoming deadlines or appointments mentioned
+   - add_team_member for any doctors, therapists, or providers mentioned (even with incomplete info — missing phone/email is OK)
+   - add_benefit for any benefits or programs mentioned (OAP, DTC, etc.)
+
+4. Respond in Portuguese with a warm welcome summarizing what you understood.
+
+TRANSCRIPT:
+---
+${transcript}
+---
+
+DO NOT just acknowledge this message. Actually update the files and use the tools NOW.`
+      : `IMPORTANT: A new family just completed onboarding for ${name}. You MUST process this data NOW:
+
+1. REWRITE memory/child-profile.md with the data below. Replace all placeholders.
+2. REWRITE memory/pathway.md with their current journey stage.
+3. Use MCP tools: create_alert, add_team_member, add_benefit for any structured data.
+4. Respond with a welcome message.
+
+DATA:
+${profileMarkdown}`;
 
     // Fire and forget with fallback on failure
     fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
