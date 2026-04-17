@@ -93,15 +93,9 @@ export function TopBar() {
   function handleChildSwitch(index: number) {
     setActiveChildIndex(index);
     setDropdownOpen(false);
-    // Invalidate ALL data queries — they all use agentId in their keys
-    // React Query will refetch with the new agentId from useActiveAgent()
-    queryClient.invalidateQueries({ queryKey: ["workspace"] });
-    queryClient.invalidateQueries({ queryKey: ["alerts"] });
-    queryClient.invalidateQueries({ queryKey: ["team-members"] });
-    queryClient.invalidateQueries({ queryKey: ["benefits-db"] });
-    queryClient.invalidateQueries({ queryKey: ["family-providers"] });
-    queryClient.invalidateQueries({ queryKey: ["family-programs"] });
-    queryClient.invalidateQueries({ queryKey: ["care-team"] });
+    // Reset ALL queries — removes cached data AND triggers immediate refetch
+    // This is more aggressive than invalidate but ensures no stale data from previous child
+    queryClient.resetQueries();
   }
 
   return (
