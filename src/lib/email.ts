@@ -55,6 +55,30 @@ export async function sendInviteEmail(params: {
 /**
  * Send a welcome email to a newly registered provider.
  */
+/**
+ * Send a notification when a message is received.
+ * Fire-and-forget — never blocks the message send.
+ */
+export async function sendMessageNotificationEmail(params: {
+  to: string;
+  senderName: string;
+  childName: string;
+}) {
+  await sendEmail({
+    to: params.to,
+    subject: `New message from ${params.senderName} — The Companion`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #faf9f6;">
+        <h2 style="color: #c96442; margin: 0 0 16px;">🧭 The Companion</h2>
+        <p style="color: #333;">Hi,</p>
+        <p style="color: #333;"><strong>${params.senderName}</strong> sent you a message about <strong>${params.childName}</strong>.</p>
+        <p style="color: #333;">Open The Companion to read and reply.</p>
+        <p style="color: #999; font-size: 12px; margin-top: 24px;">This is an automated notification.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendProviderWelcomeEmail(params: {
   to: string;
   organizationName: string;

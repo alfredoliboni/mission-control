@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendMessageNotificationEmail } from "@/lib/email";
 
 interface SendMessageBody {
   thread_id?: string;
@@ -110,6 +111,33 @@ export async function POST(request: NextRequest) {
       { error: "Failed to send message" },
       { status: 500 }
     );
+  }
+
+  // Fire-and-forget email notification to recipient
+  if (body.recipient_name) {
+    (async () => {
+      try {
+        const admin = createAdminClient();
+        const { data: member } = await admin
+          .from("family_team_members")
+          .select("email, child_name")
+          .eq("family_id", user.id)
+          .eq("name", body.recipient_name)
+          .limit(1)
+          .single();
+
+        if (member?.email) {
+          const senderName = user.user_metadata?.full_name || user.email || "A family member";
+          await sendMessageNotificationEmail({
+            to: member.email,
+            senderName,
+            childName: member.child_name || "your child",
+          });
+        }
+      } catch {
+        // Silent — email notification is best-effort
+      }
+    })();
   }
 
   return NextResponse.json({

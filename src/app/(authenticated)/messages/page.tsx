@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { Send, Plus, MessageSquare, Loader2, ArrowLeft } from "lucide-react";
 import { useWorkspaceFile } from "@/hooks/useWorkspace";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
@@ -44,28 +45,7 @@ interface CareTeamContact {
   organization?: string;
 }
 
-async function fetchCareTeam(): Promise<CareTeamContact[]> {
-  const res = await fetch("/api/care-team");
-  if (!res.ok) {
-    if (res.status === 401) return [];
-    throw new Error("Failed to fetch care team");
-  }
-  const data = await res.json();
-  return (data.stakeholders ?? []).map((s: Record<string, unknown>) => ({
-    id: s.id as string,
-    stakeholder_id: (s.stakeholder_id as string) || (s.id as string),
-    name: (s.name as string) || "Unknown",
-    role: (s.role as string) || "Provider",
-    organization: (s.organization as string) || undefined,
-  }));
-}
-
-// Demo contacts shown in demo mode
-const DEMO_CONTACTS: CareTeamContact[] = [
-  { id: "demo-dr-park", stakeholder_id: "dr-patel", name: "Dr. Park", role: "Doctor", organization: "Toronto Clinic" },
-  { id: "demo-sarah", stakeholder_id: "sarah-ot", name: "Sarah Williams", role: "OT", organization: "Pathways" },
-  { id: "demo-thompson", stakeholder_id: "ms-rodriguez", name: "Ms. Thompson", role: "School", organization: "London Public" },
-];
+// Contacts come from useTeamMembers() — no hardcoded demo data
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -292,15 +272,15 @@ function NewThreadForm({
   const [selectedContactId, setSelectedContactId] = useState("");
   const queryClient = useQueryClient();
 
-  // Fetch real contacts from care team API
-  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
-    queryKey: ["care-team-contacts"],
-    queryFn: fetchCareTeam,
-    staleTime: 60_000,
-  });
-
-  // In demo mode, use demo contacts if API returns empty
-  const effectiveContacts = contacts.length > 0 ? contacts : DEMO_CONTACTS;
+  // Contacts from family_team_members (Supabase) — filtered by active child
+  const { data: teamData, isLoading: contactsLoading } = useTeamMembers();
+  const effectiveContacts: CareTeamContact[] = (teamData?.active ?? []).map((m) => ({
+    id: m.id,
+    stakeholder_id: m.id,
+    name: m.name,
+    role: m.role,
+    organization: m.organization ?? undefined,
+  }));
 
   const selectedContact = effectiveContacts.find(
     (c) => c.stakeholder_id === selectedContactId
