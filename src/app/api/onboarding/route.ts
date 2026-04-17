@@ -124,15 +124,23 @@ export async function POST(request: NextRequest) {
         console.log(`[onboarding] Agent registered: ${agentId}`);
 
         // Copy models.json and auth-profiles.json from main agent
-        // New agents get wrong provider URLs by default — main agent has the correct ones
+        // New agents get wrong provider URLs by default (baseUrl with /v1 causes DNS failure)
         const mainAgentDir = path.join(home, ".openclaw", "agents", "main", "agent");
         const newAgentDir = path.join(home, ".openclaw", "agents", agentId, "agent");
+        // Ensure the target directory exists (agents add may not create it immediately)
+        fs.mkdirSync(newAgentDir, { recursive: true });
         for (const configFile of ["models.json", "auth-profiles.json"]) {
           const src = path.join(mainAgentDir, configFile);
           const dst = path.join(newAgentDir, configFile);
-          if (fs.existsSync(src)) {
-            fs.copyFileSync(src, dst);
-            console.log(`[onboarding] Copied ${configFile} from main agent`);
+          try {
+            if (fs.existsSync(src)) {
+              fs.copyFileSync(src, dst);
+              console.log(`[onboarding] Copied ${configFile} from main agent`);
+            } else {
+              console.warn(`[onboarding] Main agent ${configFile} not found at ${src}`);
+            }
+          } catch (copyErr) {
+            console.error(`[onboarding] Failed to copy ${configFile}:`, copyErr);
           }
         }
 
