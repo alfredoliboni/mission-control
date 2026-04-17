@@ -279,7 +279,7 @@ export default function SettingsPage() {
   const safeChildIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
     : 0;
-  const [selectedChildIndex, setSelectedChildIndex] = useState(safeChildIndex);
+  // Child is controlled by TopBar selector (activeChildIndex from Zustand)
 
   // ── Load parent info from Supabase auth ──
   useEffect(() => {
@@ -332,7 +332,7 @@ export default function SettingsPage() {
       setInviteName("");
       setInviteRole("Provider");
       setInviteOrg("");
-      setSelectedChildIndex(safeChildIndex);
+      // Child selection is handled by TopBar
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to send invitation");
@@ -369,7 +369,7 @@ export default function SettingsPage() {
     childAgentId: undefined,
   });
 
-  // Active team exclusively from Supabase family_team_members (no workspace fallback)
+  // Active team from Supabase — filtered by the TopBar's active child via useTeamMembers() hook
   const activePartners = (teamData?.active ?? []).map(mapTeamMember);
   // Pending/declined/revoked come from stakeholder_links (invite flow)
   const pendingPartners = invitePartners.filter((p) => p.status === "pending");
@@ -531,7 +531,7 @@ export default function SettingsPage() {
                 className="h-9 shrink-0"
                 disabled={!inviteEmail || !inviteName || !inviteRole || inviteMutation.isPending}
                 onClick={() => {
-                  const selectedChild = family.children[selectedChildIndex];
+                  const selectedChild = family.children[activeChildIndex];
                   inviteMutation.mutate({
                     email: inviteEmail,
                     name: inviteName,
@@ -554,33 +554,7 @@ export default function SettingsPage() {
                 Invite
               </Button>
             </div>
-            {/* Child selector — only shown for multi-child families */}
-            {isMultiChild && (
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[12px] font-medium text-muted-foreground shrink-0">
-                  For which child?
-                </span>
-                <div className="flex gap-2">
-                  {family.children.map((child, index) => (
-                    <button
-                      key={child.agentId}
-                      type="button"
-                      onClick={() => setSelectedChildIndex(index)}
-                      className={`
-                        text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-colors
-                        ${
-                          selectedChildIndex === index
-                            ? "border-primary bg-primary/8 text-primary"
-                            : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                        }
-                      `}
-                    >
-                      {child.childName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Child is controlled by the TopBar selector — no separate filter needed */}
           </div>
 
           {/* Loading state */}
