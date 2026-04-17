@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParsedProfile, useParsedJourneyPartners } from "@/hooks/useWorkspace";
+import { useActiveAgent } from "@/hooks/useActiveAgent";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -242,6 +243,19 @@ export default function ProfilePage() {
   const [profileData, setProfileData] = useState<ParsedProfile | null>(null);
   const [snapshot, setSnapshot] = useState<ParsedProfile | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  const agentId = useActiveAgent();
+
+  // Reset local profile state when switching children
+  const prevAgentRef = useRef(agentId);
+  useEffect(() => {
+    if (agentId !== prevAgentRef.current) {
+      prevAgentRef.current = agentId;
+      setProfileData(null);
+      setSnapshot(null);
+      setEditingSection(null);
+      initializedRef.current = false;
+    }
+  }, [agentId]);
 
   if (initialProfile && !profileData) {
     setProfileData(initialProfile);
