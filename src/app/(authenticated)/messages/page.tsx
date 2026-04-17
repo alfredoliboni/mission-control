@@ -258,11 +258,11 @@ function MessageBubble({
           </div>
           {!isNavigator && (
             <button
-              className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-warm-100"
+              className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-white shadow-sm border border-border hover:bg-red-50 hover:border-red-200"
               onClick={() => onDelete(message.id)}
               title="Delete message"
             >
-              <Trash2 className="h-3 w-3 text-warm-300" />
+              <Trash2 className="h-3.5 w-3.5 text-warm-400 hover:text-red-500" />
             </button>
           )}
         </div>
