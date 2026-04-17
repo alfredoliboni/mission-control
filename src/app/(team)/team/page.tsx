@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,7 @@ import {
   AlertCircle,
   Send,
   X,
+  Trash2,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -358,28 +360,57 @@ function TeamUploadForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !title || !docType) return;
+    if (!file || !title || !docType || !selectedPatientId) return;
 
     setStatus("uploading");
     setErrorMsg("");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("title", title);
-    formData.append("doc_type", docType);
-    if (selectedPatientId) {
-      formData.append("patient", selectedPatientId);
-    }
-
     try {
-      const res = await fetch("/api/team/documents", {
+      // 1. Ask server for a signed upload URL
+      const prepRes = await fetch("/api/team/documents", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "prepare",
+          patient: selectedPatientId,
+          filename: file.name,
+        }),
       });
+      if (!prepRes.ok) {
+        const data = await prepRes.json().catch(() => ({}));
+        throw new Error(data.error || `Upload prep failed (${prepRes.status})`);
+      }
+      const { storagePath, token } = await prepRes.json();
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Upload failed (${res.status})`);
+      // 2. Upload directly to Supabase Storage (bypasses Next dev server)
+      const supabase = createSupabaseBrowserClient();
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .uploadToSignedUrl(storagePath, token, file, {
+          contentType: file.type || "application/octet-stream",
+        });
+      if (uploadError) {
+        throw new Error(uploadError.message || "Failed to upload file");
+      }
+
+      // 3. Finalize: insert DB row + self-grant permission
+      const finalizeRes = await fetch("/api/team/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "finalize",
+          patient: selectedPatientId,
+          storagePath,
+          title,
+          doc_type: docType,
+          file_name: file.name,
+          content_type: file.type,
+          size_bytes: file.size,
+        }),
+      });
+      if (!finalizeRes.ok) {
+        const data = await finalizeRes.json().catch(() => ({}));
+        throw new Error(data.error || `Finalize failed (${finalizeRes.status})`);
       }
 
       setStatus("success");
@@ -541,7 +572,13 @@ function TeamUploadForm({
 
 // ── Documents Section ────────────────────────────────────────────────────
 
-function DocumentsSection({ selectedPatientId }: { selectedPatientId?: string }) {
+function DocumentsSection({
+  selectedPatientId,
+  currentUserId,
+}: {
+  selectedPatientId?: string;
+  currentUserId: string | null;
+}) {
   const queryClient = useQueryClient();
   const {
     data: documents = [],
@@ -556,6 +593,21 @@ function DocumentsSection({ selectedPatientId }: { selectedPatientId?: string })
   const handleUploadSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["team-documents", selectedPatientId] });
   };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete document");
+      }
+    },
+    onSuccess: () => {
+      toast.success("Document deleted");
+      queryClient.invalidateQueries({ queryKey: ["team-documents", selectedPatientId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <div className="bg-card border border-border rounded-xl">
@@ -637,6 +689,21 @@ function DocumentsSection({ selectedPatientId }: { selectedPatientId?: string })
                     Download
                   </a>
                 )}
+                {currentUserId && doc.uploaded_by === currentUserId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Delete "${doc.title}"? This cannot be undone.`)) {
+                        deleteMutation.mutate(doc.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    title="Delete this document"
+                    className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-muted-foreground hover:text-[#c96442] hover:bg-[#c96442]/8 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -648,13 +715,55 @@ function DocumentsSection({ selectedPatientId }: { selectedPatientId?: string })
 
 // ── Messages Section ─────────────────────────────────────────────────────
 
-function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) {
+function MessagesSection({
+  selectedPatientId,
+  currentUserId,
+}: {
+  selectedPatientId?: string;
+  currentUserId: string | null;
+}) {
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [newSubject, setNewSubject] = useState("");
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string>("family");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const deleteThreadMutation = useMutation({
+    mutationFn: async (threadId: string) => {
+      const res = await fetch(
+        `/api/team/messages/${threadId}?scope=thread`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete thread");
+      }
+    },
+    onSuccess: (_data, threadId) => {
+      toast.success("Conversation deleted");
+      if (selectedThread === threadId) setSelectedThread(null);
+      queryClient.invalidateQueries({ queryKey: ["team-messages", selectedPatientId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      const res = await fetch(`/api/team/messages/${messageId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete message");
+      }
+    },
+    onSuccess: () => {
+      toast.success("Message deleted");
+      queryClient.invalidateQueries({ queryKey: ["team-messages", selectedPatientId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   // Subscribe to realtime message inserts for instant updates
   useRealtimeMessages(selectedPatientId, ["team-messages", selectedPatientId ?? ""]);
@@ -773,12 +882,11 @@ function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) 
             ) : (
               <div className="divide-y divide-border">
                 {threads.map((thread) => (
-                  <button
+                  <div
                     key={thread.id}
-                    type="button"
                     onClick={() => setSelectedThread(thread.id)}
                     className={`
-                      w-full text-left px-3 py-2.5 transition-colors
+                      group relative w-full text-left px-3 py-2.5 transition-colors cursor-pointer
                       ${
                         selectedThread === thread.id
                           ? "bg-primary/5 border-l-2 border-l-primary"
@@ -786,7 +894,7 @@ function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) 
                       }
                     `}
                   >
-                    <p className="text-[12px] font-semibold text-foreground truncate">
+                    <p className="text-[12px] font-semibold text-foreground truncate pr-6">
                       {thread.subject}
                     </p>
                     <p className="text-[10px] text-muted-foreground truncate mt-0.5">
@@ -799,7 +907,25 @@ function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) 
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDate(thread.lastMessage.created_at)}
                     </p>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          confirm(
+                            `Delete conversation "${thread.subject}"? This removes it for everyone in the thread.`
+                          )
+                        ) {
+                          deleteThreadMutation.mutate(thread.id);
+                        }
+                      }}
+                      disabled={deleteThreadMutation.isPending}
+                      title="Delete conversation"
+                      className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-[#c96442] hover:bg-[#c96442]/8 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -828,11 +954,27 @@ function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) 
                     const senderLabel =
                       msg.sender_name ||
                       (msg.sender_role === "parent" ? "Family" : msg.sender_role);
+                    const isOwn = currentUserId !== null && msg.sender_id === currentUserId;
                     return (
                       <div
                         key={msg.id}
-                        className={`flex ${isStakeholder ? "justify-end" : "justify-start"}`}
+                        className={`group flex ${isStakeholder ? "justify-end" : "justify-start"}`}
                       >
+                        {isOwn && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("Delete this message? This cannot be undone.")) {
+                                deleteMessageMutation.mutate(msg.id);
+                              }
+                            }}
+                            disabled={deleteMessageMutation.isPending}
+                            title="Delete message"
+                            className="self-center mr-1 p-1 rounded-md text-muted-foreground hover:text-[#c96442] hover:bg-[#c96442]/8 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
                         <div
                           className={`max-w-[80%] rounded-xl px-3.5 py-2.5 ${
                             isStakeholder
@@ -970,6 +1112,14 @@ function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) 
 
 export default function TeamPortalPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   const { data: patientsData } = useQuery({
     queryKey: ["team-patients"],
@@ -1034,8 +1184,14 @@ export default function TeamPortalPage() {
                 </div>
               )}
               <ChildOverview profile={profile} isLoading={profileLoading} />
-              <DocumentsSection selectedPatientId={selectedPatientId} />
-              <MessagesSection selectedPatientId={selectedPatientId} />
+              <DocumentsSection
+                selectedPatientId={selectedPatientId}
+                currentUserId={currentUserId}
+              />
+              <MessagesSection
+                selectedPatientId={selectedPatientId}
+                currentUserId={currentUserId}
+              />
             </>
           ) : (
             <div className="text-muted-foreground text-sm">
