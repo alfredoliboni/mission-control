@@ -401,8 +401,10 @@ export default function SettingsPage() {
   // Active team from Supabase — filtered by the TopBar's active child via useTeamMembers() hook
   const activePartners = (teamData?.active ?? []).map(mapTeamMember);
   // Pending/declined/revoked come from stakeholder_links (invite flow)
-  const pendingPartners = invitePartners.filter((p) => p.status === "pending");
-  const declinedPartners = invitePartners.filter((p) => p.status === "declined");
+  // Filter out names already in activePartners to avoid duplicates (agent adds + invite creates both)
+  const activeNames = new Set(activePartners.map((p) => p.name.toLowerCase()));
+  const pendingPartners = invitePartners.filter((p) => p.status === "pending" && !activeNames.has(p.name.toLowerCase()));
+  const declinedPartners = invitePartners.filter((p) => p.status === "declined" && !activeNames.has(p.name.toLowerCase()));
   const revokedPartners = invitePartners.filter((p) => p.status === "revoked");
 
   return (
