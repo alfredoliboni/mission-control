@@ -125,12 +125,18 @@ function PartnerRow({
   onRevoke,
   onRemove,
   onInvite,
+  onEdit,
 }: {
   partner: Partner;
   onRevoke: () => void;
   onRemove: () => void;
   onInvite?: (partner: Partner) => void;
+  onEdit?: (updates: { role: string; organization: string }) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editRole, setEditRole] = useState(partner.role);
+  const [editOrg, setEditOrg] = useState(partner.organization);
+
   const isUninvited = !partner.email && partner.status === "active";
 
   const statusColors: Record<Partner["status"], string> = {
@@ -179,8 +185,28 @@ function PartnerRow({
               </span>
             ))}
           </div>
+          {editing && (
+            <div className="flex items-center gap-2 mt-2">
+              <Input value={editRole} onChange={(e) => setEditRole((e.target as HTMLInputElement).value)} placeholder="Role" className="h-7 text-xs w-28" />
+              <Input value={editOrg} onChange={(e) => setEditOrg((e.target as HTMLInputElement).value)} placeholder="Organization" className="h-7 text-xs w-40" />
+              <Button size="sm" className="h-7 text-xs" onClick={() => { onEdit?.({ role: editRole, organization: editOrg }); setEditing(false); }}>Save</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          )}
         </div>
         <div className="flex gap-1 shrink-0">
+          {/* Edit button — shown for active members */}
+          {partner.status === "active" && onEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="size-3.5 mr-1" />
+              <span className="text-[11px]">Edit</span>
+            </Button>
+          )}
           {/* Invite button — shown for members added by agent (no email, not invited yet) */}
           {isUninvited && onInvite && (
             <Button
@@ -326,6 +352,9 @@ export default function SettingsPage() {
           preferredLanguage: meta.preferred_language || "",
           preferredContact: meta.preferred_contact || "Email",
         });
+        if (meta.privacy) {
+          setPrivacy(meta.privacy);
+        }
         setParentLoaded(true);
       })
       .catch(() => {});
@@ -384,6 +413,16 @@ export default function SettingsPage() {
     setParent((p) => ({ ...p, [key]: value }));
   };
 
+  const updatePrivacy = (key: keyof PrivacySettings, value: boolean) => {
+    const updated = { ...privacy, [key]: value };
+    setPrivacy(updated);
+    fetch("/api/settings/parent", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ privacy: updated }),
+    }).catch(() => toast.error("Failed to save privacy settings"));
+  };
+
   // Map TeamMember (DB hook) → Partner display shape
   const mapTeamMember = (m: import("@/lib/supabase/queries/team-members").TeamMember): Partner => ({
     id: m.id,
@@ -440,7 +479,30 @@ export default function SettingsPage() {
               <Button
                 size="sm"
                 className="h-7 px-2"
-                onClick={() => setEditingParent(false)}
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/settings/parent", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: parent.name,
+                        phone: parent.phone,
+                        address: parent.address,
+                        city: parent.city,
+                        postalCode: parent.postalCode,
+                        province: parent.province,
+                        language: parent.preferredLanguage,
+                        preferredContact: parent.preferredContact,
+                      }),
+                    });
+                    if (res.ok) {
+                      toast.success("Settings saved");
+                    }
+                  } catch {
+                    toast.error("Failed to save settings");
+                  }
+                  setEditingParent(false);
+                }}
               >
                 <Check className="size-3.5 mr-1" />
                 Save
@@ -607,6 +669,22 @@ export default function SettingsPage() {
                     onRevoke={() => removeMutation.mutate(p.id)}
                     onRemove={() => removeMutation.mutate(p.id)}
                     onInvite={(member) => { setInvitingMember(member); setInviteEmailInput(""); }}
+                    onEdit={(updates) => {
+                      fetch("/api/team-members", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ memberId: p.id, role: updates.role, organization: updates.organization }),
+                      })
+                        .then((r) => {
+                          if (r.ok) {
+                            toast.success("Member updated");
+                            queryClient.invalidateQueries({ queryKey: ["team-members"] });
+                          } else {
+                            toast.error("Failed to update member");
+                          }
+                        })
+                        .catch(() => toast.error("Failed to update member"));
+                    }}
                   />
                   {invitingMember?.id === p.id && (
                     <div className="mt-2 flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
@@ -718,7 +796,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={privacy.shareWithProviders}
-                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, shareWithProviders: v }))}
+                onCheckedChange={(v) => updatePrivacy("shareWithProviders", v)}
               />
             </div>
 
@@ -729,7 +807,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={privacy.shareWithSchool}
-                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, shareWithSchool: v }))}
+                onCheckedChange={(v) => updatePrivacy("shareWithSchool", v)}
               />
             </div>
 
@@ -740,7 +818,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={privacy.anonymizedResearch}
-                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, anonymizedResearch: v }))}
+                onCheckedChange={(v) => updatePrivacy("anonymizedResearch", v)}
               />
             </div>
 
@@ -751,7 +829,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={privacy.emailNotifications}
-                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, emailNotifications: v }))}
+                onCheckedChange={(v) => updatePrivacy("emailNotifications", v)}
               />
             </div>
 
@@ -762,7 +840,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={privacy.smsNotifications}
-                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, smsNotifications: v }))}
+                onCheckedChange={(v) => updatePrivacy("smsNotifications", v)}
               />
             </div>
           </div>

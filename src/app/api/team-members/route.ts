@@ -96,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { memberId, action, reason, phone, email, website } = body;
+    const { memberId, action, reason, phone, email, website, role, organization } = body;
 
     if (!memberId) {
       return NextResponse.json({ error: "memberId is required" }, { status: 400 });
@@ -107,6 +107,19 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "reason is required when action is remove" }, { status: 400 });
       }
       await removeTeamMember(supabase, memberId, reason);
+    } else if (role !== undefined || organization !== undefined) {
+      // Update role/organization
+      const updates: Record<string, string> = {};
+      if (role !== undefined) updates.role = role;
+      if (organization !== undefined) updates.organization = organization;
+
+      const { error } = await supabase
+        .from("family_team_members")
+        .update(updates)
+        .eq("id", memberId)
+        .eq("family_id", user.id);
+
+      if (error) throw new Error(error.message);
     } else {
       await updateMemberContact(supabase, memberId, { phone, email, website });
     }
