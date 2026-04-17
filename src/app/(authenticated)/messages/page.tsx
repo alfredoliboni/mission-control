@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useActiveAgent } from "@/hooks/useActiveAgent";
 import { Send, Plus, MessageSquare, Loader2, ArrowLeft } from "lucide-react";
 import { useWorkspaceFile } from "@/hooks/useWorkspace";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
@@ -563,6 +564,19 @@ export default function MessagesPage() {
   const [showNewThread, setShowNewThread] = useState(false);
   const [familyId, setFamilyId] = useState<string | undefined>(undefined);
 
+  // Active child agent — used to scope threads and trigger refetch on child switch
+  const agentId = useActiveAgent();
+  const prevAgentRef = useRef<string | undefined>(agentId);
+
+  // Reset thread state when switching children
+  useEffect(() => {
+    if (agentId !== prevAgentRef.current) {
+      prevAgentRef.current = agentId;
+      setSelectedThreadId(null);
+      setShowNewThread(false);
+    }
+  }, [agentId]);
+
   // Resolve the current user's ID (used as family_id for realtime)
   useEffect(() => {
     let cancelled = false;
@@ -577,11 +591,12 @@ export default function MessagesPage() {
   useRealtimeMessages(familyId);
 
   // Fetch threads from API (long fallback interval since realtime handles updates)
+  // Include agentId in query key so threads refetch when child switches
   const {
     data: threadsData,
     isLoading: threadsLoading,
   } = useQuery({
-    queryKey: ["messages"],
+    queryKey: ["messages", agentId],
     queryFn: fetchThreads,
     refetchInterval: 60_000,
   });
