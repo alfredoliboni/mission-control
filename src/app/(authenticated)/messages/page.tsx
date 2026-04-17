@@ -44,6 +44,12 @@ async function deleteMessage(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete message");
 }
 
+async function deleteThread(threadId: string): Promise<void> {
+  // Delete all messages in the thread by calling delete for each
+  const res = await fetch(`/api/messages/${threadId}?scope=thread`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete thread");
+}
+
 // ── Care team contact type ─────────────────────────────────────────────
 
 interface CareTeamContact {
@@ -145,10 +151,12 @@ function ThreadListItem({
   thread,
   isSelected,
   onClick,
+  onDeleteThread,
 }: {
   thread: ThreadSummary;
   isSelected: boolean;
   onClick: () => void;
+  onDeleteThread?: (threadId: string) => void;
 }) {
   const last = thread.lastMessage;
   const isNavigator = thread.id === "navigator-thread";
@@ -196,9 +204,20 @@ function ThreadListItem({
           <span className="text-[10px] text-warm-300 whitespace-nowrap mt-0.5">
             {formatDate(last.created_at)}
           </span>
-          {(thread.unreadCount ?? 0) > 0 && (
-            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-          )}
+          <div className="flex items-center gap-1">
+            {(thread.unreadCount ?? 0) > 0 && (
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            )}
+            {!isNavigator && onDeleteThread && (
+              <button
+                className="p-1 rounded hover:bg-red-50 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onDeleteThread(thread.id); }}
+                title="Delete thread"
+              >
+                <Trash2 className="h-3 w-3 text-warm-300 hover:text-red-500" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </button>
@@ -705,6 +724,20 @@ export default function MessagesPage() {
   const effectiveThreadId = selectedThreadId || (!showNewThread && filteredThreads.length > 0 ? filteredThreads[0].id : null);
   const selectedThread = filteredThreads.find((t) => t.id === effectiveThreadId);
 
+  const queryClient = useQueryClient();
+
+  const handleDeleteThread = async (threadId: string) => {
+    try {
+      await deleteThread(threadId);
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      if (selectedThreadId === threadId) {
+        setSelectedThreadId(null);
+      }
+    } catch {
+      // silent
+    }
+  };
+
   const handleThreadSelect = (thread: ThreadSummary) => {
     setSelectedThreadId(thread.id);
     setShowNewThread(false);
@@ -844,6 +877,7 @@ export default function MessagesPage() {
                   thread={thread}
                   isSelected={selectedThreadId === thread.id}
                   onClick={() => handleThreadSelect(thread)}
+                  onDeleteThread={handleDeleteThread}
                 />
               ))
             )}

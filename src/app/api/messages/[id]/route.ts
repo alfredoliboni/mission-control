@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// DELETE /api/messages/[id] — soft delete (sets deleted_at = NOW())
+// DELETE /api/messages/[id] — soft delete
+// ?scope=thread → delete all messages in the thread (id = thread_id)
+// default → delete single message (id = message id)
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
@@ -17,13 +19,22 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const scope = request.nextUrl.searchParams.get("scope");
   const admin = createAdminClient();
 
-  const { error } = await admin
+  let query = admin
     .from("messages")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("family_id", user.id);
+    .update({ deleted_at: new Date().toISOString() });
+
+  if (scope === "thread") {
+    // Delete all messages in the thread
+    query = query.eq("thread_id", id).eq("family_id", user.id);
+  } else {
+    // Delete single message
+    query = query.eq("id", id).eq("family_id", user.id);
+  }
+
+  const { error } = await query;
 
   if (error) {
     console.error("Error soft-deleting message:", error);
