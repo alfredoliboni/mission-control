@@ -4,10 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/team/messages
- * Returns message threads for the stakeholder's linked family,
- * filtered to threads where this stakeholder has participated
- * or all threads for their linked family.
- * Accepts optional ?family_id= to filter by a specific family.
+ * Returns message threads for the stakeholder's linked families.
+ * Supports ?patient=<linkId> for per-patient filtering (takes precedence).
+ * Falls back to legacy ?family_id= for backward compatibility.
+ * Filters to threads where this stakeholder has participated.
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Find linked families (accepted only)
+  // Find linked families (accepted only) — include id and child_agent_id for patient filtering
   const { data: links } = await admin
     .from("stakeholder_links")
-    .select("family_id")
+    .select("id, family_id, child_agent_id")
     .eq("stakeholder_id", user.id)
     .or("status.eq.accepted,status.is.null");
 
@@ -32,28 +32,55 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ threads: [] });
   }
 
-  // If family_id is specified, filter to that family (must be in linked set)
+  const patientLinkId = request.nextUrl.searchParams.get("patient");
   const requestedFamilyId = request.nextUrl.searchParams.get("family_id");
-  let familyIds = links.map((l) => l.family_id);
 
-  if (requestedFamilyId) {
+  let activeLink: { id: string; family_id: string; child_agent_id: string | null } | null = null;
+
+  // ?patient= takes precedence over ?family_id=
+  if (patientLinkId) {
+    const found = links.find((l) => l.id === patientLinkId);
+    if (!found) {
+      return NextResponse.json({ error: "Unauthorized family access" }, { status: 403 });
+    }
+    activeLink = found;
+  } else if (requestedFamilyId) {
+    const familyIds = links.map((l) => l.family_id);
     if (!familyIds.includes(requestedFamilyId)) {
       return NextResponse.json({ error: "Unauthorized family access" }, { status: 403 });
     }
-    familyIds = [requestedFamilyId];
+    // Pick the first link matching the requested family_id
+    activeLink = links.find((l) => l.family_id === requestedFamilyId) ?? null;
   }
 
-  // Fetch messages and stakeholder names in parallel
+  // Build messages query
+  let messagesQuery = admin
+    .from("messages")
+    .select("*")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true });
+
+  if (activeLink) {
+    messagesQuery = messagesQuery.eq("family_id", activeLink.family_id);
+    if (activeLink.child_agent_id) {
+      messagesQuery = messagesQuery.eq("child_agent_id", activeLink.child_agent_id);
+    }
+  } else {
+    // No patient param — fall back to all linked families
+    const familyIds = links.map((l) => l.family_id);
+    messagesQuery = messagesQuery.in("family_id", familyIds);
+  }
+
+  const familyIdsForStakeholders = activeLink
+    ? [activeLink.family_id]
+    : links.map((l) => l.family_id);
+
   const [messagesResult, stakeholdersResult] = await Promise.all([
-    admin
-      .from("messages")
-      .select("*")
-      .in("family_id", familyIds)
-      .order("created_at", { ascending: true }),
+    messagesQuery,
     admin
       .from("stakeholder_links")
       .select("stakeholder_id, family_id, name, role, organization")
-      .in("family_id", familyIds),
+      .in("family_id", familyIdsForStakeholders),
   ]);
 
   if (messagesResult.error) {
@@ -76,6 +103,7 @@ export async function GET(request: NextRequest) {
   interface MessageRow {
     id: string;
     family_id: string;
+    child_agent_id?: string | null;
     thread_id: string;
     thread_subject: string;
     sender_id: string;
@@ -85,6 +113,7 @@ export async function GET(request: NextRequest) {
     recipient_name?: string;
     content: string;
     created_at: string;
+    deleted_at?: string | null;
   }
 
   const threadMap = new Map<string, MessageRow[]>();
@@ -132,6 +161,9 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/team/messages
  * Send a message as a stakeholder to the linked family.
+ * Supports `patient` (linkId) in body for per-patient targeting.
+ * Falls back to legacy `family_id` for backward compatibility.
+ * Stamps child_agent_id on the row and fires a family email notification.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -145,10 +177,10 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Verify stakeholder link (accepted only)
+  // Verify stakeholder link (accepted only) — include all fields needed for email + child stamping
   const { data: links } = await admin
     .from("stakeholder_links")
-    .select("family_id, role, name")
+    .select("id, family_id, child_agent_id, child_name, role, name")
     .eq("stakeholder_id", user.id)
     .or("status.eq.accepted,status.is.null");
 
@@ -160,26 +192,48 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { thread_id, new_thread_subject, content, recipient_id, recipient_name, family_id: requestedFamilyId } = body as {
+  const {
+    thread_id,
+    new_thread_subject,
+    content,
+    recipient_id,
+    recipient_name,
+    family_id: requestedFamilyId,
+    patient: patientLinkId,
+  } = body as {
     thread_id?: string;
     new_thread_subject?: string;
     content: string;
     recipient_id?: string;
     recipient_name?: string;
     family_id?: string;
+    patient?: string;
   };
 
-  // Resolve which family to send the message to
-  const linkedFamilyIds = links.map((l) => l.family_id);
-  let familyId: string;
-  let senderRole: string;
+  // Resolve activeLink: patient > family_id > first link
+  let activeLink: {
+    id: string;
+    family_id: string;
+    child_agent_id: string | null;
+    child_name: string | null;
+    role: string | null;
+    name: string | null;
+  };
 
-  if (requestedFamilyId && linkedFamilyIds.includes(requestedFamilyId)) {
-    familyId = requestedFamilyId;
-    senderRole = links.find((l) => l.family_id === requestedFamilyId)?.role || "stakeholder";
+  if (patientLinkId) {
+    const found = links.find((l) => l.id === patientLinkId);
+    if (!found) {
+      return NextResponse.json(
+        { error: "Patient link not found" },
+        { status: 400 }
+      );
+    }
+    activeLink = found;
+  } else if (requestedFamilyId) {
+    activeLink =
+      links.find((l) => l.family_id === requestedFamilyId) ?? links[0];
   } else {
-    familyId = links[0].family_id;
-    senderRole = links[0].role || "stakeholder";
+    activeLink = links[0];
   }
 
   if (!content?.trim()) {
@@ -188,6 +242,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  const senderRole = activeLink.role || "stakeholder";
+  const senderName = activeLink.name || senderRole;
 
   let threadId = thread_id;
   let threadSubject = new_thread_subject ?? "New Conversation";
@@ -208,14 +265,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Look up the stakeholder's name from the link matching the active family
-  const activeLink = links.find((l) => l.family_id === familyId) || links[0];
-  const senderName = activeLink.name || senderRole;
-
   const { data: message, error } = await admin
     .from("messages")
     .insert({
-      family_id: familyId,
+      family_id: activeLink.family_id,
+      child_agent_id: activeLink.child_agent_id || null,
       thread_id: threadId,
       thread_subject: threadSubject,
       sender_id: user.id,
@@ -236,6 +290,26 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Fire-and-forget email notification to the family
+  (async () => {
+    try {
+      const { sendMessageNotificationEmail } = await import("@/lib/email");
+      const { data: familyUser } = await admin.auth.admin.getUserById(
+        activeLink.family_id
+      );
+      const familyEmail = familyUser?.user?.email;
+      if (familyEmail) {
+        await sendMessageNotificationEmail({
+          to: familyEmail,
+          senderName,
+          childName: activeLink.child_name || "your child",
+        });
+      }
+    } catch (e) {
+      console.error("[team/messages] email notify failed:", e);
+    }
+  })();
 
   return NextResponse.json({ success: true, message });
 }
