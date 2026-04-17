@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
+import { PatientList, type PatientRow } from "./components/PatientList";
 import {
   User,
   FileText,
@@ -20,7 +21,6 @@ import {
   AlertCircle,
   Send,
   X,
-  ChevronDown,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -30,13 +30,12 @@ interface FamilyInfo {
   childName: string;
   familyName: string;
   agentId: string;
-  age: string;
+  childAge: string;
   diagnosis: string;
 }
 
 interface TeamProfileResponse {
-  families: FamilyInfo[];
-  activeFamily: FamilyInfo;
+  family: FamilyInfo;
   // Legacy flat fields
   name: string;
   age: string;
@@ -101,18 +100,18 @@ type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 // ── Fetch helpers ────────────────────────────────────────────────────────
 
-async function fetchTeamProfile(familyId?: string): Promise<TeamProfileResponse> {
-  const url = familyId
-    ? `/api/team/profile?family_id=${encodeURIComponent(familyId)}`
+async function fetchTeamProfile(patientId?: string): Promise<TeamProfileResponse> {
+  const url = patientId
+    ? `/api/team/profile?patient=${encodeURIComponent(patientId)}`
     : "/api/team/profile";
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch child profile");
   return res.json();
 }
 
-async function fetchTeamDocuments(familyId?: string): Promise<TeamDocument[]> {
-  const url = familyId
-    ? `/api/team/documents?family_id=${encodeURIComponent(familyId)}`
+async function fetchTeamDocuments(patientId?: string): Promise<TeamDocument[]> {
+  const url = patientId
+    ? `/api/team/documents?patient=${encodeURIComponent(patientId)}`
     : "/api/team/documents";
   const res = await fetch(url);
   if (!res.ok) {
@@ -123,9 +122,9 @@ async function fetchTeamDocuments(familyId?: string): Promise<TeamDocument[]> {
   return data.documents ?? [];
 }
 
-async function fetchTeamMessages(familyId?: string): Promise<TeamThread[]> {
-  const url = familyId
-    ? `/api/team/messages?family_id=${encodeURIComponent(familyId)}`
+async function fetchTeamMessages(patientId?: string): Promise<TeamThread[]> {
+  const url = patientId
+    ? `/api/team/messages?patient=${encodeURIComponent(patientId)}`
     : "/api/team/messages";
   const res = await fetch(url);
   if (!res.ok) {
@@ -142,7 +141,7 @@ async function sendTeamMessage(body: {
   recipient_id?: string;
   recipient_name?: string;
   content: string;
-  family_id?: string;
+  patient?: string;
 }): Promise<void> {
   const res = await fetch("/api/team/messages", {
     method: "POST",
@@ -155,23 +154,18 @@ async function sendTeamMessage(body: {
   }
 }
 
-async function fetchTeamContacts(familyId?: string): Promise<TeamContact[]> {
-  const url = familyId
-    ? `/api/team/profile?family_id=${encodeURIComponent(familyId)}`
-    : "/api/team/profile";
-  const profileRes = await fetch(url);
-  if (!profileRes.ok) return [];
-  const profile = await profileRes.json();
-  const activeFamily = profile.activeFamily || profile;
-  const familyContact: TeamContact = {
-    id: "family",
-    stakeholder_id: "family",
-    family_id: activeFamily.familyId || "",
-    name: `${activeFamily.familyName} Family`,
-    role: "Family",
-    organization: undefined,
-  };
-  return [familyContact];
+async function fetchTeamContacts(patientId: string): Promise<TeamContact[]> {
+  const res = await fetch(`/api/team/contacts?patient=${encodeURIComponent(patientId)}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.contacts ?? []).map((c: { id: string; userId: string; name: string; role: string; organization?: string }) => ({
+    id: c.id,
+    stakeholder_id: c.userId,
+    family_id: "",
+    name: c.name,
+    role: c.role,
+    organization: c.organization,
+  }));
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -217,11 +211,6 @@ function getTypeEmoji(type: string): string {
   return "📄";
 }
 
-function getChildEmoji(index: number): string {
-  const emojis = ["🧒", "👦", "👧", "👶", "🧑"];
-  return emojis[index % emojis.length];
-}
-
 // ── DOC TYPES for upload ─────────────────────────────────────────────────
 
 const DOC_TYPES = [
@@ -231,112 +220,6 @@ const DOC_TYPES = [
   { value: "prescription", label: "Prescription" },
   { value: "other", label: "Other" },
 ] as const;
-
-// ── Patient Switcher ────────────────────────────────────────────────────
-
-function PatientSwitcher({
-  families,
-  activeFamilyId,
-  onSwitch,
-}: {
-  families: FamilyInfo[];
-  activeFamilyId: string;
-  onSwitch: (familyId: string) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const activeFamily = families.find((f) => f.familyId === activeFamilyId) || families[0];
-
-  // Close dropdown when clicking outside
-  const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
-      setIsOpen(false);
-    }
-  }, []);
-
-  if (families.length < 2) return null;
-
-  return (
-    <div className="relative" ref={dropdownRef} onBlur={handleBlur}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="
-          flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border
-          bg-card hover:bg-muted/40 transition-all cursor-pointer w-full sm:w-auto
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-        "
-      >
-        <span className="text-lg" aria-hidden="true">
-          {getChildEmoji(families.indexOf(activeFamily))}
-        </span>
-        <div className="text-left min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-foreground truncate">
-            {activeFamily.childName}
-          </p>
-          <p className="text-[10px] text-muted-foreground truncate">
-            {activeFamily.familyName} Family
-          </p>
-        </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-1.5 w-full sm:w-72 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
-          <div className="px-3 py-2 border-b border-border">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Switch Patient
-            </p>
-          </div>
-          <div className="py-1">
-            {families.map((family, index) => {
-              const isActive = family.familyId === activeFamilyId;
-              return (
-                <button
-                  key={family.familyId}
-                  type="button"
-                  onClick={() => {
-                    onSwitch(family.familyId);
-                    setIsOpen(false);
-                  }}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
-                    ${isActive
-                      ? "bg-primary/5 border-l-2 border-l-primary"
-                      : "hover:bg-muted/30 border-l-2 border-l-transparent"
-                    }
-                  `}
-                >
-                  <span className="text-lg shrink-0" aria-hidden="true">
-                    {getChildEmoji(index)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-foreground truncate">
-                      {family.childName}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {family.familyName} Family
-                    </p>
-                  </div>
-                  {isActive && (
-                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                      Active
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Child Overview Section ───────────────────────────────────────────────
 
@@ -428,10 +311,10 @@ function ChildOverview({
 
 function TeamUploadForm({
   onSuccess,
-  activeFamilyId,
+  selectedPatientId,
 }: {
   onSuccess: () => void;
-  activeFamilyId?: string;
+  selectedPatientId?: string;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -484,8 +367,8 @@ function TeamUploadForm({
     formData.append("file", file);
     formData.append("title", title);
     formData.append("doc_type", docType);
-    if (activeFamilyId) {
-      formData.append("family_id", activeFamilyId);
+    if (selectedPatientId) {
+      formData.append("patient", selectedPatientId);
     }
 
     try {
@@ -658,19 +541,20 @@ function TeamUploadForm({
 
 // ── Documents Section ────────────────────────────────────────────────────
 
-function DocumentsSection({ activeFamilyId }: { activeFamilyId?: string }) {
+function DocumentsSection({ selectedPatientId }: { selectedPatientId?: string }) {
   const queryClient = useQueryClient();
   const {
     data: documents = [],
     isLoading,
   } = useQuery({
-    queryKey: ["team-documents", activeFamilyId],
-    queryFn: () => fetchTeamDocuments(activeFamilyId),
+    queryKey: ["team-documents", selectedPatientId],
+    queryFn: () => fetchTeamDocuments(selectedPatientId),
     staleTime: 30_000,
+    enabled: !!selectedPatientId,
   });
 
   const handleUploadSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["team-documents", activeFamilyId] });
+    queryClient.invalidateQueries({ queryKey: ["team-documents", selectedPatientId] });
   };
 
   return (
@@ -693,7 +577,7 @@ function DocumentsSection({ activeFamilyId }: { activeFamilyId?: string }) {
         <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
           Upload a Document
         </h3>
-        <TeamUploadForm onSuccess={handleUploadSuccess} activeFamilyId={activeFamilyId} />
+        <TeamUploadForm onSuccess={handleUploadSuccess} selectedPatientId={selectedPatientId} />
       </div>
 
       {/* Document list */}
@@ -764,7 +648,7 @@ function DocumentsSection({ activeFamilyId }: { activeFamilyId?: string }) {
 
 // ── Messages Section ─────────────────────────────────────────────────────
 
-function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
+function MessagesSection({ selectedPatientId }: { selectedPatientId?: string }) {
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [newSubject, setNewSubject] = useState("");
@@ -773,23 +657,25 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to realtime message inserts for instant updates
-  useRealtimeMessages(activeFamilyId, ["team-messages", activeFamilyId ?? ""]);
+  useRealtimeMessages(selectedPatientId, ["team-messages", selectedPatientId ?? ""]);
 
   const {
     data: threads = [],
     isLoading,
   } = useQuery({
-    queryKey: ["team-messages", activeFamilyId],
-    queryFn: () => fetchTeamMessages(activeFamilyId),
+    queryKey: ["team-messages", selectedPatientId],
+    queryFn: () => fetchTeamMessages(selectedPatientId),
     staleTime: 15_000,
     refetchInterval: 60_000,
+    enabled: !!selectedPatientId,
   });
 
   // Fetch contacts (family + other linked stakeholders)
   const { data: contacts = [] } = useQuery({
-    queryKey: ["team-contacts", activeFamilyId],
-    queryFn: () => fetchTeamContacts(activeFamilyId),
+    queryKey: ["team-contacts", selectedPatientId],
+    queryFn: () => fetchTeamContacts(selectedPatientId!),
     staleTime: 60_000,
+    enabled: !!selectedPatientId,
   });
 
   const selectedContact = contacts.find(
@@ -801,7 +687,7 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
     onSuccess: () => {
       setNewMessage("");
       setNewSubject("");
-      queryClient.invalidateQueries({ queryKey: ["team-messages", activeFamilyId] });
+      queryClient.invalidateQueries({ queryKey: ["team-messages", selectedPatientId] });
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 200);
@@ -818,13 +704,13 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
 
   const handleSend = () => {
     const content = newMessage.trim();
-    if (!content) return;
+    if (!content || !selectedPatientId) return;
 
     if (activeThread) {
       sendMutation.mutate({
         thread_id: activeThread.id,
         content,
-        family_id: activeFamilyId,
+        patient: selectedPatientId,
       });
     } else {
       sendMutation.mutate({
@@ -832,7 +718,7 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
         recipient_id: selectedContact?.stakeholder_id,
         recipient_name: selectedContact?.name,
         content,
-        family_id: activeFamilyId,
+        patient: selectedPatientId,
       });
     }
   };
@@ -1083,77 +969,81 @@ function MessagesSection({ activeFamilyId }: { activeFamilyId?: string }) {
 // ── Main Page ────────────────────────────────────────────────────────────
 
 export default function TeamPortalPage() {
-  const [activeFamilyId, setActiveFamilyId] = useState<string | undefined>(undefined);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
-  const { data: profileData, isLoading: profileLoading } = useQuery({
-    queryKey: ["team-profile", activeFamilyId],
-    queryFn: () => fetchTeamProfile(activeFamilyId),
-    staleTime: 60_000,
-    retry: 1,
+  const { data: patientsData } = useQuery({
+    queryKey: ["team-patients"],
+    queryFn: async () => {
+      const res = await fetch("/api/team/patients");
+      if (!res.ok) throw new Error("Failed to load patients");
+      return res.json() as Promise<{ patients: PatientRow[] }>;
+    },
+    refetchInterval: 30000,
   });
 
-  // Derive active family and profile from the response
-  const families = profileData?.families ?? [];
-  const activeFamily = profileData?.activeFamily;
-  const profile: ChildProfile | undefined = activeFamily
+  const patients = patientsData?.patients ?? [];
+
+  useEffect(() => {
+    if (!selectedPatientId && patients.length > 0) {
+      setSelectedPatientId(patients[0].linkId);
+    }
+  }, [patients, selectedPatientId]);
+
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ["team-profile", selectedPatientId],
+    queryFn: () => fetchTeamProfile(selectedPatientId ?? undefined),
+    enabled: !!selectedPatientId,
+    staleTime: 60_000,
+  });
+
+  const profile: ChildProfile | undefined = profileData?.family
     ? {
-        name: activeFamily.childName,
-        age: activeFamily.age,
-        diagnosis: activeFamily.diagnosis,
-        familyName: activeFamily.familyName,
+        name: profileData.family.childName,
+        age: profileData.family.childAge,
+        diagnosis: profileData.family.diagnosis,
+        familyName: profileData.family.familyName,
       }
-    : profileData
-      ? {
-          name: profileData.name,
-          age: profileData.age,
-          diagnosis: profileData.diagnosis,
-          familyName: profileData.familyName,
-        }
-      : undefined;
-
-  // Set initial active family once loaded
-  const resolvedFamilyId = activeFamilyId || activeFamily?.familyId;
-
-  const handleFamilySwitch = (familyId: string) => {
-    setActiveFamilyId(familyId);
-  };
+    : undefined;
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold tracking-tight text-foreground flex items-center gap-2">
-            <span className="text-2xl" aria-hidden="true">
-              🤝
-            </span>
-            Care Team Portal
-          </h1>
-          <p className="text-[13px] text-muted-foreground mt-1">
-            {profile
-              ? `You have been invited to support ${profile.name}'s care team by the ${profile.familyName} family.`
-              : "Loading your care team access..."}
-          </p>
-        </div>
-
-        {/* Patient Switcher — only shown for multi-family stakeholders */}
-        {families.length >= 2 && resolvedFamilyId && (
-          <PatientSwitcher
-            families={families}
-            activeFamilyId={resolvedFamilyId}
-            onSwitch={handleFamilySwitch}
+    <div className="min-h-screen bg-background -m-6">
+      <div className="grid grid-cols-[280px_1fr]">
+        <aside className="border-r border-border bg-card min-h-screen">
+          <div className="p-4 border-b border-border">
+            <h1 className="text-[15px] font-bold tracking-tight flex items-center gap-2">
+              <span aria-hidden="true">🤝</span> Care Team
+            </h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Your patients</p>
+          </div>
+          <PatientList
+            patients={patients}
+            selectedId={selectedPatientId}
+            onSelect={setSelectedPatientId}
           />
-        )}
+        </aside>
+        <main className="p-6 space-y-6">
+          {selectedPatientId ? (
+            <>
+              {profile && (
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div>
+                    <p className="text-[13px] text-muted-foreground">
+                      You are supporting {profile.name}&apos;s care with the {profile.familyName} family.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <ChildOverview profile={profile} isLoading={profileLoading} />
+              <DocumentsSection selectedPatientId={selectedPatientId} />
+              <MessagesSection selectedPatientId={selectedPatientId} />
+            </>
+          ) : (
+            <div className="text-muted-foreground text-sm">
+              {patients.length === 0 ? "No patients linked yet." : "Select a patient to view their care."}
+            </div>
+          )}
+        </main>
       </div>
-
-      {/* Child Overview */}
-      <ChildOverview profile={profile} isLoading={profileLoading} />
-
-      {/* Documents */}
-      <DocumentsSection activeFamilyId={resolvedFamilyId} />
-
-      {/* Messages */}
-      <MessagesSection activeFamilyId={resolvedFamilyId} />
     </div>
   );
 }
