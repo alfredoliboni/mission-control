@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUploadedDocuments } from "@/hooks/useUploadedDocuments";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +33,7 @@ import {
   HardDrive,
   Package,
   Check,
+  Trash2,
 } from "lucide-react";
 import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPopover";
 import { useAppStore } from "@/store/appStore";
@@ -64,14 +67,6 @@ function getTypeEmoji(type: string): string {
   return "📄";
 }
 
-function getUploaderLabel(role: string): string {
-  const lower = role.toLowerCase();
-  if (lower === "family" || lower === "parent") return "You";
-  if (lower === "doctor") return "Dr. Park";
-  if (lower === "school") return "School";
-  if (lower === "therapist") return "Therapist";
-  return role;
-}
 
 function getTypeBadgeColor(type: string): string {
   const lower = type.toLowerCase();
@@ -117,6 +112,7 @@ interface UploadedDoc {
   doc_type: string;
   file_path: string;
   uploaded_at: string;
+  uploaded_by: string;
   child_nickname: string | null;
   child_name: string | null;
   uploader_role: string;
@@ -406,6 +402,7 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
 // ── Document List Card (left panel) ───────────────────────────────────
 function DocumentListCard({
   doc,
+  uploaderName,
   isSelected,
   onSelect,
   selectionMode,
@@ -413,6 +410,7 @@ function DocumentListCard({
   onToggleCheck,
 }: {
   doc: UploadedDoc;
+  uploaderName: string;
   isSelected: boolean;
   onSelect: () => void;
   selectionMode: boolean;
@@ -462,7 +460,7 @@ function DocumentListCard({
             {doc.title}
           </h3>
           <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-            {getUploaderLabel(doc.uploader_role)} &bull;{" "}
+            {uploaderName} &bull;{" "}
             {formatDate(doc.uploaded_at)}
           </p>
           <span
@@ -660,10 +658,16 @@ function AnalysisResult({
 // ── Document Detail View (right panel) ────────────────────────────────
 function DocumentDetail({
   doc,
+  uploaderName,
+  currentUserId,
   onBack,
+  onDelete,
 }: {
   doc: UploadedDoc;
+  uploaderName: string;
+  currentUserId: string | null | undefined;
   onBack: () => void;
+  onDelete: (id: string) => void;
 }) {
   const setChatOpen = useAppStore((s) => s.setChatOpen);
   const { sendMessage } = useChat();
@@ -793,7 +797,7 @@ function DocumentDetail({
                 Author
               </p>
               <p className="text-[13px] font-medium text-foreground">
-                {getUploaderLabel(doc.uploader_role)}
+                {uploaderName}
               </p>
             </div>
           </div>
@@ -945,6 +949,22 @@ function DocumentDetail({
             docTitle={doc.title}
           />
 
+          {currentUserId && doc.uploaded_by === currentUserId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-status-blocked hover:bg-status-blocked/8"
+              onClick={() => {
+                if (window.confirm("Delete this document?")) {
+                  onDelete(doc.id);
+                }
+              }}
+            >
+              <Trash2 className="size-3.5 mr-1" />
+              Delete
+            </Button>
+          )}
+
           <button
             type="button"
             onClick={handleAskNavigator}
@@ -1069,6 +1089,67 @@ export default function DocumentsPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
+  // Current user id
+  const { data: currentUserId } = useQuery({
+    queryKey: ["current-user-id"],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id ?? null;
+    },
+    staleTime: Infinity,
+  });
+
+  // Team members for uploader name lookup
+  const { data: teamMembersData } = useQuery({
+    queryKey: ["team-members-all"],
+    queryFn: async () => {
+      const res = await fetch("/api/team-members");
+      return res.ok ? res.json() : { active: [], former: [] };
+    },
+  });
+
+  const uploaderNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of [
+      ...(teamMembersData?.active ?? []),
+      ...(teamMembersData?.former ?? []),
+    ]) {
+      if (m.stakeholderUserId) map.set(m.stakeholderUserId, m.name);
+    }
+    return map;
+  }, [teamMembersData]);
+
+  function getUploaderName(doc: UploadedDoc): string {
+    if (currentUserId && doc.uploaded_by === currentUserId) return "You";
+    const name = uploaderNameById.get(doc.uploaded_by);
+    if (name) return name;
+    const roleMap: Record<string, string> = {
+      doctor: "Doctor",
+      therapist: "Therapist",
+      school: "School",
+      stakeholder: "Care Team",
+      family: "Family",
+      parent: "Family",
+    };
+    return roleMap[doc.uploader_role?.toLowerCase()] || "Care Team";
+  }
+
+  // Delete mutation
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error || "Delete failed");
+    },
+    onSuccess: () => {
+      toast.success("Document deleted");
+      queryClient.invalidateQueries({ queryKey: ["uploaded-documents"] });
+      setSelectedId(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const docs = useMemo(
     () => (uploadedDocs ?? []) as UploadedDoc[],
     [uploadedDocs]
@@ -1081,7 +1162,7 @@ export default function DocumentsPage() {
         !searchQuery ||
         doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         doc.doc_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        getUploaderLabel(doc.uploader_role)
+        getUploaderName(doc)
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
 
@@ -1094,7 +1175,8 @@ export default function DocumentsPage() {
 
       return matchesSearch && matchesCat && matchesChild;
     });
-  }, [docs, searchQuery, activeCategory, childFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs, searchQuery, activeCategory, childFilter, currentUserId, uploaderNameById]);
 
   const selectedDoc = useMemo(
     () => docs.find((d) => d.id === selectedId) || null,
@@ -1382,6 +1464,7 @@ export default function DocumentsPage() {
                     <DocumentListCard
                       key={doc.id}
                       doc={doc}
+                      uploaderName={getUploaderName(doc)}
                       isSelected={selectedId === doc.id}
                       onSelect={() => handleSelectDoc(doc.id)}
                       selectionMode={selectionMode}
@@ -1402,7 +1485,13 @@ export default function DocumentsPage() {
             `}
           >
             {selectedDoc ? (
-              <DocumentDetail doc={selectedDoc} onBack={handleBack} />
+              <DocumentDetail
+                doc={selectedDoc}
+                uploaderName={getUploaderName(selectedDoc)}
+                currentUserId={currentUserId}
+                onBack={handleBack}
+                onDelete={(id) => deleteMutation.mutate(id)}
+              />
             ) : (
               <EmptyDetail />
             )}
