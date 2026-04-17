@@ -46,18 +46,14 @@ export function AuthenticatedLayoutClient({
       }
 
       const email = user.email;
-      const metadata = user.user_metadata || {};
-      console.log("[layout-client] Resolving family. refresh:", needsRefresh, "children:", JSON.stringify(metadata.children?.map((c: { childName: string; agentId: string }) => c.childName)));
-
       let family;
       if (email && isKnownFamilyEmail(email)) {
         family = getFamilyAgent(email);
       } else {
+        const metadata = user.user_metadata || {};
         const dynamic = getFamilyAgentFromMetadata(metadata);
         family = dynamic ?? getFamilyAgent(email);
       }
-
-      console.log("[layout-client] Resolved:", family.children.map(c => c.childName).join(", "));
       setResolvedFamily(family);
 
       // If ALL children are "processing", redirect to processing page

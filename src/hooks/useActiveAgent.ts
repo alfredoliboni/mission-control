@@ -18,9 +18,7 @@ export function useActiveAgent(): string | undefined {
   const safeIndex = activeChildIndex >= 0 && activeChildIndex < family.children.length
     ? activeChildIndex
     : 0;
-  const agentId = family.children[safeIndex].agentId;
-  console.log(`[useActiveAgent] index=${activeChildIndex} safe=${safeIndex} children=${family.children.length} agent=${agentId}`);
-  return agentId;
+  return family.children[safeIndex].agentId;
 }
 
 /**
