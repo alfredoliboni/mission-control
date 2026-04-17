@@ -66,6 +66,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*$).*)",
+    // Exclude file-upload routes so large multipart bodies don't hit
+    // the 4MB Edge middleware body limit. These routes authenticate
+    // the user themselves via supabase.auth.getUser().
+    "/((?!_next/static|_next/image|favicon.ico|api/team/documents|api/documents/upload|.*\\..*$).*)",
   ],
 };

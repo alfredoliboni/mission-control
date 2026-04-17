@@ -83,10 +83,47 @@ export async function GET(request: NextRequest) {
   }
 }
 
+async function resolveLink(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  patientLinkRaw: string
+) {
+  const parsed = parsePatientLinkId(patientLinkRaw);
+  const { data: linkRow } = await admin
+    .from("stakeholder_links")
+    .select("family_id, child_agent_id, child_name, role")
+    .eq("id", parsed.linkId)
+    .eq("stakeholder_id", userId)
+    .single();
+  if (!linkRow) return null;
+
+  const effectiveChildAgentId = parsed.childAgentIdOverride || linkRow.child_agent_id;
+  let effectiveChildName = linkRow.child_name;
+  if (parsed.childAgentIdOverride) {
+    const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
+    const children = Array.isArray(familyUser?.user?.user_metadata?.children)
+      ? familyUser!.user!.user_metadata!.children
+      : [];
+    const match = children.find(
+      (c: { agentId?: string; childName?: string }) =>
+        c?.agentId === parsed.childAgentIdOverride
+    );
+    if (match?.childName) effectiveChildName = match.childName;
+  }
+  return {
+    ...linkRow,
+    child_agent_id: effectiveChildAgentId,
+    child_name: effectiveChildName,
+  };
+}
+
 /**
  * POST /api/team/documents
- * Upload a document as a stakeholder (doctor, therapist, school).
- * Requires patient (stakeholder_links id) form field.
+ * Two modes:
+ *   1. JSON body with { mode: "prepare", patient, filename }
+ *      → returns { storagePath, token } for direct-to-Supabase upload
+ *   2. JSON body with { mode: "finalize", patient, storagePath, title, doc_type, file_name, content_type, size_bytes }
+ *      → inserts DB row after client uploaded directly
  */
 export async function POST(request: NextRequest) {
   try {
@@ -95,102 +132,92 @@ export async function POST(request: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const admin = createAdminClient();
+    const body = await request.json();
+    const mode = body.mode;
 
-    const formData = await request.formData();
-    const patientLinkRaw = formData.get("patient") as string | null;
-    if (!patientLinkRaw) return NextResponse.json({ error: "patient required" }, { status: 400 });
+    if (mode === "prepare") {
+      const { patient, filename } = body;
+      if (!patient || !filename) {
+        return NextResponse.json({ error: "patient and filename required" }, { status: 400 });
+      }
+      const link = await resolveLink(admin, user.id, patient);
+      if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
 
-    const parsed = parsePatientLinkId(patientLinkRaw);
-    const { data: linkRow } = await admin
-      .from("stakeholder_links")
-      .select("family_id, child_agent_id, child_name, role")
-      .eq("id", parsed.linkId)
-      .eq("stakeholder_id", user.id)
-      .single();
-    if (!linkRow) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+      const timestamp = Date.now();
+      const sanitizedName = String(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${link.family_id}/${timestamp}_${sanitizedName}`;
 
-    // Resolve effective child from compound linkId override (falls back to row values)
-    const effectiveChildAgentId = parsed.childAgentIdOverride || linkRow.child_agent_id;
-    let effectiveChildName = linkRow.child_name;
-    if (parsed.childAgentIdOverride) {
-      const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
-      const children = Array.isArray(familyUser?.user?.user_metadata?.children)
-        ? familyUser!.user!.user_metadata!.children
-        : [];
-      const match = children.find(
-        (c: { agentId?: string; childName?: string }) =>
-          c?.agentId === parsed.childAgentIdOverride
-      );
-      if (match?.childName) effectiveChildName = match.childName;
-    }
-    const link = {
-      ...linkRow,
-      child_agent_id: effectiveChildAgentId,
-      child_name: effectiveChildName,
-    };
-
-    const file = formData.get("file") as File | null;
-    const title = formData.get("title") as string | null;
-    const docType = formData.get("doc_type") as string | null;
-
-    if (!file || !title || !docType) {
-      return NextResponse.json({ error: "Missing required fields: file, title, doc_type" }, { status: 400 });
-    }
-    if (!ALLOWED_TYPES.includes(docType)) {
-      return NextResponse.json({ error: `Invalid doc_type. Allowed: ${ALLOWED_TYPES.join(", ")}` }, { status: 400 });
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: "File too large. Maximum size is 20 MB." }, { status: 400 });
+      const { data, error } = await admin.storage
+        .from("documents")
+        .createSignedUploadUrl(storagePath);
+      if (error || !data) {
+        console.error("createSignedUploadUrl error:", error);
+        return NextResponse.json({ error: "Failed to prepare upload" }, { status: 500 });
+      }
+      return NextResponse.json({
+        storagePath,
+        token: data.token,
+        signedUrl: data.signedUrl,
+      });
     }
 
-    // Storage upload (same as current)
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storagePath = `${link.family_id}/${timestamp}_${sanitizedName}`;
+    if (mode === "finalize") {
+      const { patient, storagePath, title, doc_type: docType, file_name, content_type, size_bytes } = body;
+      if (!patient || !storagePath || !title || !docType) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+      if (!ALLOWED_TYPES.includes(docType)) {
+        return NextResponse.json({ error: `Invalid doc_type. Allowed: ${ALLOWED_TYPES.join(", ")}` }, { status: 400 });
+      }
+      if (typeof size_bytes === "number" && size_bytes > MAX_FILE_SIZE) {
+        return NextResponse.json({ error: "File too large. Maximum size is 20 MB." }, { status: 400 });
+      }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const fileBuffer = new Uint8Array(arrayBuffer);
+      const link = await resolveLink(admin, user.id, patient);
+      if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
 
-    const { error: uploadError } = await admin.storage
-      .from("documents")
-      .upload(storagePath, fileBuffer, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      console.error("Team doc storage upload error:", uploadError);
-      return NextResponse.json({ error: "Failed to upload file", details: uploadError.message }, { status: 500 });
+      // Ensure storagePath is scoped to this family (prevents path injection)
+      if (!storagePath.startsWith(`${link.family_id}/`)) {
+        return NextResponse.json({ error: "Invalid storage path" }, { status: 403 });
+      }
+
+      const { data: document, error: insertError } = await admin
+        .from("documents")
+        .insert({
+          family_id: link.family_id,
+          child_name: link.child_name,
+          child_agent_id: link.child_agent_id,
+          uploaded_by: user.id,
+          uploader_role: link.role || "stakeholder",
+          title,
+          doc_type: docType,
+          file_path: storagePath,
+          metadata: {
+            original_filename: file_name,
+            content_type,
+            size_bytes,
+          },
+        })
+        .select("id, title, file_path")
+        .single();
+
+      if (insertError) {
+        console.error("Team doc insert error:", insertError);
+        await admin.storage.from("documents").remove([storagePath]);
+        return NextResponse.json({ error: "Failed to save document record", details: insertError.message }, { status: 500 });
+      }
+
+      await admin.from("document_permissions").insert({
+        document_id: document.id,
+        stakeholder_id: user.id,
+        can_view: true,
+        granted_by: user.id,
+      });
+
+      return NextResponse.json({ success: true, document });
     }
 
-    // Insert with child tagging
-    const { data: document, error: insertError } = await admin
-      .from("documents")
-      .insert({
-        family_id: link.family_id,
-        child_name: link.child_name,
-        child_agent_id: link.child_agent_id,
-        uploaded_by: user.id,
-        uploader_role: link.role || "stakeholder",
-        title,
-        doc_type: docType,
-        file_path: storagePath,
-        metadata: { original_filename: file.name, content_type: file.type, size_bytes: file.size },
-      })
-      .select("id, title, file_path")
-      .single();
-
-    if (insertError) {
-      console.error("Team doc insert error:", insertError);
-      await admin.storage.from("documents").remove([storagePath]);
-      return NextResponse.json({ error: "Failed to save document record", details: insertError.message }, { status: 500 });
-    }
-
-    // Self-grant permission so the uploader appears in their own GET
-    await admin.from("document_permissions").insert({
-      document_id: document.id,
-      stakeholder_id: user.id,
-      can_view: true,
-      granted_by: user.id,
-    });
-
-    return NextResponse.json({ success: true, document });
+    return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
   } catch (err) {
     console.error("Team documents POST handler error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
