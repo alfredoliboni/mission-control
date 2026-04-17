@@ -61,9 +61,13 @@ export async function GET(request: NextRequest) {
     messagesQuery = messagesQuery.is("deleted_at", null);
   }
 
-  // Per-child filtering
+  // Per-child filtering: match rows tagged for this child OR untagged (NULL).
+  // Untagged rows are treated as family-wide (legacy or broadcast) and visible
+  // regardless of which child is selected.
   if (agentFilter) {
-    messagesQuery = messagesQuery.eq("child_agent_id", agentFilter);
+    messagesQuery = messagesQuery.or(
+      `child_agent_id.eq.${agentFilter},child_agent_id.is.null`
+    );
   }
 
   // Fetch messages and stakeholder_links in parallel for name enrichment

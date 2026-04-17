@@ -15,8 +15,15 @@ import type { ThreadSummary, MessageRow } from "@/app/api/messages/route";
 
 // ── Data fetching ────────────────────────────────────────────────────────
 
-async function fetchThreads(trash = false): Promise<{ threads: ThreadSummary[] }> {
-  const url = trash ? "/api/messages?trash=true" : "/api/messages";
+async function fetchThreads(
+  trash: boolean,
+  agentId?: string
+): Promise<{ threads: ThreadSummary[] }> {
+  const params = new URLSearchParams();
+  if (trash) params.set("trash", "true");
+  if (agentId) params.set("agent", agentId);
+  const qs = params.toString();
+  const url = qs ? `/api/messages?${qs}` : "/api/messages";
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch messages");
   return res.json();
@@ -687,7 +694,7 @@ export default function MessagesPage() {
     isLoading: threadsLoading,
   } = useQuery({
     queryKey: ["messages", agentId, activeTab],
-    queryFn: () => fetchThreads(activeTab === "trash"),
+    queryFn: () => fetchThreads(activeTab === "trash", agentId),
     refetchInterval: 60_000,
   });
 

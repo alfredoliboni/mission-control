@@ -63,20 +63,32 @@ export async function POST(request: NextRequest) {
       .eq("id", threadId);
   }
 
-  // Look up thread subject from existing messages if adding to thread
+  // Look up thread subject + child_agent_id from the anchor message if replying.
+  // A reply inherits both, so active-child mismatches in the sender's UI can't
+  // split a thread across children or change its subject mid-conversation.
   let finalSubject = threadSubject;
+  let inheritedChildAgentId: string | null | undefined;
   if (body.thread_id) {
-    const { data: existingMsg } = await admin
+    const { data: anchor } = await admin
       .from("messages")
-      .select("thread_subject")
+      .select("thread_subject, child_agent_id")
       .eq("thread_id", body.thread_id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
       .limit(1)
       .single();
 
-    if (existingMsg?.thread_subject) {
-      finalSubject = existingMsg.thread_subject;
+    if (anchor?.thread_subject) {
+      finalSubject = anchor.thread_subject;
     }
+    inheritedChildAgentId = anchor?.child_agent_id ?? null;
   }
+
+  const resolvedChildAgentId = body.thread_id
+    ? (inheritedChildAgentId ?? null)
+    : (body.child_agent_id ||
+        request.nextUrl.searchParams.get("agent") ||
+        null);
 
   // Look up sender name from user metadata or default to "Family"
   let senderName = "Family";
@@ -102,7 +114,7 @@ export async function POST(request: NextRequest) {
       recipient_name: body.recipient_name || null,
       content: body.content.trim(),
       attachments: null,
-      child_agent_id: body.child_agent_id || request.nextUrl.searchParams.get("agent") || null,
+      child_agent_id: resolvedChildAgentId,
     })
     .select("id, content, created_at")
     .single();
