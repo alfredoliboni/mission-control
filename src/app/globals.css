@@ -65,6 +65,10 @@
 }
 
 :root {
+  /* Font variables — resolved via Next.js font variable classes on <html> */
+  --font-sans: var(--font-dm-sans);
+  --font-heading: var(--font-dm-sans);
+
   /* Cream Balance light theme */
   --background: #faf9f6;
   --foreground: #2d2d2d;

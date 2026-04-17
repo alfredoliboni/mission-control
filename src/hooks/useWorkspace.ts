@@ -67,7 +67,7 @@ export function useWorkspaceFiles() {
   return useQuery({
     queryKey: ["workspace", "files", "live", agentId],
     queryFn: () => fetchFileList(agentId),
-    enabled: !!agentId,
+    enabled: !!agentId && agentId !== "navigator",
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
@@ -79,7 +79,7 @@ export function useWorkspaceFile(filename: string) {
   return useQuery({
     queryKey: ["workspace", "file", filename, "live", agentId],
     queryFn: () => fetchFile(filename, agentId),
-    enabled: !!filename && !!agentId,
+    enabled: !!filename && !!agentId && agentId !== "navigator",
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
@@ -142,8 +142,16 @@ export function useParsedUniversity() {
 }
 
 export function useParsedJourneyPartners() {
-  const { data: raw, ...rest } = useWorkspaceFile("journey-partners.md");
-  return { ...rest, data: raw ? parseJourneyPartners(raw) : undefined };
+  const agentId = useActiveAgent();
+  return useQuery({
+    queryKey: ["workspace", "file", "journey-partners.md", "live", agentId],
+    queryFn: () => fetchFile("journey-partners.md", agentId),
+    enabled: !!agentId && agentId !== "navigator",
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    retry: false, // Don't retry 404s — file may not exist (migrated to Supabase)
+    select: (raw) => parseJourneyPartners(raw),
+  });
 }
 
 export function useParsedOntarioSystem() {

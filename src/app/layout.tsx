@@ -31,12 +31,6 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${dmSans.variable} ${geistMono.variable} h-full antialiased`}
-      style={
-        {
-          "--font-sans": "var(--font-dm-sans)",
-          "--font-heading": "var(--font-dm-sans)",
-        } as React.CSSProperties
-      }
     >
       <body className="min-h-full flex flex-col font-sans">
         <TooltipProvider>
