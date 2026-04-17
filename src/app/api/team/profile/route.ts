@@ -58,9 +58,9 @@ function readChildProfile(agentId: string, familyName: string, childName: string
 }
 
 /**
- * GET /api/team/profile
- * Returns ALL linked families for the stakeholder with child profiles.
- * Accepts optional ?family_id= to specify which family is active.
+ * GET /api/team/profile?patient=<linkId>
+ * Returns a single patient profile for the authenticated stakeholder.
+ * Selects by linkId (?patient=). Defaults to first link if omitted.
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -74,71 +74,61 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Fetch ACCEPTED stakeholder links
+  // Fetch ACCEPTED stakeholder links (include id for patient param lookup)
   const { data: links, error: linkError } = await admin
     .from("stakeholder_links")
-    .select("family_id, child_name, child_agent_id, status")
+    .select("id, family_id, child_name, child_agent_id, status")
     .eq("stakeholder_id", user.id)
     .or("status.eq.accepted,status.is.null");
 
   if (linkError || !links || links.length === 0) {
     return NextResponse.json(
       { error: "No linked family found" },
-      { status: 404 }
+      { status: 403 }
     );
   }
 
-  // For each linked family, fetch profile from local workspace
-  const families = await Promise.all(
-    links.map(async (link) => {
-      const { data: familyUser } = await admin.auth.admin.getUserById(
-        link.family_id
+  // Resolve which link to use
+  const requestedLinkId = request.nextUrl.searchParams.get("patient");
+  let link: typeof links[number];
+
+  if (requestedLinkId) {
+    const found = links.find((l) => l.id === requestedLinkId);
+    if (!found) {
+      return NextResponse.json(
+        { error: "Patient not found" },
+        { status: 404 }
       );
-      const email = familyUser?.user?.email || "";
-      const family = getFamilyAgentFlat(email);
+    }
+    link = found;
+  } else {
+    link = links[0];
+  }
 
-      // If this link is for a specific child, find the matching agent
-      if (link.child_name) {
-        // Try to find the child's agent ID from the link or family config
-        const agentId = link.child_agent_id || family.agentId;
-        const profile = readChildProfile(agentId, family.familyName, link.child_name);
+  // Resolve family name via admin auth + family-agents config
+  const { data: familyUser } = await admin.auth.admin.getUserById(link.family_id);
+  const email = familyUser?.user?.email || "";
+  const family = getFamilyAgentFlat(email);
 
-        return {
-          familyId: link.family_id,
-          childName: link.child_name,
-          familyName: family.familyName,
-          agentId,
-          age: profile.age,
-          diagnosis: profile.diagnosis,
-        };
-      }
+  // Resolve agent ID (prefer link-level, fall back to family default)
+  const agentId = link.child_agent_id || family.agentId;
+  const childName = link.child_name || family.childName;
 
-      // Legacy: no child_name means linked to whole family (first child)
-      const profile = readChildProfile(family.agentId, family.familyName, family.childName);
-
-      return {
-        familyId: link.family_id,
-        childName: profile.name,
-        familyName: profile.familyName,
-        agentId: family.agentId,
-        age: profile.age,
-        diagnosis: profile.diagnosis,
-      };
-    })
-  );
-
-  // Determine active family from query param, default to first
-  const requestedFamilyId = request.nextUrl.searchParams.get("family_id");
-  const activeFamily =
-    families.find((f) => f.familyId === requestedFamilyId) || families[0];
+  const profile = readChildProfile(agentId, family.familyName, childName);
 
   return NextResponse.json({
-    families,
-    activeFamily,
-    // Legacy flat fields
-    name: activeFamily.childName,
-    age: activeFamily.age,
-    diagnosis: activeFamily.diagnosis,
-    familyName: activeFamily.familyName,
+    family: {
+      familyId: link.family_id,
+      childName: profile.name,
+      childAge: profile.age,
+      diagnosis: profile.diagnosis,
+      familyName: profile.familyName,
+      agentId,
+    },
+    // Legacy flat fields for backwards compatibility
+    name: profile.name,
+    age: profile.age,
+    diagnosis: profile.diagnosis,
+    familyName: profile.familyName,
   });
 }
