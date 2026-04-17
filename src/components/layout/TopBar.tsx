@@ -93,8 +93,9 @@ export function TopBar() {
   function handleChildSwitch(index: number) {
     setActiveChildIndex(index);
     setDropdownOpen(false);
-    // Invalidate all workspace queries so data refetches for the new child
-    queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    // Invalidate ALL queries — workspace + DB-backed hooks all use agentId in their keys
+    // The new agentId from useActiveAgent() will be used on refetch
+    queryClient.removeQueries();
   }
 
   return (
