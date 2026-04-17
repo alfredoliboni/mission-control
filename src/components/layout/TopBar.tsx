@@ -93,9 +93,15 @@ export function TopBar() {
   function handleChildSwitch(index: number) {
     setActiveChildIndex(index);
     setDropdownOpen(false);
-    // Invalidate ALL queries — workspace + DB-backed hooks all use agentId in their keys
-    // The new agentId from useActiveAgent() will be used on refetch
-    queryClient.removeQueries();
+    // Invalidate ALL data queries — they all use agentId in their keys
+    // React Query will refetch with the new agentId from useActiveAgent()
+    queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    queryClient.invalidateQueries({ queryKey: ["team-members"] });
+    queryClient.invalidateQueries({ queryKey: ["benefits-db"] });
+    queryClient.invalidateQueries({ queryKey: ["family-providers"] });
+    queryClient.invalidateQueries({ queryKey: ["family-programs"] });
+    queryClient.invalidateQueries({ queryKey: ["care-team"] });
   }
 
   return (
