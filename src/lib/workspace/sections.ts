@@ -117,7 +117,13 @@ function titleCase(str: string): string {
 }
 
 // Files that are hardcoded in the Sidebar — exclude from dynamic discovery
-const SIDEBAR_HARDCODED = new Set(["documents.md", "messages.md", "child-profile.md", "journey-partners.md"]);
+const SIDEBAR_HARDCODED = new Set([
+  "documents.md", "messages.md", "child-profile.md", "journey-partners.md",
+  // Internal agent files — not family-facing
+  "audio-transcript.md",
+  "format-contracts.md",
+  "waitlist-tracker.md",
+]);
 
 export function discoverSections(filenames: string[]): WorkspaceSection[] {
   return filenames
