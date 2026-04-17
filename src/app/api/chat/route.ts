@@ -1,7 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
+
+async function fetchDocumentManifest(familyId: string, agentId: string): Promise<string> {
+  try {
+    const admin = createAdminClient();
+    const { data: docs } = await admin
+      .from("documents")
+      .select("id, title, doc_type, uploaded_at, uploader_role")
+      .eq("family_id", familyId)
+      .eq("child_agent_id", agentId)
+      .order("uploaded_at", { ascending: false })
+      .limit(20);
+
+    if (!docs || docs.length === 0) return "";
+
+    const manifest = docs
+      .map((d, i) =>
+        `${i + 1}. ${d.title} (${d.doc_type}, uploaded ${new Date(d.uploaded_at).toISOString().slice(0, 10)} by ${d.uploader_role}) — id: ${d.id}`
+      )
+      .join("\n");
+
+    return `\n\nDocuments on file for this child:\n${manifest}\n\nYou can reference these by title. For the full contents of a specific document, the family can use the "Ask Navigator" button on the document page.`;
+  } catch (err) {
+    console.error("[chat] document manifest fetch failed:", err);
+    return "";
+  }
+}
 
 async function sendToGateway(message: string, agentId: string = "main"): Promise<string> {
   if (!COMPANION_API_DIRECT) {
@@ -78,7 +105,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const agentResponse = await sendToGateway(message, agentId);
+    const manifestContext = await fetchDocumentManifest(user.id, agentId);
+    const augmentedMessage = manifestContext ? `${manifestContext}\n\n---\n\n${message}` : message;
+    const agentResponse = await sendToGateway(augmentedMessage, agentId);
     return NextResponse.json({ response: agentResponse });
   } catch (err) {
     console.error("Gateway chat error:", err);
