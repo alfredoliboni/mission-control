@@ -62,11 +62,12 @@ const FAMILY_AGENT_MAP: Record<string, FamilyAgent> = {
   },
 };
 
-// Default agent for users not in hardcoded map (resolved via user_metadata instead)
+// Placeholder until family is resolved from Supabase user_metadata.
+// agentId is empty string — hooks with `enabled: !!agentId` won't fire.
 const DEFAULT_AGENT: FamilyAgent = {
   familyName: "Family",
   children: [
-    { childName: "Child", agentId: "navigator" },
+    { childName: "Child", agentId: "" },
   ],
 };
 

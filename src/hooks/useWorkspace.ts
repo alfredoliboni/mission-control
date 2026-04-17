@@ -67,7 +67,7 @@ export function useWorkspaceFiles() {
   return useQuery({
     queryKey: ["workspace", "files", "live", agentId],
     queryFn: () => fetchFileList(agentId),
-    enabled: !!agentId && agentId !== "navigator",
+    enabled: !!agentId,
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
@@ -79,7 +79,7 @@ export function useWorkspaceFile(filename: string) {
   return useQuery({
     queryKey: ["workspace", "file", filename, "live", agentId],
     queryFn: () => fetchFile(filename, agentId),
-    enabled: !!filename && !!agentId && agentId !== "navigator",
+    enabled: !!filename && !!agentId,
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: 2,
@@ -146,7 +146,7 @@ export function useParsedJourneyPartners() {
   return useQuery({
     queryKey: ["workspace", "file", "journey-partners.md", "live", agentId],
     queryFn: () => fetchFile("journey-partners.md", agentId),
-    enabled: !!agentId && agentId !== "navigator",
+    enabled: !!agentId,
     staleTime: 30_000,
     refetchInterval: 30_000,
     retry: false, // Don't retry 404s — file may not exist (migrated to Supabase)
