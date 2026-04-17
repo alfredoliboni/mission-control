@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -15,6 +15,9 @@ export interface MessageRow {
   content: string;
   attachments: unknown[] | null;
   created_at: string;
+  child_agent_id?: string;
+  deleted_at?: string | null;
+  read_at?: string | null;
 }
 
 export interface ThreadSummary {
@@ -22,9 +25,12 @@ export interface ThreadSummary {
   subject: string;
   messages: MessageRow[];
   lastMessage: MessageRow;
+  unreadCount: number;
+  recipientName?: string;
+  childAgentId?: string;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,13 +43,32 @@ export async function GET() {
   const familyId = user.id;
   const admin = createAdminClient();
 
+  const { searchParams } = new URL(request.url);
+  const agentFilter = searchParams.get("agent");
+  const trashMode = searchParams.get("trash") === "true";
+
+  // Build the messages query
+  let messagesQuery = admin
+    .from("messages")
+    .select("*")
+    .eq("family_id", familyId)
+    .order("created_at", { ascending: true });
+
+  // Soft-delete filtering
+  if (trashMode) {
+    messagesQuery = messagesQuery.not("deleted_at", "is", null);
+  } else {
+    messagesQuery = messagesQuery.is("deleted_at", null);
+  }
+
+  // Per-child filtering
+  if (agentFilter) {
+    messagesQuery = messagesQuery.eq("child_agent_id", agentFilter);
+  }
+
   // Fetch messages and stakeholder_links in parallel for name enrichment
   const [messagesResult, stakeholdersResult] = await Promise.all([
-    admin
-      .from("messages")
-      .select("*")
-      .eq("family_id", familyId)
-      .order("created_at", { ascending: true }),
+    messagesQuery,
     admin
       .from("stakeholder_links")
       .select("stakeholder_id, name, role, organization")
@@ -85,11 +110,24 @@ export async function GET() {
   const threads: ThreadSummary[] = [];
   for (const [threadId, threadMessages] of threadMap) {
     const lastMessage = threadMessages[threadMessages.length - 1];
+
+    // Count unread: incoming messages (not from parent) where read_at is null
+    const unreadCount = threadMessages.filter(
+      (m) => m.sender_role !== "parent" && m.read_at == null
+    ).length;
+
+    // Derive recipient name and child agent id from the thread messages
+    const recipientMsg = threadMessages.find((m) => m.recipient_name);
+    const childAgentMsg = threadMessages.find((m) => m.child_agent_id);
+
     threads.push({
       id: threadId,
       subject: lastMessage.thread_subject,
       messages: threadMessages,
       lastMessage,
+      unreadCount,
+      recipientName: recipientMsg?.recipient_name ?? undefined,
+      childAgentId: childAgentMsg?.child_agent_id ?? undefined,
     });
   }
 

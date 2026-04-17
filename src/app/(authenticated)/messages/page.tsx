@@ -127,6 +127,7 @@ function buildNavigatorThread(markdownContent: string): ThreadSummary | null {
     subject: "Navigator Updates",
     messages: [navigatorMsg],
     lastMessage: navigatorMsg,
+    unreadCount: 0,
   };
 }
 

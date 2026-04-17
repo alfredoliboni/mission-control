@@ -10,6 +10,7 @@ interface SendMessageBody {
   recipient_id?: string;
   recipient_name?: string;
   content: string;
+  child_agent_id?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -101,6 +102,7 @@ export async function POST(request: NextRequest) {
       recipient_name: body.recipient_name || null,
       content: body.content.trim(),
       attachments: null,
+      child_agent_id: body.child_agent_id || request.nextUrl.searchParams.get("agent") || null,
     })
     .select("id, content, created_at")
     .single();
