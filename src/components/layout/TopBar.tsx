@@ -93,9 +93,9 @@ export function TopBar() {
   function handleChildSwitch(index: number) {
     setActiveChildIndex(index);
     setDropdownOpen(false);
-    // Reset ALL queries — removes cached data AND triggers immediate refetch
-    // This is more aggressive than invalidate but ensures no stale data from previous child
-    queryClient.resetQueries();
+    // Don't call resetQueries/invalidateQueries — React will re-render with the new agentId,
+    // hooks will subscribe to new query keys, and old queries become inactive naturally.
+    // Calling resetQueries() here is a BUG: it refetches OLD queries with OLD keys before React re-renders.
   }
 
   return (
