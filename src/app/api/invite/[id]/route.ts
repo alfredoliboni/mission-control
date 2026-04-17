@@ -19,7 +19,7 @@ export async function GET(
 
   const { data: link, error } = await admin
     .from("stakeholder_links")
-    .select("id, family_id, role, name, status, child_name")
+    .select("id, family_id, stakeholder_id, role, name, status, child_name")
     .eq("id", id)
     .single();
 
@@ -39,6 +39,15 @@ export async function GET(
       "The Family";
   }
 
+  // Does this invitee still need to set a password?
+  let needsPassword = false;
+  let email: string | null = null;
+  if (link.stakeholder_id) {
+    const { data: stakeholder } = await admin.auth.admin.getUserById(link.stakeholder_id);
+    needsPassword = !!stakeholder?.user?.user_metadata?.needs_password_setup;
+    email = stakeholder?.user?.email ?? null;
+  }
+
   return NextResponse.json({
     id: link.id,
     role: link.role,
@@ -46,6 +55,8 @@ export async function GET(
     familyName,
     childName,
     status: link.status || "pending",
+    needsPassword,
+    email,
   });
 }
 
@@ -64,7 +75,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { status } = body as { status: string };
+  const { status, password } = body as { status: string; password?: string };
 
   if (!status || !["accepted", "declined"].includes(status)) {
     return NextResponse.json(
@@ -92,6 +103,30 @@ export async function PATCH(
       { error: `Invitation has already been ${existing.status}` },
       { status: 400 }
     );
+  }
+
+  // If accepting and the invitee still needs a password, validate + set it now
+  if (status === "accepted" && existing.stakeholder_id) {
+    const { data: stakeholderUser } = await admin.auth.admin.getUserById(existing.stakeholder_id);
+    const needsPassword = !!stakeholderUser?.user?.user_metadata?.needs_password_setup;
+
+    if (needsPassword) {
+      if (!password || password.length < 8) {
+        return NextResponse.json(
+          { error: "Password required (minimum 8 characters)" },
+          { status: 400 }
+        );
+      }
+      const existingMeta = stakeholderUser?.user?.user_metadata || {};
+      const { needs_password_setup: _drop, ...cleanMeta } = existingMeta;
+      const { error: pwErr } = await admin.auth.admin.updateUserById(existing.stakeholder_id, {
+        password,
+        user_metadata: cleanMeta,
+      });
+      if (pwErr) {
+        return NextResponse.json({ error: pwErr.message }, { status: 500 });
+      }
+    }
   }
 
   // Update the status

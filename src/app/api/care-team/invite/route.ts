@@ -56,10 +56,12 @@ export async function POST(request: NextRequest) {
   // Try to create the user — if they already exist, fetch their ID
   let stakeholderId: string;
 
+  // Create user WITHOUT a password — they'll set one when they accept the invite.
+  // Supabase generates an unusable random password internally.
   const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email,
-    password: "Companion2026!",
     email_confirm: true,
+    user_metadata: { needs_password_setup: true },
   });
 
   if (createError) {

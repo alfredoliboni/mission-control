@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 type InviteStatus = "loading" | "pending" | "accepted" | "declined" | "not_found" | "error";
 
@@ -12,6 +13,8 @@ interface InviteData {
   familyName: string;
   childName: string;
   status: string;
+  needsPassword: boolean;
+  email: string | null;
 }
 
 export default function InvitePage({
@@ -24,6 +27,9 @@ export default function InvitePage({
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [pageStatus, setPageStatus] = useState<InviteStatus>("loading");
   const [submitting, setSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     async function fetchInvite() {
@@ -53,26 +59,50 @@ export default function InvitePage({
 
   async function handleResponse(action: "accepted" | "declined") {
     setSubmitting(true);
+    setFormError("");
+
+    // If accepting and invitee needs to set a password, validate client-side first
+    if (action === "accepted" && invite?.needsPassword) {
+      if (password.length < 8) {
+        setFormError("Password must be at least 8 characters");
+        setSubmitting(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setFormError("Passwords do not match");
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
+      const payload: { status: string; password?: string } = { status: action };
+      if (action === "accepted" && invite?.needsPassword) payload.password = password;
+
       const res = await fetch(`/api/invite/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: action }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to update invitation");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update invitation");
       }
 
       if (action === "accepted") {
         setPageStatus("accepted");
-        // Brief delay so they can see the confirmation, then redirect to team portal
-        setTimeout(() => router.push("/team"), 2000);
+        // If a new password was just set, sign the user in directly so they land on /team
+        if (invite?.needsPassword && invite.email) {
+          const supabase = createClient();
+          await supabase.auth.signInWithPassword({ email: invite.email, password });
+        }
+        setTimeout(() => router.push("/team"), 1500);
       } else {
         setPageStatus("declined");
       }
-    } catch {
-      setPageStatus("error");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -169,6 +199,43 @@ export default function InvitePage({
                     ))}
                   </div>
                 </div>
+
+                {/* Password creation — only for first-time invitees */}
+                {invite.needsPassword && (
+                  <div className="mt-5 space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                        Create a password
+                      </label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        className="w-full h-10 rounded-xl border border-border bg-background px-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                        Confirm password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        autoComplete="new-password"
+                        className="w-full h-10 rounded-xl border border-border bg-background px-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+                        disabled={submitting}
+                      />
+                    </div>
+                    {formError && (
+                      <p className="text-[12px] text-[#c96442]">{formError}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

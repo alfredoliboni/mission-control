@@ -257,6 +257,9 @@ Format drift breaks narrative parsers — always test after changing parser logi
 
 **Invite System:**
 - Accept/decline flow (/invite/[id] public page)
+- First-time invitees create their own password on accept (no hardcoded passwords)
+- `user_metadata.needs_password_setup` flag tracks password-less invitees; cleared on accept
+- Auto sign-in after accept → redirect to /team
 - Status tracking: pending → accepted/declined
 - Email notification via Resend (optional, graceful without API key)
 - Settings shows status badges (green/yellow/red)
