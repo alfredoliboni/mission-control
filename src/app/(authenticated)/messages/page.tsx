@@ -4,18 +4,20 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useActiveAgent } from "@/hooks/useActiveAgent";
-import { Send, Plus, MessageSquare, Loader2, ArrowLeft } from "lucide-react";
+import { Send, Plus, MessageSquare, Loader2, ArrowLeft, Trash2 } from "lucide-react";
 import { useWorkspaceFile } from "@/hooks/useWorkspace";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { MarkdownRenderer } from "@/components/workspace/MarkdownRenderer";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { ThreadSummary, MessageRow } from "@/app/api/messages/route";
 
 // ── Data fetching ────────────────────────────────────────────────────────
 
-async function fetchThreads(): Promise<{ threads: ThreadSummary[] }> {
-  const res = await fetch("/api/messages");
+async function fetchThreads(trash = false): Promise<{ threads: ThreadSummary[] }> {
+  const url = trash ? "/api/messages?trash=true" : "/api/messages";
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch messages");
   return res.json();
 }
@@ -26,6 +28,7 @@ async function sendMessage(body: {
   recipient_id?: string;
   recipient_name?: string;
   content: string;
+  child_agent_id?: string;
 }): Promise<{ success: boolean; message: { id: string; content: string; created_at: string } }> {
   const res = await fetch("/api/messages/send", {
     method: "POST",
@@ -34,6 +37,11 @@ async function sendMessage(body: {
   });
   if (!res.ok) throw new Error("Failed to send message");
   return res.json();
+}
+
+async function deleteMessage(id: string): Promise<void> {
+  const res = await fetch(`/api/messages/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete message");
 }
 
 // ── Care team contact type ─────────────────────────────────────────────
@@ -184,9 +192,14 @@ function ThreadListItem({
             <p className="text-xs text-warm-400 truncate mt-0.5">{preview}</p>
           </div>
         </div>
-        <span className="text-[10px] text-warm-300 whitespace-nowrap shrink-0 mt-0.5">
-          {formatDate(last.created_at)}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[10px] text-warm-300 whitespace-nowrap mt-0.5">
+            {formatDate(last.created_at)}
+          </span>
+          {(thread.unreadCount ?? 0) > 0 && (
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+          )}
+        </div>
       </div>
     </button>
   );
@@ -195,9 +208,11 @@ function ThreadListItem({
 function MessageBubble({
   message,
   isOwn,
+  onDelete,
 }: {
   message: MessageRow;
   isOwn: boolean;
+  onDelete: (id: string) => void;
 }) {
   const isNavigator = message.sender_role === "navigator";
 
@@ -221,23 +236,34 @@ function MessageBubble({
           </span>
         </div>
 
-        {/* Bubble */}
-        <div
-          className={cn(
-            "rounded-2xl px-4 py-2.5",
-            isOwn
-              ? "bg-primary/10 text-foreground"
-              : isNavigator
-                ? "bg-status-gap-filler/10 text-foreground border border-status-gap-filler/20"
-                : "bg-warm-100 text-foreground"
-          )}
-        >
-          {isNavigator ? (
-            <div className="text-sm [&_p]:mb-1 [&_p:last-child]:mb-0 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_ul]:ml-3 [&_li]:text-sm">
-              <MarkdownRenderer content={message.content} />
-            </div>
-          ) : (
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        {/* Bubble with delete hover */}
+        <div className="group relative">
+          <div
+            className={cn(
+              "rounded-2xl px-4 py-2.5",
+              isOwn
+                ? "bg-primary/10 text-foreground"
+                : isNavigator
+                  ? "bg-status-gap-filler/10 text-foreground border border-status-gap-filler/20"
+                  : "bg-warm-100 text-foreground"
+            )}
+          >
+            {isNavigator ? (
+              <div className="text-sm [&_p]:mb-1 [&_p:last-child]:mb-0 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_ul]:ml-3 [&_li]:text-sm">
+                <MarkdownRenderer content={message.content} />
+              </div>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            )}
+          </div>
+          {!isNavigator && (
+            <button
+              className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-warm-100"
+              onClick={() => onDelete(message.id)}
+              title="Delete message"
+            >
+              <Trash2 className="h-3 w-3 text-warm-300" />
+            </button>
           )}
         </div>
 
@@ -265,9 +291,11 @@ function MessageBubble({
 function NewThreadForm({
   onCancel,
   onCreated,
+  agentId,
 }: {
   onCancel: () => void;
   onCreated: (threadId: string) => void;
+  agentId?: string;
 }) {
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
@@ -276,13 +304,24 @@ function NewThreadForm({
 
   // Contacts from family_team_members (Supabase) — filtered by active child
   const { data: teamData, isLoading: contactsLoading } = useTeamMembers();
-  const effectiveContacts: CareTeamContact[] = (teamData?.active ?? []).map((m) => ({
+
+  const mapContact = (m: { id: string; name: string; role: string; organization: string | null }): CareTeamContact => ({
     id: m.id,
     stakeholder_id: m.id,
     name: m.name,
     role: m.role,
     organization: m.organization ?? undefined,
-  }));
+  });
+
+  const allContacts = (teamData?.active ?? []).map(mapContact);
+
+  // Only show contacts that have been invited (have email or stakeholder account)
+  const messagableContacts = allContacts.filter((c) => {
+    const member = teamData?.active?.find((m) => m.id === c.id);
+    return member?.email || member?.stakeholderUserId;
+  });
+
+  const effectiveContacts = messagableContacts;
 
   const selectedContact = effectiveContacts.find(
     (c) => c.stakeholder_id === selectedContactId
@@ -304,6 +343,7 @@ function NewThreadForm({
       recipient_id: selectedContact.stakeholder_id,
       recipient_name: selectedContact.name,
       content: content.trim(),
+      child_agent_id: agentId,
     });
   };
 
@@ -333,10 +373,20 @@ function NewThreadForm({
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Loading care team...
             </div>
-          ) : effectiveContacts.length === 0 ? (
-            <p className="text-xs text-warm-400 py-2">
-              No care team members found. Invite members in Settings first.
-            </p>
+          ) : allContacts.length === 0 ? (
+            <div className="p-4 text-center text-sm text-warm-400">
+              <p>No care team members yet.</p>
+              <a href="/settings" className="text-primary hover:underline mt-1 inline-block">
+                Add team members in Settings
+              </a>
+            </div>
+          ) : messagableContacts.length === 0 ? (
+            <div className="p-4 text-center text-sm text-warm-400">
+              <p>Your care team members need to be invited before you can message them.</p>
+              <a href="/settings" className="text-primary hover:underline mt-1 inline-block">
+                Go to Settings → Invite
+              </a>
+            </div>
           ) : (
             <div className="space-y-1.5">
               {effectiveContacts.map((contact) => {
@@ -473,6 +523,13 @@ function ConversationView({
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteMessage,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -490,6 +547,10 @@ function ConversationView({
     });
   };
 
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
@@ -502,13 +563,17 @@ function ConversationView({
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
-          <h2 className="font-heading font-semibold text-sm">
-            {thread.subject}
-          </h2>
-          <p className="text-[11px] text-warm-300">
-            {thread.messages.length} message
-            {thread.messages.length !== 1 ? "s" : ""}
-          </p>
+          <h2 className="font-heading font-semibold text-base">{thread.subject}</h2>
+          {thread.recipientName ? (
+            <p className="text-xs text-warm-400">
+              To: {thread.recipientName} · {thread.messages.length} message{thread.messages.length !== 1 ? "s" : ""}
+            </p>
+          ) : (
+            <p className="text-[11px] text-warm-300">
+              {thread.messages.length} message
+              {thread.messages.length !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
       </div>
 
@@ -519,6 +584,7 @@ function ConversationView({
             key={msg.id}
             message={msg}
             isOwn={msg.sender_role === "parent"}
+            onDelete={handleDelete}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -564,6 +630,8 @@ export default function MessagesPage() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [showNewThread, setShowNewThread] = useState(false);
   const [familyId, setFamilyId] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"inbox" | "trash">("inbox");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Active child agent — used to scope threads and trigger refetch on child switch
   const agentId = useActiveAgent();
@@ -592,13 +660,13 @@ export default function MessagesPage() {
   useRealtimeMessages(familyId);
 
   // Fetch threads from API (long fallback interval since realtime handles updates)
-  // Include agentId in query key so threads refetch when child switches
+  // Include agentId and activeTab in query key so threads refetch on change
   const {
     data: threadsData,
     isLoading: threadsLoading,
   } = useQuery({
-    queryKey: ["messages", agentId],
-    queryFn: fetchThreads,
+    queryKey: ["messages", agentId, activeTab],
+    queryFn: () => fetchThreads(activeTab === "trash"),
     refetchInterval: 60_000,
   });
 
@@ -609,15 +677,44 @@ export default function MessagesPage() {
   const navigatorThread = buildNavigatorThread(workspaceMessages ?? "");
   const allThreads = useMemo<ThreadSummary[]>(() => {
     const threads = threadsData?.threads ?? [];
-    return [
-      ...threads,
-      ...(navigatorThread ? [navigatorThread] : []),
-    ];
-  }, [threadsData, navigatorThread]);
+    // Only include Navigator thread in inbox, not trash
+    if (activeTab === "inbox") {
+      return [
+        ...threads,
+        ...(navigatorThread ? [navigatorThread] : []),
+      ];
+    }
+    return threads;
+  }, [threadsData, navigatorThread, activeTab]);
+
+  // Client-side search filter
+  const filteredThreads = useMemo<ThreadSummary[]>(() => {
+    if (!searchQuery.trim()) return allThreads;
+    const q = searchQuery.toLowerCase();
+    return allThreads.filter((thread) => {
+      if (thread.subject.toLowerCase().includes(q)) return true;
+      return thread.messages.some((msg) =>
+        msg.content.toLowerCase().includes(q)
+      );
+    });
+  }, [allThreads, searchQuery]);
 
   // Auto-select first thread if none selected
-  const effectiveThreadId = selectedThreadId || (!showNewThread && allThreads.length > 0 ? allThreads[0].id : null);
-  const selectedThread = allThreads.find((t) => t.id === effectiveThreadId);
+  const effectiveThreadId = selectedThreadId || (!showNewThread && filteredThreads.length > 0 ? filteredThreads[0].id : null);
+  const selectedThread = filteredThreads.find((t) => t.id === effectiveThreadId);
+
+  const handleThreadSelect = (thread: ThreadSummary) => {
+    setSelectedThreadId(thread.id);
+    setShowNewThread(false);
+    // Mark as read if there are unread messages (fire and forget)
+    if ((thread.unreadCount ?? 0) > 0) {
+      fetch("/api/messages/read", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thread_id: thread.id }),
+      }).catch(() => {});
+    }
+  };
 
   const handleNewThreadCreated = () => {
     setShowNewThread(false);
@@ -684,26 +781,67 @@ export default function MessagesPage() {
             </button>
           </div>
 
+          {/* Inbox / Trash tabs */}
+          <div className="flex border-b border-border shrink-0">
+            <button
+              className={cn(
+                "px-4 py-2 text-sm font-medium",
+                activeTab === "inbox"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-warm-400"
+              )}
+              onClick={() => setActiveTab("inbox")}
+            >
+              Inbox
+            </button>
+            <button
+              className={cn(
+                "px-4 py-2 text-sm font-medium",
+                activeTab === "trash"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-warm-400"
+              )}
+              onClick={() => setActiveTab("trash")}
+            >
+              Trash
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="px-3 pt-2 pb-1 shrink-0">
+            <Input
+              placeholder="Search messages..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
           {/* Thread list */}
           <div className="flex-1 overflow-y-auto">
-            {allThreads.length === 0 ? (
+            {filteredThreads.length === 0 ? (
               <div className="p-6 text-center">
                 <MessageSquare className="h-8 w-8 text-warm-200 mx-auto mb-2" />
-                <p className="text-sm text-warm-400">No messages yet</p>
-                <p className="text-xs text-warm-300 mt-1">
-                  Start a conversation with your care team
-                </p>
+                {searchQuery ? (
+                  <p className="text-sm text-warm-400">No messages match your search</p>
+                ) : activeTab === "trash" ? (
+                  <p className="text-sm text-warm-400">No deleted messages</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-warm-400">No messages yet</p>
+                    <p className="text-xs text-warm-300 mt-1">
+                      Start a conversation with your care team
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
-              allThreads.map((thread) => (
+              filteredThreads.map((thread) => (
                 <ThreadListItem
                   key={thread.id}
                   thread={thread}
                   isSelected={selectedThreadId === thread.id}
-                  onClick={() => {
-                    setSelectedThreadId(thread.id);
-                    setShowNewThread(false);
-                  }}
+                  onClick={() => handleThreadSelect(thread)}
                 />
               ))
             )}
@@ -724,11 +862,12 @@ export default function MessagesPage() {
             <NewThreadForm
               onCancel={() => {
                 setShowNewThread(false);
-                if (allThreads.length > 0) {
-                  setSelectedThreadId(allThreads[0].id);
+                if (filteredThreads.length > 0) {
+                  setSelectedThreadId(filteredThreads[0].id);
                 }
               }}
               onCreated={handleNewThreadCreated}
+              agentId={agentId}
             />
           ) : selectedThread ? (
             <ConversationView
