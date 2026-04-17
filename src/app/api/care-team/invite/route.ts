@@ -36,6 +36,23 @@ export async function POST(request: NextRequest) {
   // Use admin client to create user account for the stakeholder
   const supabaseAdmin = createAdminClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+  // Check if a family_team_members row already exists for this name (added by agent, no email yet)
+  const { data: existingTeamMember } = await supabaseAdmin
+    .from("family_team_members")
+    .select("id")
+    .eq("family_id", user.id)
+    .eq("name", name)
+    .limit(1)
+    .single();
+
+  if (existingTeamMember) {
+    // Update the existing row with the provided email — don't create a duplicate
+    await supabaseAdmin
+      .from("family_team_members")
+      .update({ email })
+      .eq("id", existingTeamMember.id);
+  }
+
   // Try to create the user — if they already exist, fetch their ID
   let stakeholderId: string;
 

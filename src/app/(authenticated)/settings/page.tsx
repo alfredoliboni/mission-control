@@ -55,6 +55,7 @@ interface Partner {
   permissions: string[];
   childName?: string;
   childAgentId?: string;
+  stakeholderUserId?: string;
 }
 
 interface PrivacySettings {
@@ -123,11 +124,15 @@ function PartnerRow({
   partner,
   onRevoke,
   onRemove,
+  onInvite,
 }: {
   partner: Partner;
   onRevoke: () => void;
   onRemove: () => void;
+  onInvite?: (partner: Partner) => void;
 }) {
+  const isUninvited = !partner.email && partner.status === "active";
+
   const statusColors: Record<Partner["status"], string> = {
     active: "bg-status-success/8 text-status-success",
     accepted: "bg-status-success/8 text-status-success",
@@ -142,8 +147,14 @@ function PartnerRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="text-[13px] font-semibold text-foreground">{partner.name}</h4>
-            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${statusColors[partner.status]}`}>
-              {partner.status}
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                isUninvited
+                  ? "bg-amber-100 text-amber-700"
+                  : statusColors[partner.status]
+              }`}
+            >
+              {isUninvited ? "NOT INVITED" : partner.status.toUpperCase()}
             </span>
           </div>
           <p className="text-[12px] text-muted-foreground">
@@ -170,6 +181,18 @@ function PartnerRow({
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
+          {/* Invite button — shown for members added by agent (no email, not invited yet) */}
+          {isUninvited && onInvite && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary hover:text-primary/80 hover:bg-primary/8 h-8 px-2"
+              onClick={() => onInvite(partner)}
+            >
+              <Mail className="size-3.5 mr-1" />
+              <span className="text-[11px]">Invite</span>
+            </Button>
+          )}
           {partner.status === "active" && (
             <Button
               variant="ghost"
@@ -273,6 +296,8 @@ export default function SettingsPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState("Provider");
   const [inviteOrg, setInviteOrg] = useState("");
+  const [invitingMember, setInvitingMember] = useState<Partner | null>(null);
+  const [inviteEmailInput, setInviteEmailInput] = useState("");
 
   // Multi-child support: default to the currently active child
   const isMultiChild = family.children.length > 1;
@@ -328,10 +353,14 @@ export default function SettingsPage() {
     onSuccess: () => {
       toast.success("Invitation sent successfully");
       queryClient.invalidateQueries({ queryKey: ["care-team"] });
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
       setInviteEmail("");
       setInviteName("");
       setInviteRole("Provider");
       setInviteOrg("");
+      // Reset inline invite form
+      setInvitingMember(null);
+      setInviteEmailInput("");
       // Child selection is handled by TopBar
     },
     onError: (err: Error) => {
@@ -570,7 +599,62 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active Team</p>
               {activePartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
+                <div key={p.id}>
+                  <PartnerRow
+                    partner={p}
+                    onRevoke={() => removeMutation.mutate(p.id)}
+                    onRemove={() => removeMutation.mutate(p.id)}
+                    onInvite={(member) => { setInvitingMember(member); setInviteEmailInput(""); }}
+                  />
+                  {invitingMember?.id === p.id && (
+                    <div className="mt-2 flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+                      <Input
+                        placeholder="Enter email address..."
+                        value={inviteEmailInput}
+                        onChange={(e) => setInviteEmailInput((e.target as HTMLInputElement).value)}
+                        className="flex-1 h-8 text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && inviteEmailInput.trim() && !inviteMutation.isPending) {
+                            inviteMutation.mutate({
+                              email: inviteEmailInput,
+                              name: invitingMember.name,
+                              role: invitingMember.role,
+                              organization: invitingMember.organization || undefined,
+                            });
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 shrink-0"
+                        disabled={!inviteEmailInput.trim() || inviteMutation.isPending}
+                        onClick={() => {
+                          inviteMutation.mutate({
+                            email: inviteEmailInput,
+                            name: invitingMember.name,
+                            role: invitingMember.role,
+                            organization: invitingMember.organization || undefined,
+                          });
+                        }}
+                      >
+                        {inviteMutation.isPending ? (
+                          <Loader2 className="size-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Mail className="size-3.5 mr-1" />
+                        )}
+                        Send Invite
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 shrink-0"
+                        onClick={() => { setInvitingMember(null); setInviteEmailInput(""); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
