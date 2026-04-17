@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { useParsedProfile, useParsedJourneyPartners } from "@/hooks/useWorkspace";
 import { useActiveAgent } from "@/hooks/useActiveAgent";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
@@ -30,20 +31,8 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = "profile-edits";
-
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
-}
-
-function mergeEdits(profile: ParsedProfile, edits: Partial<ParsedProfile>): ParsedProfile {
-  return {
-    ...profile,
-    basicInfo: { ...profile.basicInfo, ...(edits.basicInfo || {}) },
-    personalProfile: { ...profile.personalProfile, ...(edits.personalProfile || {}) },
-    medical: { ...profile.medical, ...(edits.medical || {}) },
-    journeyPartners: edits.journeyPartners || profile.journeyPartners,
-  };
 }
 
 function initials(name: string): string {
@@ -225,27 +214,12 @@ export default function ProfilePage() {
   const { data: profile, isLoading, refetch } = useParsedProfile();
   const { data: journeyPartners } = useParsedJourneyPartners();
 
-  const initializedRef = useRef(false);
-  const initialProfile = (() => {
-    if (!profile) return null;
-    if (initializedRef.current) return null;
-    let merged = profile;
-    try {
-      const saved = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (saved) {
-        merged = mergeEdits(profile, JSON.parse(saved) as Partial<ParsedProfile>);
-      }
-    } catch { /* ignore */ }
-    initializedRef.current = true;
-    return merged;
-  })();
-
   const [profileData, setProfileData] = useState<ParsedProfile | null>(null);
   const [snapshot, setSnapshot] = useState<ParsedProfile | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const agentId = useActiveAgent();
 
-  // Reset local profile state when switching children
+  // Seed local state from workspace whenever profile or active child changes
   const prevAgentRef = useRef(agentId);
   useEffect(() => {
     if (agentId !== prevAgentRef.current) {
@@ -253,12 +227,11 @@ export default function ProfilePage() {
       setProfileData(null);
       setSnapshot(null);
       setEditingSection(null);
-      initializedRef.current = false;
     }
   }, [agentId]);
 
-  if (initialProfile && !profileData) {
-    setProfileData(initialProfile);
+  if (profile && !profileData) {
+    setProfileData(profile);
   }
 
   const startEditing = useCallback(
@@ -277,15 +250,24 @@ export default function ProfilePage() {
     setEditingSection(null);
   }, [snapshot]);
 
-  const saveEditing = useCallback(() => {
-    if (profileData) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(profileData));
-      } catch { /* quota */ }
+  const saveEditing = useCallback(async () => {
+    if (!profileData || !agentId) return;
+    try {
+      const res = await fetch("/api/profile/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId, profileData }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      toast.success("Profile saved");
+      // Refetch from workspace to confirm save
+      refetch();
+    } catch {
+      toast.error("Failed to save profile. Please try again.");
     }
     setSnapshot(null);
     setEditingSection(null);
-  }, [profileData]);
+  }, [profileData, agentId, refetch]);
 
   const updateBasicInfo = useCallback(
     (field: keyof ProfileBasicInfo, value: string) => {
