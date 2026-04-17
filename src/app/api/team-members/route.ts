@@ -107,11 +107,18 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "reason is required when action is remove" }, { status: 400 });
       }
       await removeTeamMember(supabase, memberId, reason);
-    } else if (role !== undefined || organization !== undefined) {
-      // Update role/organization
+    } else {
+      // Update any combination of fields in a single query
       const updates: Record<string, string> = {};
       if (role !== undefined) updates.role = role;
       if (organization !== undefined) updates.organization = organization;
+      if (phone !== undefined) updates.phone = phone;
+      if (email !== undefined) updates.email = email;
+      if (website !== undefined) updates.website = website;
+
+      if (Object.keys(updates).length === 0) {
+        return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      }
 
       const { error } = await supabase
         .from("family_team_members")
@@ -120,8 +127,6 @@ export async function PATCH(request: NextRequest) {
         .eq("family_id", user.id);
 
       if (error) throw new Error(error.message);
-    } else {
-      await updateMemberContact(supabase, memberId, { phone, email, website });
     }
 
     return NextResponse.json({ ok: true });

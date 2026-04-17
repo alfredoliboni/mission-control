@@ -50,6 +50,8 @@ interface Partner {
   role: string;
   organization: string;
   email: string;
+  phone: string;
+  website: string;
   status: "active" | "pending" | "accepted" | "declined" | "revoked";
   lastAccess: string;
   permissions: string[];
@@ -131,11 +133,14 @@ function PartnerRow({
   onRevoke: () => void;
   onRemove: () => void;
   onInvite?: (partner: Partner) => void;
-  onEdit?: (updates: { role: string; organization: string }) => void;
+  onEdit?: (updates: { role: string; organization: string; phone: string; email: string; website: string }) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editRole, setEditRole] = useState(partner.role);
   const [editOrg, setEditOrg] = useState(partner.organization);
+  const [editPhone, setEditPhone] = useState(partner.phone);
+  const [editEmail, setEditEmail] = useState(partner.email);
+  const [editWebsite, setEditWebsite] = useState(partner.website);
 
   const isUninvited = !partner.email && partner.status === "active";
 
@@ -169,7 +174,13 @@ function PartnerRow({
               <span className="text-primary font-medium"> — for {partner.childName}</span>
             )}
           </p>
-          <p className="text-[12px] text-muted-foreground mt-0.5">{partner.email}</p>
+          {(partner.phone || partner.email) && (
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {partner.phone && <span>{partner.phone}</span>}
+              {partner.phone && partner.email && <span> · </span>}
+              {partner.email && <span>{partner.email}</span>}
+            </p>
+          )}
           {partner.lastAccess !== "—" && (
             <p className="text-[10px] text-muted-foreground mt-1">
               Last access: {partner.lastAccess}
@@ -186,11 +197,22 @@ function PartnerRow({
             ))}
           </div>
           {editing && (
-            <div className="flex items-center gap-2 mt-2">
-              <Input value={editRole} onChange={(e) => setEditRole((e.target as HTMLInputElement).value)} placeholder="Role" className="h-7 text-xs w-28" />
-              <Input value={editOrg} onChange={(e) => setEditOrg((e.target as HTMLInputElement).value)} placeholder="Organization" className="h-7 text-xs w-40" />
-              <Button size="sm" className="h-7 text-xs" onClick={() => { onEdit?.({ role: editRole, organization: editOrg }); setEditing(false); }}>Save</Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)}>Cancel</Button>
+            <div className="space-y-2 mt-3 p-3 bg-muted/30 rounded-lg border border-border">
+              <div className="flex items-center gap-2">
+                <Input value={editRole} onChange={(e) => setEditRole((e.target as HTMLInputElement).value)} placeholder="Role" className="h-7 text-xs flex-1" />
+                <Input value={editOrg} onChange={(e) => setEditOrg((e.target as HTMLInputElement).value)} placeholder="Organization" className="h-7 text-xs flex-1" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Input value={editPhone} onChange={(e) => setEditPhone((e.target as HTMLInputElement).value)} placeholder="Phone" className="h-7 text-xs flex-1" />
+                <Input value={editEmail} onChange={(e) => setEditEmail((e.target as HTMLInputElement).value)} placeholder="Email" className="h-7 text-xs flex-1" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Input value={editWebsite} onChange={(e) => setEditWebsite((e.target as HTMLInputElement).value)} placeholder="Website (optional)" className="h-7 text-xs flex-1" />
+                <div className="flex gap-1 shrink-0">
+                  <Button size="sm" className="h-7 text-xs" onClick={() => { onEdit?.({ role: editRole, organization: editOrg, phone: editPhone, email: editEmail, website: editWebsite }); setEditing(false); }}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)}>Cancel</Button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -272,6 +294,8 @@ async function fetchCareTeam(): Promise<Partner[]> {
       role: (s.role as string) || "Provider",
       organization: (s.organization as string) || "—",
       email: (s.email as string) || "",
+      phone: (s.phone as string) || "",
+      website: (s.website as string) || "",
       status: displayStatus,
       lastAccess: (s.last_access as string) || "—",
       permissions: (s.permissions as string[]) || ["View profile"],
@@ -430,6 +454,8 @@ export default function SettingsPage() {
     role: m.role,
     organization: m.organization ?? "—",
     email: m.email ?? "",
+    phone: m.phone ?? "",
+    website: m.website ?? "",
     status: "active" as Partner["status"],
     lastAccess: "—",
     permissions: Object.keys(m.permissions).length > 0 ? Object.keys(m.permissions) : ["View profile"],
@@ -673,7 +699,7 @@ export default function SettingsPage() {
                       fetch("/api/team-members", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ memberId: p.id, role: updates.role, organization: updates.organization }),
+                        body: JSON.stringify({ memberId: p.id, role: updates.role, organization: updates.organization, phone: updates.phone, email: updates.email, website: updates.website }),
                       })
                         .then((r) => {
                           if (r.ok) {
