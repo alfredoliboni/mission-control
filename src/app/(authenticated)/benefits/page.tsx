@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParsedBenefits } from "@/hooks/useWorkspace";
 import { useBenefitsDB, useBenefitAction } from "@/hooks/useBenefitsDB";
 import { WorkspaceSection } from "@/components/workspace/WorkspaceSection";
@@ -20,7 +20,9 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-/* ── reminder state (ephemeral — no localStorage) ────────────────────── */
+/* ── reminder state ──────────────────────────────────────────────────── */
+
+const REMINDER_STORAGE_KEY = "benefit-reminders";
 
 interface BenefitReminder {
   benefitName: string;
@@ -386,8 +388,20 @@ export default function BenefitsPage() {
   const hasDbData = !!(dbBenefits && dbBenefits.length > 0);
   const isLoading = hasDbData ? dbLoading : mdLoading;
 
-  // Ephemeral reminders (no localStorage)
-  const [reminders, setReminders] = useState<BenefitReminder[]>([]);
+  // Reminders persisted to localStorage
+  const [reminders, setReminders] = useState<BenefitReminder[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem(REMINDER_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(reminders));
+    } catch { /* quota */ }
+  }, [reminders]);
 
   // Fallback-only tracking state (used when DB unavailable)
   const [fallbackTracking, setFallbackTracking] = useState<Record<string, BenefitTracking>>({});
