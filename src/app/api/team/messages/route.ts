@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parsePatientLinkId } from "@/lib/team/patient-link";
 
 /**
  * GET /api/team/messages
@@ -32,18 +33,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ threads: [] });
   }
 
-  const patientLinkId = request.nextUrl.searchParams.get("patient");
+  const patientLinkRaw = request.nextUrl.searchParams.get("patient");
   const requestedFamilyId = request.nextUrl.searchParams.get("family_id");
 
   let activeLink: { id: string; family_id: string; child_agent_id: string | null } | null = null;
 
-  // ?patient= takes precedence over ?family_id=
-  if (patientLinkId) {
-    const found = links.find((l) => l.id === patientLinkId);
+  // ?patient= takes precedence over ?family_id=. Supports compound linkIds.
+  if (patientLinkRaw) {
+    const parsed = parsePatientLinkId(patientLinkRaw);
+    const found = links.find((l) => l.id === parsed.linkId);
     if (!found) {
       return NextResponse.json({ error: "Unauthorized family access" }, { status: 403 });
     }
-    activeLink = found;
+    // Override child_agent_id when compound linkId provides one
+    activeLink = {
+      ...found,
+      child_agent_id: parsed.childAgentIdOverride || found.child_agent_id,
+    };
   } else if (requestedFamilyId) {
     const familyIds = links.map((l) => l.family_id);
     if (!familyIds.includes(requestedFamilyId)) {
@@ -221,14 +227,34 @@ export async function POST(request: NextRequest) {
   };
 
   if (patientLinkId) {
-    const found = links.find((l) => l.id === patientLinkId);
+    const parsed = parsePatientLinkId(patientLinkId);
+    const found = links.find((l) => l.id === parsed.linkId);
     if (!found) {
       return NextResponse.json(
         { error: "Patient link not found" },
         { status: 400 }
       );
     }
-    activeLink = found;
+
+    // If compound linkId, override child_agent_id and resolve child_name from family metadata
+    let resolvedChildName = found.child_name;
+    if (parsed.childAgentIdOverride) {
+      const { data: familyUser } = await admin.auth.admin.getUserById(found.family_id);
+      const children = Array.isArray(familyUser?.user?.user_metadata?.children)
+        ? familyUser!.user!.user_metadata!.children
+        : [];
+      const match = children.find(
+        (c: { agentId?: string; childName?: string }) =>
+          c?.agentId === parsed.childAgentIdOverride
+      );
+      if (match?.childName) resolvedChildName = match.childName;
+    }
+
+    activeLink = {
+      ...found,
+      child_agent_id: parsed.childAgentIdOverride || found.child_agent_id,
+      child_name: resolvedChildName,
+    };
   } else if (requestedFamilyId) {
     activeLink =
       links.find((l) => l.family_id === requestedFamilyId) ?? links[0];

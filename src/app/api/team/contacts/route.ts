@@ -1,42 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parsePatientLinkId } from "@/lib/team/patient-link";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const linkId = request.nextUrl.searchParams.get("patient");
-  if (!linkId) return NextResponse.json({ error: "patient required" }, { status: 400 });
+  const linkRaw = request.nextUrl.searchParams.get("patient");
+  if (!linkRaw) return NextResponse.json({ error: "patient required" }, { status: 400 });
 
+  const parsed = parsePatientLinkId(linkRaw);
   const admin = createAdminClient();
 
-  const { data: link } = await admin
+  const { data: linkRow } = await admin
     .from("stakeholder_links")
     .select("id, family_id, child_agent_id, child_name")
-    .eq("id", linkId)
+    .eq("id", parsed.linkId)
     .eq("stakeholder_id", user.id)
     .single();
 
-  if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+  if (!linkRow) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
 
-  // Family entry (always first)
-  const { data: familyUser } = await admin.auth.admin.getUserById(link.family_id);
+  // Family entry (always first) + resolve effective child name from metadata if compound
+  const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
   const familyName = familyUser?.user?.user_metadata?.full_name || "Family";
+
+  let effectiveChildName = linkRow.child_name;
+  if (parsed.childAgentIdOverride) {
+    const children = Array.isArray(familyUser?.user?.user_metadata?.children)
+      ? familyUser!.user!.user_metadata!.children
+      : [];
+    const match = children.find(
+      (c: { agentId?: string; childName?: string }) =>
+        c?.agentId === parsed.childAgentIdOverride
+    );
+    if (match?.childName) effectiveChildName = match.childName;
+  }
 
   // Other team members for this child
   const { data: teamMembers } = await admin
     .from("family_team_members")
     .select("id, name, role, organization, stakeholder_user_id, email")
-    .eq("family_id", link.family_id)
+    .eq("family_id", linkRow.family_id)
     .eq("status", "active")
-    .or(`child_name.eq.${link.child_name || ""},child_name.is.null`);
+    .or(`child_name.eq.${effectiveChildName || ""},child_name.is.null`);
 
   const contacts = [
     {
       id: "family",
-      userId: link.family_id,
+      userId: linkRow.family_id,
       name: familyName,
       role: "Family",
       organization: "",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parsePatientLinkId } from "@/lib/team/patient-link";
 
 const ALLOWED_TYPES = ["assessment", "report", "iep", "prescription", "other"];
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -18,18 +19,21 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    const patientLinkId = request.nextUrl.searchParams.get("patient");
-    if (!patientLinkId) {
+    const patientLinkRaw = request.nextUrl.searchParams.get("patient");
+    if (!patientLinkRaw) {
       return NextResponse.json({ error: "patient required" }, { status: 400 });
     }
 
+    const parsed = parsePatientLinkId(patientLinkRaw);
     const { data: link } = await admin
       .from("stakeholder_links")
       .select("family_id, child_agent_id")
-      .eq("id", patientLinkId)
+      .eq("id", parsed.linkId)
       .eq("stakeholder_id", user.id)
       .single();
     if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+
+    const effectiveChildAgentId = parsed.childAgentIdOverride || link.child_agent_id;
 
     // Fetch documents scoped to family + child
     let query = admin
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
       .select("*")
       .eq("family_id", link.family_id)
       .order("uploaded_at", { ascending: false });
-    if (link.child_agent_id) query = query.eq("child_agent_id", link.child_agent_id);
+    if (effectiveChildAgentId) query = query.eq("child_agent_id", effectiveChildAgentId);
 
     const { data: allDocuments, error: queryError } = await query;
     if (queryError) {
@@ -93,16 +97,37 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
 
     const formData = await request.formData();
-    const patientLinkId = formData.get("patient") as string | null;
-    if (!patientLinkId) return NextResponse.json({ error: "patient required" }, { status: 400 });
+    const patientLinkRaw = formData.get("patient") as string | null;
+    if (!patientLinkRaw) return NextResponse.json({ error: "patient required" }, { status: 400 });
 
-    const { data: link } = await admin
+    const parsed = parsePatientLinkId(patientLinkRaw);
+    const { data: linkRow } = await admin
       .from("stakeholder_links")
       .select("family_id, child_agent_id, child_name, role")
-      .eq("id", patientLinkId)
+      .eq("id", parsed.linkId)
       .eq("stakeholder_id", user.id)
       .single();
-    if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+    if (!linkRow) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+
+    // Resolve effective child from compound linkId override (falls back to row values)
+    const effectiveChildAgentId = parsed.childAgentIdOverride || linkRow.child_agent_id;
+    let effectiveChildName = linkRow.child_name;
+    if (parsed.childAgentIdOverride) {
+      const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
+      const children = Array.isArray(familyUser?.user?.user_metadata?.children)
+        ? familyUser!.user!.user_metadata!.children
+        : [];
+      const match = children.find(
+        (c: { agentId?: string; childName?: string }) =>
+          c?.agentId === parsed.childAgentIdOverride
+      );
+      if (match?.childName) effectiveChildName = match.childName;
+    }
+    const link = {
+      ...linkRow,
+      child_agent_id: effectiveChildAgentId,
+      child_name: effectiveChildName,
+    };
 
     const file = formData.get("file") as File | null;
     const title = formData.get("title") as string | null;

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getFamilyAgentFlat, getAgentWorkspacePath } from "@/lib/family-agents";
+import { getFamilyAgentFlat, getAgentWorkspacePath, getFamilyAgent } from "@/lib/family-agents";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parsePatientLinkId } from "@/lib/team/patient-link";
 import fs from "fs";
 
 /**
@@ -88,12 +89,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Resolve which link to use
-  const requestedLinkId = request.nextUrl.searchParams.get("patient");
+  // Resolve which link to use. Supports compound linkIds: <realLinkId>__<childAgentId>
+  const requestedLinkRaw = request.nextUrl.searchParams.get("patient");
+  const parsed = requestedLinkRaw ? parsePatientLinkId(requestedLinkRaw) : null;
   let link: typeof links[number];
 
-  if (requestedLinkId) {
-    const found = links.find((l) => l.id === requestedLinkId);
+  if (parsed) {
+    const found = links.find((l) => l.id === parsed.linkId);
     if (!found) {
       return NextResponse.json(
         { error: "Patient not found" },
@@ -108,13 +110,34 @@ export async function GET(request: NextRequest) {
   // Resolve family name via admin auth + family-agents config
   const { data: familyUser } = await admin.auth.admin.getUserById(link.family_id);
   const email = familyUser?.user?.email || "";
+  const metadata = familyUser?.user?.user_metadata || {};
+
+  // Resolve agent ID: override from compound linkId > link row > family config default
+  let agentId = parsed?.childAgentIdOverride || link.child_agent_id || "";
+  let childName = link.child_name || "";
+
+  // If we have an override agentId, try to pull childName from user_metadata.children
+  if (parsed?.childAgentIdOverride) {
+    const children = Array.isArray(metadata.children) ? metadata.children : [];
+    const match = children.find(
+      (c: { agentId?: string; childName?: string }) => c?.agentId === parsed.childAgentIdOverride
+    );
+    if (match?.childName) childName = match.childName;
+
+    // Also check hardcoded FAMILY_AGENT_MAP as fallback
+    if (!childName) {
+      const agent = getFamilyAgent(email);
+      const mapMatch = agent.children.find((c) => c.agentId === parsed.childAgentIdOverride);
+      if (mapMatch) childName = mapMatch.childName;
+    }
+  }
+
+  // Final fallback to family config defaults
   const family = getFamilyAgentFlat(email);
+  if (!agentId) agentId = family.agentId;
+  if (!childName) childName = family.childName;
 
-  // Resolve agent ID (prefer link-level, fall back to family default)
-  const agentId = link.child_agent_id || family.agentId;
-  const childName = link.child_name || family.childName;
-
-  const profile = readChildProfile(agentId, family.familyName, childName);
+  const profile = readChildProfile(agentId, family.familyName, childName || "Child");
 
   return NextResponse.json({
     family: {
