@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { ParsedProvider, ParsedProfile } from "@/types/workspace";
 import { extractNeeds, buildRecommendationSummary } from "@/lib/needs";
+import { usePriorities } from "@/hooks/usePriorities";
 
 // -- Types -------------------------------------------------------------------
 
@@ -860,15 +861,13 @@ function SearchTabContent({ childCity }: { childCity?: string }) {
 
 // -- Priority Banner ---------------------------------------------------------
 
-function PriorityBanner({
-  childName,
-  profile,
-}: {
-  childName: string;
-  profile: ParsedProfile | undefined;
-}) {
-  const needs = profile ? extractNeeds(profile) : [];
-  const recommendation = profile ? buildRecommendationSummary(needs) : "";
+function PriorityBanner({ childName }: { childName: string }) {
+  const { data: priorities } = usePriorities();
+  const needs = (priorities ?? []).map((p) => ({
+    label: p.label,
+    detail: p.detail,
+  }));
+  const recommendation = buildRecommendationSummary(needs);
 
   if (needs.length === 0) return null;
 
@@ -1059,7 +1058,7 @@ function RecommendedTabContent({
       )}
 
       {/* Priority Banner */}
-      <PriorityBanner childName={childName} profile={profile} />
+      <PriorityBanner childName={childName} />
 
       {needs.length === 0 && (
         <div className="text-center py-12">

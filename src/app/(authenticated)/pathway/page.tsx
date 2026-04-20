@@ -147,7 +147,7 @@ export default function PathwayPage() {
         <div className="space-y-4">
           {/* Subtitle */}
           <p className="text-[14px] text-muted-foreground">
-            {completedStages} of {totalStages} stages completed — you&apos;re making progress! 💪
+            {completedStages} of {totalStages} stages completed
           </p>
 
           {/* Single card with all stages */}

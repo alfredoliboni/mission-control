@@ -22,7 +22,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { ParsedProgram, ProgramCategory, ParsedPrograms, ParsedProfile } from "@/types/workspace";
-import { extractNeeds, buildRecommendationSummary } from "@/lib/needs";
+import { buildRecommendationSummary } from "@/lib/needs";
+import { usePriorities } from "@/hooks/usePriorities";
 
 // -- Types -------------------------------------------------------------------
 
@@ -745,7 +746,6 @@ function SearchTabContent() {
 function PriorityBanner({
   childName,
   programs,
-  profile,
 }: {
   childName: string;
   programs: {
@@ -753,8 +753,8 @@ function PriorityBanner({
     government: ParsedProgram[];
     educational: ParsedProgram[];
   };
-  profile: ParsedProfile | undefined;
 }) {
+  const { data: priorities } = usePriorities();
   const totalCount =
     programs.gapFillers.length +
     programs.government.length +
@@ -763,8 +763,11 @@ function PriorityBanner({
 
   if (totalCount === 0) return null;
 
-  const needs = profile ? extractNeeds(profile) : [];
-  const recommendation = profile ? buildRecommendationSummary(needs) : "";
+  const needs = (priorities ?? []).map((p) => ({
+    label: p.label,
+    detail: p.detail,
+  }));
+  const recommendation = buildRecommendationSummary(needs);
 
   return (
     <div className="bg-[#fdf3ee] border border-[#e8a882]/30 rounded-xl px-4 py-3 mb-2">
@@ -925,7 +928,7 @@ export default function ProgramsPage() {
       {programs && (
         <div className="space-y-5">
           {/* Priority Banner */}
-          <PriorityBanner childName={childName} programs={programs} profile={profile} />
+          <PriorityBanner childName={childName} programs={programs} />
 
           {/* Tabs */}
           <div className="flex items-center gap-0 border-b border-border">
