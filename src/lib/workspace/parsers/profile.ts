@@ -79,6 +79,13 @@ function parsePersonalProfile(content: string): ProfilePersonal {
     }
   }
 
+  const supportNeedsRaw =
+    pairs["support needs"] || pairs.supportneeds || pairs.support_needs || "";
+  const supportNeeds = supportNeedsRaw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   return {
     communication: pairs.communication || "",
     sensory: pairs.sensory || "",
@@ -92,6 +99,7 @@ function parsePersonalProfile(content: string): ProfilePersonal {
     triggers,
     strengthsList,
     challengesList,
+    supportNeeds,
     extraInfo: "",
   };
 }
@@ -284,6 +292,7 @@ export function parseProfile(markdown: string): ParsedProfile {
         triggers: [],
         strengthsList: [],
         challengesList: [],
+        supportNeeds: [],
         extraInfo: "",
       },
       medical: { medications: [], unconfirmedMedications: [], supplements: [], comorbidConditions: [], doctors: [], appointments: [] },

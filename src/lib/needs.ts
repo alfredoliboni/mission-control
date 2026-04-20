@@ -33,6 +33,11 @@ export function extractNeeds(profile: ParsedProfile): ExtractedNeed[] {
   const comorbid = profile.medical.comorbidConditions.map((c) =>
     c.toLowerCase()
   );
+  const supportNeeds = (profile.personalProfile.supportNeeds || []).map((s) =>
+    s.toLowerCase()
+  );
+  const hasSupportNeed = (...terms: string[]) =>
+    supportNeeds.some((n) => terms.some((t) => n.includes(t)));
 
   // OT needs — sensory integration + fine motor
   const otDetails: string[] = [];
@@ -40,13 +45,18 @@ export function extractNeeds(profile: ParsedProfile): ExtractedNeed[] {
     sensory.includes("sensory") ||
     sensory.includes("proprioceptive") ||
     sensory.includes("sensitive") ||
+    sensory.includes("deep pressure") ||
+    sensory.includes("oral seeking") ||
+    sensory.includes("seeks") ||
+    sensory.includes("avoids") ||
     comorbid.some((c) => c.includes("sensory processing"))
   ) {
     otDetails.push("sensory integration");
   }
   if (
     challenges.includes("fine motor") ||
-    challengesList.some((c) => c.includes("fine motor"))
+    challengesList.some((c) => c.includes("fine motor")) ||
+    hasSupportNeed("motor")
   ) {
     otDetails.push("fine motor");
   }
@@ -58,6 +68,9 @@ export function extractNeeds(profile: ParsedProfile): ExtractedNeed[] {
     )
   ) {
     otDetails.push("feeding");
+  }
+  if (hasSupportNeed("ot", "occupational")) {
+    if (!otDetails.includes("sensory integration")) otDetails.push("sensory integration");
   }
   if (otDetails.length > 0) {
     needs.push({ label: "OT", detail: otDetails.join(", ") });
@@ -95,6 +108,7 @@ export function extractNeeds(profile: ParsedProfile): ExtractedNeed[] {
   if (slpDetails.length > 0) {
     needs.push({ label: "SLP", detail: slpDetails.join(", ") });
   } else if (
+    hasSupportNeed("speech", "slp", "language") ||
     comm.includes("speech") ||
     comm.includes("language") ||
     comm.includes("verbal")
@@ -118,7 +132,8 @@ export function extractNeeds(profile: ParsedProfile): ExtractedNeed[] {
     challenges.includes("peer") ||
     challengesList.some(
       (c) => c.includes("social") || c.includes("peer")
-    )
+    ) ||
+    hasSupportNeed("social")
   ) {
     needs.push({ label: "Social Skills", detail: "peer interaction support" });
   }

@@ -94,6 +94,7 @@ export interface ProfilePersonal {
   triggers: string[];
   strengthsList: string[];
   challengesList: string[];
+  supportNeeds: string[];
   extraInfo: string;
   [key: string]: string | string[] | { seeks: string[]; avoids: string[]; calming: string[] };
 }
