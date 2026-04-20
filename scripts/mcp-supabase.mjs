@@ -5,7 +5,7 @@
  *
  * Stdio MCP server — gives OpenClaw agents Supabase CRUD tools for:
  *   family_alerts, family_team_members, family_benefits,
- *   family_programs, family_providers
+ *   family_programs, family_providers, family_priorities
  *
  * Required env vars:
  *   NEXT_PUBLIC_SUPABASE_URL
@@ -48,7 +48,7 @@ let currentAgentId = process.env.MCP_AGENT_ID ?? null;
 let currentFamilyId = process.env.MCP_FAMILY_ID ?? null;
 
 async function loadAgentMap() {
-  const { data } = await supabase.auth.admin.listUsers();
+  const { data } = await supabase.auth.admin.listUsers({ perPage: 200 });
   if (!data?.users) return;
   for (const u of data.users) {
     const children = u.user_metadata?.children || [];
@@ -276,6 +276,82 @@ const TOOLS = [
     },
   },
   {
+    name: "add_priority",
+    description:
+      "Add a top priority need for a child (SLP, Social Skills, OT, etc). Shown in the Priority Now banner on /providers and /programs. Keep the set small (2-3 active per child) and anchored in evidence from conversations, uploads, or assessments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...AGENT_ID_PROP,
+        child_name: {
+          type: "string",
+          description: "Child's full name (e.g. 'Daniel Liboni'). Helps when multiple children share a family.",
+        },
+        label: {
+          type: "string",
+          description: "Short name of the need (e.g. 'SLP', 'Social Skills', 'OT').",
+        },
+        detail: {
+          type: "string",
+          description: "One-line detail (e.g. 'speech-language support', 'peer interaction support').",
+        },
+        why: {
+          type: "string",
+          description: "Why this is a priority. Cite the source — assessment, school report, recent conversation.",
+        },
+        severity: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+        },
+        sort_order: {
+          type: "number",
+          description: "Display order. Lower = higher on the banner. Default 0.",
+        },
+        source: {
+          type: "string",
+          enum: ["conversation", "upload", "assessment", "agent", "family"],
+          description: "Where the priority came from.",
+        },
+        agent_note: {
+          type: "string",
+          description: "Optional guidance for the family — how to approach this priority.",
+        },
+      },
+      required: ["agent_id", "label"],
+    },
+  },
+  {
+    name: "archive_priority",
+    description: "Archive a priority once it's addressed or no longer relevant. Keeps the banner focused.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...AGENT_ID_PROP,
+        label: {
+          type: "string",
+          description: "Exact label of the priority to archive (matches the label used when adding).",
+        },
+        reason: {
+          type: "string",
+          enum: ["addressed", "archived"],
+          description: "Why archive: 'addressed' = family has this in place; 'archived' = no longer applicable.",
+        },
+      },
+      required: ["agent_id", "label", "reason"],
+    },
+  },
+  {
+    name: "get_priorities",
+    description: "List active priorities for this child (what the banner shows).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...AGENT_ID_PROP,
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_alerts",
     description:
       "Get all active alerts for this family. Returns alerts ordered by date descending.",
@@ -327,6 +403,12 @@ async function callTool(name, args, callerAgentId) {
       return addProgram(args, familyId, agentId);
     case "add_provider":
       return addProvider(args, familyId, agentId);
+    case "add_priority":
+      return addPriority(args, familyId, agentId);
+    case "archive_priority":
+      return archivePriority(args, familyId, agentId);
+    case "get_priorities":
+      return getPriorities(familyId, agentId);
     case "get_alerts":
       return getAlerts(familyId);
     case "get_team":
@@ -540,6 +622,95 @@ async function addProvider({
 
   if (error) throw new Error(`add_provider failed: ${error.message}`);
   return { success: true, provider: data };
+}
+
+async function addPriority(
+  { child_name, label, detail, why, severity, sort_order, source, agent_note },
+  familyId,
+  agentId
+) {
+  const { data: existing, error: findErr } = await supabase
+    .from("family_priorities")
+    .select("id")
+    .eq("family_id", familyId)
+    .eq("agent_id", agentId)
+    .eq("label", label)
+    .eq("status", "active")
+    .limit(1);
+
+  if (findErr) throw new Error(`add_priority (find) failed: ${findErr.message}`);
+
+  const payload = {
+    family_id: familyId,
+    agent_id: agentId,
+    child_name: child_name ?? null,
+    label,
+    detail: detail ?? "",
+    why: why ?? "",
+    severity: severity ?? "medium",
+    sort_order: sort_order ?? 0,
+    source: source ?? "agent",
+    agent_note: agent_note ?? "",
+    status: "active",
+  };
+
+  if (existing && existing.length > 0) {
+    const { data, error } = await supabase
+      .from("family_priorities")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", existing[0].id)
+      .select()
+      .single();
+    if (error) throw new Error(`add_priority (update) failed: ${error.message}`);
+    return { success: true, priority: data, action: "updated" };
+  }
+
+  const { data, error } = await supabase
+    .from("family_priorities")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw new Error(`add_priority (insert) failed: ${error.message}`);
+  return { success: true, priority: data, action: "created" };
+}
+
+async function archivePriority({ label, reason }, familyId, agentId) {
+  const { data: rows, error: findErr } = await supabase
+    .from("family_priorities")
+    .select("id")
+    .eq("family_id", familyId)
+    .eq("agent_id", agentId)
+    .eq("label", label)
+    .eq("status", "active")
+    .limit(1);
+
+  if (findErr) throw new Error(`archive_priority (find) failed: ${findErr.message}`);
+  if (!rows || rows.length === 0) {
+    return { success: false, message: `No active priority labeled "${label}" for this child` };
+  }
+
+  const newStatus = reason === "addressed" ? "addressed" : "archived";
+  const { error } = await supabase
+    .from("family_priorities")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", rows[0].id);
+
+  if (error) throw new Error(`archive_priority failed: ${error.message}`);
+  return { success: true, label, status: newStatus };
+}
+
+async function getPriorities(familyId, agentId) {
+  const { data, error } = await supabase
+    .from("family_priorities")
+    .select("*")
+    .eq("family_id", familyId)
+    .eq("agent_id", agentId)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`get_priorities failed: ${error.message}`);
+  return { priorities: data ?? [] };
 }
 
 async function getAlerts(familyId) {

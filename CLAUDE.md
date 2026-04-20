@@ -275,7 +275,6 @@ Format drift breaks narrative parsers — always test after changing parser logi
 - **Apply DB migration** — run `supabase/migrations/20260415_hybrid_schema.sql` against production Supabase
 - **Run seed script** — `node scripts/seed-to-db.mjs` to migrate existing .md data to DB tables
 - **Switch benefits + settings pages** — use DB hooks instead of workspace parsers (alerts page already switched)
-- **Agent tools** — create OpenClaw MCP server/skills for agent to write to Supabase instead of .md
 
 **Medium Priority:**
 - **PWA** — installable on mobile (manifest.json + service worker)
