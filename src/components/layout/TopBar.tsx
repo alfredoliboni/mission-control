@@ -209,10 +209,21 @@ export function TopBar() {
                       </p>
                     </div>
                   ) : (
-                    notifications.map((notif) => (
+                    notifications.map((notif) => {
+                      let href: string;
+                      if (notif.type === "message") {
+                        const params = new URLSearchParams();
+                        if (notif.threadId) params.set("open", notif.threadId);
+                        if (notif.childAgentId) params.set("agent", notif.childAgentId);
+                        const qs = params.toString();
+                        href = qs ? `/messages?${qs}` : "/messages";
+                      } else {
+                        href = "/settings";
+                      }
+                      return (
                       <Link
                         key={notif.id}
-                        href={notif.type === "message" ? "/messages" : "/settings"}
+                        href={href}
                         onClick={() => setNotifOpen(false)}
                         className="flex items-start gap-3 px-4 py-3 hover:bg-warm-50 transition-colors border-b border-border last:border-b-0"
                       >
@@ -231,7 +242,8 @@ export function TopBar() {
                           {formatNotificationTime(notif.timestamp)}
                         </span>
                       </Link>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 

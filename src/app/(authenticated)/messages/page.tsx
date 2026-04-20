@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
-import { useActiveAgent } from "@/hooks/useActiveAgent";
+import { useSearchParams } from "next/navigation";
+import { useActiveAgent, useFamily } from "@/hooks/useActiveAgent";
+import { useAppStore } from "@/store/appStore";
 import { Send, Plus, MessageSquare, Loader2, ArrowLeft, Trash2 } from "lucide-react";
 import { useWorkspaceFile } from "@/hooks/useWorkspace";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
@@ -173,10 +175,18 @@ function ThreadListItem({
       : last.content;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-border transition-colors",
+        "w-full text-left px-4 py-3 border-b border-border transition-colors cursor-pointer",
         isSelected
           ? "bg-primary/5 border-l-2 border-l-primary"
           : "hover:bg-warm-50"
@@ -227,7 +237,7 @@ function ThreadListItem({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -664,6 +674,26 @@ export default function MessagesPage() {
   // Active child agent — used to scope threads and trigger refetch on child switch
   const agentId = useActiveAgent();
   const prevAgentRef = useRef<string | undefined>(agentId);
+
+  // Sync from URL: ?agent=<childAgentId>&open=<threadId>
+  // Entry point for bell-notification clicks — switches the active child and
+  // opens the specific thread the user tapped, even across children.
+  const searchParams = useSearchParams();
+  const family = useFamily();
+  const setActiveChildIndex = useAppStore((s) => s.setActiveChildIndex);
+  useEffect(() => {
+    const urlAgent = searchParams.get("agent");
+    const urlOpen = searchParams.get("open");
+    if (urlAgent && family.children.length > 0) {
+      const idx = family.children.findIndex((c) => c.agentId === urlAgent);
+      if (idx >= 0) {
+        setActiveChildIndex(idx);
+        // Prevent the reset effect below from clobbering our thread selection
+        prevAgentRef.current = urlAgent;
+      }
+    }
+    if (urlOpen) setSelectedThreadId(urlOpen);
+  }, [searchParams, family, setActiveChildIndex]);
 
   // Reset thread state when switching children
   useEffect(() => {

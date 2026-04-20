@@ -10,6 +10,8 @@ export interface Notification {
   description: string;
   timestamp: string;
   read: boolean;
+  threadId?: string;
+  childAgentId?: string | null;
 }
 
 /**
@@ -38,7 +40,7 @@ export function useNotifications() {
       ).toISOString();
       const { data: messages } = await supabase
         .from("messages")
-        .select("id, thread_subject, sender_name, created_at")
+        .select("id, thread_id, thread_subject, sender_name, created_at, child_agent_id")
         .eq("family_id", user.id)
         .neq("sender_id", user.id)
         .gte("created_at", oneDayAgo)
@@ -54,6 +56,8 @@ export function useNotifications() {
             description: msg.thread_subject || "New conversation",
             timestamp: msg.created_at,
             read: false,
+            threadId: msg.thread_id,
+            childAgentId: msg.child_agent_id,
           });
         }
       }
