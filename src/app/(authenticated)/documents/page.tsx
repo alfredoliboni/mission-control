@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUploadedDocuments } from "@/hooks/useUploadedDocuments";
 import { createClient } from "@/lib/supabase/client";
@@ -37,9 +37,8 @@ import {
 } from "lucide-react";
 import { DocumentSharingPopover } from "@/components/sections/DocumentSharingPopover";
 import { useAppStore } from "@/store/appStore";
-import { useChat } from "@/hooks/useChat";
 import { useParsedProfile } from "@/hooks/useWorkspace";
-import { useFamily } from "@/hooks/useActiveAgent";
+import { useFamily, useActiveAgent } from "@/hooks/useActiveAgent";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -160,10 +159,23 @@ function formatFileSize(bytes: number | undefined): string {
 
 // ── Upload Form ───────────────────────────────────────────────────────
 function UploadForm({ onSuccess }: { onSuccess: () => void }) {
+  const family = useFamily();
+  const activeAgentId = useActiveAgent();
+  const children = family.children ?? [];
+  const defaultChildName = useMemo(() => {
+    if (children.length === 0) return "";
+    if (children.length === 1) return children[0].childName;
+    const active = children.find((c) => c.agentId === activeAgentId);
+    return active?.childName || "";
+  }, [children, activeAgentId]);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [docType, setDocType] = useState("other");
-  const [childNickname, setChildNickname] = useState("");
+  const [childNickname, setChildNickname] = useState(defaultChildName);
+
+  useEffect(() => {
+    setChildNickname(defaultChildName);
+  }, [defaultChildName]);
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,11 +184,11 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
     setFile(null);
     setTitle("");
     setDocType("other");
-    setChildNickname("");
+    setChildNickname(defaultChildName);
     setStatus("idle");
     setErrorMsg("");
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [defaultChildName]);
 
   const handleFile = useCallback(
     (f: File) => {
@@ -345,19 +357,25 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
             ))}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Child (optional)
-          </label>
-          <Input
-            value={childNickname}
-            onChange={(e) =>
-              setChildNickname((e.target as HTMLInputElement).value)
-            }
-            placeholder="Nickname"
-            disabled={isSubmitting}
-          />
-        </div>
+        {children.length > 1 && (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Child
+            </label>
+            <select
+              value={childNickname}
+              onChange={(e) => setChildNickname(e.target.value)}
+              disabled={isSubmitting}
+              className="h-8 w-full rounded-lg border border-input bg-warm-50 px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+            >
+              {children.map((c) => (
+                <option key={c.agentId || c.childName} value={c.childName}>
+                  {c.childName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Status + submit */}
@@ -670,7 +688,24 @@ function DocumentDetail({
   onDelete: (id: string) => void;
 }) {
   const setChatOpen = useAppStore((s) => s.setChatOpen);
-  const { sendMessage } = useChat();
+  const setPendingChatMessage = useAppStore((s) => s.setPendingChatMessage);
+  const family = useFamily();
+
+  const childAgentId = useMemo(() => {
+    const candidates = [doc.child_name, doc.child_nickname]
+      .filter((v): v is string => !!v)
+      .map((v) => v.toLowerCase());
+    if (candidates.length === 0) return undefined;
+    const match = (family.children ?? []).find((c) =>
+      candidates.some(
+        (cand) =>
+          c.childName.toLowerCase() === cand ||
+          c.childName.toLowerCase().includes(cand) ||
+          cand.includes(c.childName.toLowerCase())
+      )
+    );
+    return match?.agentId || undefined;
+  }, [doc.child_name, doc.child_nickname, family.children]);
 
   // Analysis state
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
@@ -739,12 +774,26 @@ function DocumentDetail({
     }
   }, [lastAction, runAnalysis]);
 
-  const handleChatFollowUp = useCallback(() => {
+  const handleAskNavigatorChat = useCallback(() => {
+    const childLabel = doc.child_name || doc.child_nickname || "n/a";
+    const primer = `Can you help me with the document "${doc.title}"? Context: type=${doc.doc_type}, uploaded=${formatDate(doc.uploaded_at)}, child=${childLabel}.`;
+    setPendingChatMessage(primer);
     setChatOpen(true);
-    sendMessage(
-      `I just analyzed the document "${doc.title}" (type: ${doc.doc_type}). I'd like to discuss the findings and next steps.`
-    );
-  }, [setChatOpen, sendMessage, doc.title, doc.doc_type]);
+  }, [
+    setChatOpen,
+    setPendingChatMessage,
+    doc.title,
+    doc.doc_type,
+    doc.uploaded_at,
+    doc.child_name,
+    doc.child_nickname,
+  ]);
+
+  const handleChatFollowUp = useCallback(() => {
+    const primer = `I just analyzed the document "${doc.title}" (type: ${doc.doc_type}). I'd like to discuss the findings and next steps.`;
+    setPendingChatMessage(primer);
+    setChatOpen(true);
+  }, [setChatOpen, setPendingChatMessage, doc.title, doc.doc_type]);
 
   const isAnalyzing =
     analysisState === "extracting" || analysisState === "analyzing";
@@ -947,7 +996,17 @@ function DocumentDetail({
           <DocumentSharingPopover
             docId={`uploaded-${doc.id}`}
             docTitle={doc.title}
+            childAgentId={childAgentId}
           />
+
+          <button
+            type="button"
+            onClick={handleAskNavigatorChat}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Compass className="h-3.5 w-3.5" />
+            Ask Navigator
+          </button>
 
           {currentUserId && doc.uploaded_by === currentUserId && (
             <Button
@@ -964,34 +1023,6 @@ function DocumentDetail({
               Delete
             </Button>
           )}
-
-          <button
-            type="button"
-            onClick={handleAskNavigator}
-            disabled={isAnalyzing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isAnalyzing && lastAction === "insights" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Compass className="h-3.5 w-3.5" />
-            )}
-            Ask Navigator
-          </button>
-
-          <button
-            type="button"
-            onClick={handleGetSummary}
-            disabled={isAnalyzing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isAnalyzing && lastAction === "summary" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <FileSearch className="h-3.5 w-3.5" />
-            )}
-            Get Summary
-          </button>
         </div>
       </div>
     </div>
@@ -1079,13 +1110,17 @@ export default function DocumentsPage() {
   const { data: profile } = useParsedProfile();
   const childName = profile?.basicInfo?.name || "your child";
   const family = useFamily();
+  const activeAgentId = useActiveAgent();
+  const activeChild = useMemo(
+    () => family.children.find((c) => c.agentId === activeAgentId),
+    [family.children, activeAgentId]
+  );
   const isMultiChild = family.children.length > 1;
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryValue>("all");
-  const [childFilter, setChildFilter] = useState<string>("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
@@ -1168,15 +1203,30 @@ export default function DocumentsPage() {
 
       const matchesCat = matchesCategory(doc.doc_type, activeCategory);
 
-      const matchesChild =
-        childFilter === "all" ||
-        (doc.child_name && doc.child_name.toLowerCase().includes(childFilter.toLowerCase())) ||
-        (doc.child_nickname && doc.child_nickname.toLowerCase().includes(childFilter.toLowerCase()));
+      // Multi-child families filter by the TopBar's active child; single-child
+      // families see all their docs by default.
+      const matchesChild = (() => {
+        if (!isMultiChild || !activeChild) return true;
+        const activeFirst = activeChild.childName.split(" ")[0].toLowerCase();
+        const activeFull = activeChild.childName.toLowerCase();
+        const cn = doc.child_name?.toLowerCase() || "";
+        const nick = doc.child_nickname?.toLowerCase() || "";
+        // A doc with no child scope is shown on every child's view.
+        if (!cn && !nick) return true;
+        return (
+          cn === activeFull ||
+          cn === activeFirst ||
+          cn.includes(activeFirst) ||
+          activeFull.includes(cn) ||
+          nick === activeFirst ||
+          nick.includes(activeFirst)
+        );
+      })();
 
       return matchesSearch && matchesCat && matchesChild;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docs, searchQuery, activeCategory, childFilter, currentUserId, uploaderNameById]);
+  }, [docs, searchQuery, activeCategory, isMultiChild, activeChild, currentUserId, uploaderNameById]);
 
   const selectedDoc = useMemo(
     () => docs.find((d) => d.id === selectedId) || null,
@@ -1405,46 +1455,6 @@ export default function DocumentsPage() {
                 </button>
               ))}
             </div>
-
-            {/* Child filter (multi-child families only) */}
-            {isMultiChild && (
-              <div className="px-3 pb-2 flex gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setChildFilter("all")}
-                  className={`
-                    px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all
-                    ${
-                      childFilter === "all"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }
-                  `}
-                >
-                  All
-                </button>
-                {family.children.map((child) => {
-                  const firstName = child.childName.split(" ")[0];
-                  return (
-                    <button
-                      key={child.childName}
-                      type="button"
-                      onClick={() => setChildFilter(firstName)}
-                      className={`
-                        px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all
-                        ${
-                          childFilter === firstName
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }
-                      `}
-                    >
-                      {firstName}&apos;s Docs
-                    </button>
-                  );
-                })}
-              </div>
-            )}
 
             {/* Divider */}
             <div className="border-t border-border" />

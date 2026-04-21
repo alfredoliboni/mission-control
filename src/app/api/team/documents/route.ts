@@ -25,14 +25,15 @@ export async function GET(request: NextRequest) {
     }
 
     const parsed = parsePatientLinkId(patientLinkRaw);
-    const { data: link } = await admin
-      .from("stakeholder_links")
-      .select("family_id, child_agent_id")
+    const { data: member } = await admin
+      .from("family_team_members")
+      .select("family_id, agent_id")
       .eq("id", parsed.linkId)
-      .eq("stakeholder_id", user.id)
+      .eq("stakeholder_user_id", user.id)
       .single();
-    if (!link) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+    if (!member) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
 
+    const link = { family_id: member.family_id, child_agent_id: member.agent_id };
     const effectiveChildAgentId = parsed.childAgentIdOverride || link.child_agent_id;
 
     // Fetch documents scoped to family + child
@@ -89,18 +90,18 @@ async function resolveLink(
   patientLinkRaw: string
 ) {
   const parsed = parsePatientLinkId(patientLinkRaw);
-  const { data: linkRow } = await admin
-    .from("stakeholder_links")
-    .select("family_id, child_agent_id, child_name, role")
+  const { data: memberRow } = await admin
+    .from("family_team_members")
+    .select("family_id, agent_id, child_name, role")
     .eq("id", parsed.linkId)
-    .eq("stakeholder_id", userId)
+    .eq("stakeholder_user_id", userId)
     .single();
-  if (!linkRow) return null;
+  if (!memberRow) return null;
 
-  const effectiveChildAgentId = parsed.childAgentIdOverride || linkRow.child_agent_id;
-  let effectiveChildName = linkRow.child_name;
+  const effectiveChildAgentId = parsed.childAgentIdOverride || memberRow.agent_id;
+  let effectiveChildName = memberRow.child_name;
   if (parsed.childAgentIdOverride) {
-    const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
+    const { data: familyUser } = await admin.auth.admin.getUserById(memberRow.family_id);
     const children = Array.isArray(familyUser?.user?.user_metadata?.children)
       ? familyUser!.user!.user_metadata!.children
       : [];
@@ -111,7 +112,8 @@ async function resolveLink(
     if (match?.childName) effectiveChildName = match.childName;
   }
   return {
-    ...linkRow,
+    family_id: memberRow.family_id,
+    role: memberRow.role,
     child_agent_id: effectiveChildAgentId,
     child_name: effectiveChildName,
   };

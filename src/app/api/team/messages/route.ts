@@ -59,11 +59,18 @@ export async function GET(request: NextRequest) {
     activeLink = links.find((l) => l.family_id === requestedFamilyId) ?? null;
   }
 
-  // Build messages query
+  // Build messages query. Under the per-user hide model, stakeholders see
+  // every message in their thread unless their own auth user id is present
+  // in hidden_for_stakeholders. The family's global deleted_at / hidden_for_family
+  // state is deliberately ignored here.
   let messagesQuery = admin
     .from("messages")
     .select("*")
-    .is("deleted_at", null)
+    .not(
+      "hidden_for_stakeholders",
+      "cs",
+      JSON.stringify([user.id])
+    )
     .order("created_at", { ascending: true });
 
   if (activeLink) {

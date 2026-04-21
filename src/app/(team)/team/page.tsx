@@ -575,9 +575,11 @@ function TeamUploadForm({
 function DocumentsSection({
   selectedPatientId,
   currentUserId,
+  isFormer = false,
 }: {
   selectedPatientId?: string;
   currentUserId: string | null;
+  isFormer?: boolean;
 }) {
   const queryClient = useQueryClient();
   const {
@@ -624,13 +626,24 @@ function DocumentsSection({
         </p>
       </div>
 
+      {isFormer && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200">
+          <p className="text-[12px] text-amber-900">
+            <span className="font-semibold">This patient is inactive.</span>{" "}
+            Read-only view — you can browse history but not upload documents.
+          </p>
+        </div>
+      )}
+
       {/* Upload form */}
-      <div className="px-5 py-4 border-b border-border bg-muted/20">
-        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-          Upload a Document
-        </h3>
-        <TeamUploadForm onSuccess={handleUploadSuccess} selectedPatientId={selectedPatientId} />
-      </div>
+      {!isFormer && (
+        <div className="px-5 py-4 border-b border-border bg-muted/20">
+          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+            Upload a Document
+          </h3>
+          <TeamUploadForm onSuccess={handleUploadSuccess} selectedPatientId={selectedPatientId} />
+        </div>
+      )}
 
       {/* Document list */}
       <div className="px-5 py-4">
@@ -718,9 +731,11 @@ function DocumentsSection({
 function MessagesSection({
   selectedPatientId,
   currentUserId,
+  isFormer = false,
 }: {
   selectedPatientId?: string;
   currentUserId: string | null;
+  isFormer?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
@@ -852,6 +867,15 @@ function MessagesSection({
           Communicate with the family about their child&apos;s care.
         </p>
       </div>
+
+      {isFormer && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200">
+          <p className="text-[12px] text-amber-900">
+            <span className="font-semibold">This patient is inactive.</span>{" "}
+            Read-only view — you can browse history but not send new messages.
+          </p>
+        </div>
+      )}
 
       <div className="flex h-[400px]">
         {/* Thread list */}
@@ -1084,14 +1108,19 @@ function MessagesSection({
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your message..."
+                placeholder={
+                  isFormer
+                    ? "This patient is inactive — new messages disabled."
+                    : "Type your message..."
+                }
                 rows={2}
-                className="flex-1 resize-none rounded-xl border border-input bg-warm-50 px-3 py-2 text-[13px] transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
+                disabled={isFormer}
+                className="flex-1 resize-none rounded-xl border border-input bg-warm-50 px-3 py-2 text-[13px] transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <Button
                 size="sm"
                 onClick={handleSend}
-                disabled={!newMessage.trim() || sendMutation.isPending}
+                disabled={isFormer || !newMessage.trim() || sendMutation.isPending}
                 className="h-9 px-3"
               >
                 {sendMutation.isPending ? (
@@ -1155,6 +1184,9 @@ export default function TeamPortalPage() {
       }
     : undefined;
 
+  const selectedPatient = patients.find((p) => p.linkId === selectedPatientId);
+  const isFormer = selectedPatient?.status === "former";
+
   return (
     <div className="min-h-screen bg-background -m-6">
       <div className="grid grid-cols-[280px_1fr]">
@@ -1187,10 +1219,12 @@ export default function TeamPortalPage() {
               <DocumentsSection
                 selectedPatientId={selectedPatientId}
                 currentUserId={currentUserId}
+                isFormer={isFormer}
               />
               <MessagesSection
                 selectedPatientId={selectedPatientId}
                 currentUserId={currentUserId}
+                isFormer={isFormer}
               />
             </>
           ) : (

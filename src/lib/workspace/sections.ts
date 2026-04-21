@@ -116,9 +116,20 @@ function titleCase(str: string): string {
     .join(" ");
 }
 
-// Files that are hardcoded in the Sidebar — exclude from dynamic discovery
+// Files that are hardcoded in the Sidebar — exclude from dynamic discovery.
+// Every child gets these standard routes regardless of whether the agent has written content yet.
 const SIDEBAR_HARDCODED = new Set([
-  "documents.md", "messages.md", "child-profile.md", "journey-partners.md",
+  // Standard per-child routes (all always in sidebar via static navLink list)
+  "child-profile.md",
+  "pathway.md",
+  "providers.md",
+  "programs.md",
+  "ontario-system.md",
+  "benefits.md",
+  "alerts.md",
+  "documents.md",
+  "messages.md",
+  "journey-partners.md",
   // Internal agent files — not family-facing
   "audio-transcript.md",
   "format-contracts.md",

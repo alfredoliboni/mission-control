@@ -89,6 +89,12 @@ const statusConfig: Record<
     label: "Renewed",
     softBg: "bg-status-renewed/8",
   },
+  denied: {
+    emoji: "❌",
+    dotColor: "bg-status-blocked",
+    label: "Denied",
+    softBg: "bg-status-blocked/8",
+  },
   unknown: {
     emoji: "📋",
     dotColor: "bg-muted-foreground",
@@ -102,6 +108,8 @@ const statusConfig: Record<
     softBg: "bg-muted-foreground/8",
   },
 };
+
+const fallbackStatusConfig = statusConfig.not_started;
 
 /* ── Detail row ────────────────────────────────────────────────────── */
 
@@ -155,7 +163,7 @@ function BenefitCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
-  const cfg = statusConfig[row.status];
+  const cfg = statusConfig[row.status] ?? fallbackStatusConfig;
 
   // Merge inline detail fields (DB path) with separate BenefitDetail (md path)
   const eligibility = detail?.eligibility || row.eligibility || "";

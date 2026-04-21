@@ -348,6 +348,8 @@ export default function SettingsPage() {
   const [inviteOrg, setInviteOrg] = useState("");
   const [invitingMember, setInvitingMember] = useState<Partner | null>(null);
   const [inviteEmailInput, setInviteEmailInput] = useState("");
+  const [removingMember, setRemovingMember] = useState<Partner | null>(null);
+  const [revokeAccessOnRemove, setRevokeAccessOnRemove] = useState(false);
 
   // Multi-child support: default to the currently active child
   const isMultiChild = family.children.length > 1;
@@ -423,15 +425,46 @@ export default function SettingsPage() {
 
   // ── Remove mutation ──
   const removeMutation = useMutation({
-    mutationFn: removeCareTeamMember,
-    onSuccess: () => {
-      toast.success("Team member removed");
+    mutationFn: async ({
+      id,
+      revokeAccess,
+    }: {
+      id: string;
+      revokeAccess: boolean;
+    }) => {
+      await removeCareTeamMember(id);
+      if (revokeAccess) {
+        const res = await fetch(`/api/team-members/${id}/permissions`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            data.error || "Team member removed but access revoke failed"
+          );
+        }
+      }
+    },
+    onSuccess: (_data, variables) => {
+      toast.success(
+        variables.revokeAccess
+          ? "Team member removed and document access revoked"
+          : "Team member removed"
+      );
       queryClient.invalidateQueries({ queryKey: ["care-team"] });
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      setRemovingMember(null);
+      setRevokeAccessOnRemove(false);
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to remove team member");
     },
   });
+
+  const confirmRemove = (partner: Partner) => {
+    setRevokeAccessOnRemove(false);
+    setRemovingMember(partner);
+  };
 
   const updateParent = (key: keyof ParentInfo, value: string) => {
     setParent((p) => ({ ...p, [key]: value }));
@@ -692,8 +725,8 @@ export default function SettingsPage() {
                 <div key={p.id}>
                   <PartnerRow
                     partner={p}
-                    onRevoke={() => removeMutation.mutate(p.id)}
-                    onRemove={() => removeMutation.mutate(p.id)}
+                    onRevoke={() => confirmRemove(p)}
+                    onRemove={() => confirmRemove(p)}
                     onInvite={(member) => { setInvitingMember(member); setInviteEmailInput(""); }}
                     onEdit={(updates) => {
                       fetch("/api/team-members", {
@@ -770,7 +803,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending Invites</p>
               {pendingPartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => confirmRemove(p)} onRemove={() => confirmRemove(p)} />
               ))}
             </div>
           )}
@@ -780,7 +813,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Declined</p>
               {declinedPartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => confirmRemove(p)} onRemove={() => confirmRemove(p)} />
               ))}
             </div>
           )}
@@ -790,7 +823,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Revoked</p>
               {revokedPartners.map((p) => (
-                <PartnerRow key={p.id} partner={p} onRevoke={() => removeMutation.mutate(p.id)} onRemove={() => removeMutation.mutate(p.id)} />
+                <PartnerRow key={p.id} partner={p} onRevoke={() => confirmRemove(p)} onRemove={() => confirmRemove(p)} />
               ))}
             </div>
           )}
@@ -913,6 +946,71 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {removingMember && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setRemovingMember(null);
+          }}
+        >
+          <div className="w-[90vw] max-w-md bg-card border border-border rounded-xl shadow-xl p-5 space-y-4">
+            <div>
+              <h3 className="text-[15px] font-semibold text-foreground">
+                Remove {removingMember.name} from care team?
+              </h3>
+              <p className="text-[12px] text-muted-foreground mt-1">
+                Their invite will be removed and they will no longer appear as
+                an active team member. You can always invite them again later.
+              </p>
+            </div>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={revokeAccessOnRemove}
+                onChange={(e) => setRevokeAccessOnRemove(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-[13px] text-foreground leading-snug">
+                Also revoke their access to documents shared with them
+                <span className="block text-[11px] text-muted-foreground mt-0.5">
+                  Leave unchecked to keep previously shared documents viewable.
+                </span>
+              </span>
+            </label>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRemovingMember(null)}
+                disabled={removeMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-status-blocked hover:bg-status-blocked/90 text-white"
+                disabled={removeMutation.isPending}
+                onClick={() =>
+                  removeMutation.mutate({
+                    id: removingMember.id,
+                    revokeAccess: revokeAccessOnRemove,
+                  })
+                }
+              >
+                {removeMutation.isPending ? (
+                  <Loader2 className="size-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5 mr-1" />
+                )}
+                Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

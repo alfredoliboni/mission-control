@@ -81,36 +81,66 @@ export function Sidebar() {
         className="flex-1 overflow-y-auto px-3 py-1 space-y-5"
         aria-label="Main navigation"
       >
-        <div className="space-y-[2px]">
-          {navLink("/profile", "👤", "Profile")}
-          {navLink("/calendar", "📅", "Calendar")}
-          {navLink("/community", "👥", "Community")}
-          {navLink("/messages", "💬", "Messages")}
-          {navLink("/documents", "📄", "Documents")}
+        <div>
+          <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {GROUP_LABELS.overview}
+          </h3>
+          <div className="space-y-[2px]">
+            {navLink("/profile", "👤", "Profile")}
+            {navLink("/calendar", "📅", "Calendar")}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {GROUP_LABELS.navigate}
+          </h3>
+          <div className="space-y-[2px]">
+            {navLink("/pathway", "🗺️", "Pathway")}
+            {navLink("/providers", "🏥", "Providers")}
+            {navLink("/programs", "📚", "Programs")}
+            {navLink("/ontario-system", "🏛️", "Ontario System")}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {GROUP_LABELS.organize}
+          </h3>
+          <div className="space-y-[2px]">
+            {navLink("/benefits", "💰", "Benefits")}
+            {navLink("/alerts", "🚨", "Alerts")}
+            {navLink("/documents", "📄", "Documents")}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {GROUP_LABELS.connect}
+          </h3>
+          <div className="space-y-[2px]">
+            {navLink("/messages", "💬", "Messages")}
+            {navLink("/community", "👥", "Community")}
+          </div>
         </div>
 
         {isLoading ? (
           <div className="space-y-2 px-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-8 w-full" />
             ))}
           </div>
-        ) : groups ? (
-          Object.entries(groups).map(([group, items]) => {
-            if (items.length === 0) return null;
-            return (
-              <div key={group}>
-                <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {GROUP_LABELS[group] || group}
-                </h3>
-                <div className="space-y-[2px]">
-                  {items.map((section) =>
-                    navLink(section.route, section.icon, section.label)
-                  )}
-                </div>
-              </div>
-            );
-          })
+        ) : groups && groups.dynamic.length > 0 ? (
+          <div>
+            <h3 className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {GROUP_LABELS.dynamic}
+            </h3>
+            <div className="space-y-[2px]">
+              {groups.dynamic.map((section) =>
+                navLink(section.route, section.icon, section.label)
+              )}
+            </div>
+          </div>
         ) : null}
       </nav>
 

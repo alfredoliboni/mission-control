@@ -10,18 +10,29 @@ import { useFamily } from "@/hooks/useActiveAgent";
 
 export function ChatPanel() {
   const { chatOpen, setChatOpen, activeChildIndex } = useAppStore();
+  const pendingChatMessage = useAppStore((s) => s.pendingChatMessage);
+  const setPendingChatMessage = useAppStore((s) => s.setPendingChatMessage);
   const { messages, isLoading, sendMessage } = useChat();
   const family = useFamily();
   const childName = family.children[activeChildIndex]?.childName || "your child";
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const primerSentRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (chatOpen && inputRef.current) {
       inputRef.current.focus();
     }
   }, [chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen || !pendingChatMessage) return;
+    if (primerSentRef.current === pendingChatMessage) return;
+    primerSentRef.current = pendingChatMessage;
+    sendMessage(pendingChatMessage);
+    setPendingChatMessage(null);
+  }, [chatOpen, pendingChatMessage, sendMessage, setPendingChatMessage]);
 
   useEffect(() => {
     if (scrollRef.current) {

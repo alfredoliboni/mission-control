@@ -8,6 +8,7 @@ export interface PatientRow {
   childAgentId: string;
   childName: string;
   familyName: string;
+  status: "active" | "former";
   unreadCount: number;
   lastMessage: { content: string; createdAt: string } | null;
 }
@@ -34,6 +35,7 @@ export function PatientList({ patients, selectedId, onSelect }: Props) {
       </div>
       {patients.map((p) => {
         const selected = p.linkId === selectedId;
+        const isFormer = p.status === "former";
         return (
           <button
             key={p.linkId}
@@ -42,13 +44,24 @@ export function PatientList({ patients, selectedId, onSelect }: Props) {
             className={cn(
               "flex flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors",
               "hover:bg-muted/50",
-              selected && "bg-primary/5 border-l-2 border-primary"
+              selected && "bg-primary/5 border-l-2 border-primary",
+              isFormer && "opacity-60"
             )}
           >
             <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-[13px] font-semibold text-foreground">
-                {p.childName}
-              </span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[13px] font-semibold text-foreground truncate">
+                  {p.childName}
+                </span>
+                {isFormer && (
+                  <span
+                    title="Read-only — history preserved."
+                    className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0"
+                  >
+                    Inactive
+                  </span>
+                )}
+              </div>
               {p.unreadCount > 0 && (
                 <span className="text-[10px] font-bold text-primary-foreground bg-primary rounded-full px-2 py-0.5 min-w-[18px] text-center">
                   {p.unreadCount}

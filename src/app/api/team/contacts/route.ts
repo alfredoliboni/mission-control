@@ -14,43 +14,38 @@ export async function GET(request: NextRequest) {
   const parsed = parsePatientLinkId(linkRaw);
   const admin = createAdminClient();
 
-  const { data: linkRow } = await admin
-    .from("stakeholder_links")
-    .select("id, family_id, child_agent_id, child_name")
+  // Resolve the stakeholder's team-member row. linkId is family_team_members.id.
+  const { data: memberRow } = await admin
+    .from("family_team_members")
+    .select("id, family_id, agent_id, child_name")
     .eq("id", parsed.linkId)
-    .eq("stakeholder_id", user.id)
+    .eq("stakeholder_user_id", user.id)
     .single();
 
-  if (!linkRow) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
+  if (!memberRow) return NextResponse.json({ error: "Invalid patient" }, { status: 403 });
 
-  // Family entry (always first) + resolve effective child name from metadata if compound
-  const { data: familyUser } = await admin.auth.admin.getUserById(linkRow.family_id);
+  const { data: familyUser } = await admin.auth.admin.getUserById(memberRow.family_id);
   const familyName = familyUser?.user?.user_metadata?.full_name || "Family";
 
-  let effectiveChildName = linkRow.child_name;
-  if (parsed.childAgentIdOverride) {
-    const children = Array.isArray(familyUser?.user?.user_metadata?.children)
-      ? familyUser!.user!.user_metadata!.children
-      : [];
-    const match = children.find(
-      (c: { agentId?: string; childName?: string }) =>
-        c?.agentId === parsed.childAgentIdOverride
-    );
-    if (match?.childName) effectiveChildName = match.childName;
-  }
-
-  // Other team members for this child
-  const { data: teamMembers } = await admin
+  // Other team members scoped to the same child (plus family-wide members).
+  let query = admin
     .from("family_team_members")
     .select("id, name, role, organization, stakeholder_user_id, email")
-    .eq("family_id", linkRow.family_id)
-    .eq("status", "active")
-    .or(`child_name.eq.${effectiveChildName || ""},child_name.is.null`);
+    .eq("family_id", memberRow.family_id)
+    .eq("status", "active");
+
+  if (memberRow.agent_id) {
+    query = query.or(`agent_id.eq.${memberRow.agent_id},agent_id.is.null`);
+  } else {
+    query = query.is("agent_id", null);
+  }
+
+  const { data: teamMembers } = await query;
 
   const contacts = [
     {
       id: "family",
-      userId: linkRow.family_id,
+      userId: memberRow.family_id,
       name: familyName,
       role: "Family",
       organization: "",

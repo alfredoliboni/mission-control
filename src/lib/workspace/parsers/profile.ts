@@ -238,6 +238,7 @@ export function parseProfile(markdown: string): ParsedProfile {
       triggers: [],
       strengthsList: [],
       challengesList: [],
+      supportNeeds: [],
       extraInfo: "",
     };
     let medical: ProfileMedical = {

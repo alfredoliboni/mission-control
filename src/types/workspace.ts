@@ -195,6 +195,7 @@ export type BenefitStatus =
   | "approved"
   | "active"
   | "renewed"
+  | "denied"
   | "unknown";
 
 export interface BenefitStatusRow {

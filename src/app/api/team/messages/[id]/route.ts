@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
 /**
  * DELETE /api/team/messages/[id]
- * Soft-delete messages from the stakeholder (doctor/therapist/school) side.
- *
- * Modes:
- * - ?scope=thread → delete every message in the thread (id = thread_id).
- *                   Allowed if the stakeholder participated (sender or recipient)
- *                   in at least one message of the thread AND the thread belongs
- *                   to one of their linked families.
- * - default       → delete a single message (id = message id).
- *                   Allowed only if the stakeholder is the message's sender.
+ * Per-user "Delete for me" for the stakeholder side. Appends the caller's
+ * auth user id to `hidden_for_stakeholders` — the family and other stakeholders
+ * are unaffected.
  */
 export async function DELETE(
   request: NextRequest,
@@ -26,12 +22,11 @@ export async function DELETE(
   const scope = request.nextUrl.searchParams.get("scope");
   const admin = createAdminClient();
 
-  // Resolve which families this stakeholder is linked to
   const { data: links } = await admin
-    .from("stakeholder_links")
+    .from("family_team_members")
     .select("family_id")
-    .eq("stakeholder_id", user.id)
-    .or("status.eq.accepted,status.is.null");
+    .eq("stakeholder_user_id", user.id)
+    .in("status", ["active", "former"]);
 
   const familyIds = (links ?? []).map((l) => l.family_id);
   if (familyIds.length === 0) {
@@ -39,12 +34,10 @@ export async function DELETE(
   }
 
   if (scope === "thread") {
-    // Verify stakeholder participated in this thread, and thread is within their families
     const { data: threadMsgs, error: fetchErr } = await admin
       .from("messages")
-      .select("id, family_id, sender_id, recipient_id")
-      .eq("thread_id", id)
-      .is("deleted_at", null);
+      .select("id, family_id, sender_id, recipient_id, hidden_for_stakeholders")
+      .eq("thread_id", id);
 
     if (fetchErr) {
       return NextResponse.json({ error: "Failed to load thread" }, { status: 500 });
@@ -65,44 +58,65 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { error: updErr } = await admin
-      .from("messages")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("thread_id", id);
+    const failures: string[] = [];
+    await Promise.all(
+      threadMsgs.map(async (m) => {
+        const ok = await appendHiddenStakeholder(admin, m.id, user.id, m.hidden_for_stakeholders);
+        if (!ok) failures.push(m.id);
+      })
+    );
 
-    if (updErr) {
+    if (failures.length > 0) {
       return NextResponse.json({ error: "Failed to delete thread" }, { status: 500 });
     }
     return NextResponse.json({ success: true });
   }
 
-  // Single message: stakeholder must be the sender
+  // Single message: stakeholder hides it for themselves.
   const { data: msg, error: msgErr } = await admin
     .from("messages")
-    .select("id, sender_id, family_id")
+    .select("id, sender_id, recipient_id, family_id, hidden_for_stakeholders")
     .eq("id", id)
     .single();
 
   if (msgErr || !msg) {
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
   }
-  if (msg.sender_id !== user.id) {
-    return NextResponse.json(
-      { error: "You can only delete messages you sent" },
-      { status: 403 }
-    );
-  }
   if (!familyIds.includes(msg.family_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (msg.sender_id !== user.id && msg.recipient_id !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  const { error: delErr } = await admin
-    .from("messages")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
-
-  if (delErr) {
+  const ok = await appendHiddenStakeholder(
+    admin,
+    msg.id,
+    user.id,
+    msg.hidden_for_stakeholders
+  );
+  if (!ok) {
     return NextResponse.json({ error: "Failed to delete message" }, { status: 500 });
   }
   return NextResponse.json({ success: true });
+}
+
+async function appendHiddenStakeholder(
+  admin: AdminClient,
+  messageId: string,
+  userId: string,
+  current: unknown
+): Promise<boolean> {
+  const list = Array.isArray(current) ? (current as string[]) : [];
+  if (list.includes(userId)) return true;
+  const next = [...list, userId];
+  const { error } = await admin
+    .from("messages")
+    .update({ hidden_for_stakeholders: next })
+    .eq("id", messageId);
+  if (error) {
+    console.error("Failed to append hidden stakeholder:", error);
+    return false;
+  }
+  return true;
 }

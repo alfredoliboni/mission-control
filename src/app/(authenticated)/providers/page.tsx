@@ -869,19 +869,18 @@ function PriorityBanner({ childName }: { childName: string }) {
   }));
   const recommendation = buildRecommendationSummary(needs);
 
-  if (needs.length === 0) return null;
-
   return (
     <div className="bg-[#fdf3ee] border border-[#e8a882]/30 rounded-xl px-4 py-3 mb-2">
       <p className="text-[13px] text-foreground leading-relaxed">
-        <span className="font-semibold text-primary">Priority Now</span>
-        {" \u2014 "}
-        Based on {childName}&apos;s needs:{" "}
-        <span className="font-semibold">
-          {needs.map((n) => `${n.label}${n.detail ? ` (${n.detail})` : ""}`).join(", ")}
-        </span>
-        .{recommendation && (
-          <> Assessment recommends {recommendation}.</>
+        <span className="font-semibold text-primary">Priority Now for {childName}</span>
+        {needs.length > 0 && (
+          <>
+            {" \u2014 "}
+            <span className="font-semibold">
+              {needs.map((n) => `${n.label}${n.detail ? ` (${n.detail})` : ""}`).join(", ")}
+            </span>
+            .{recommendation && <> Assessment recommends {recommendation}.</>}
+          </>
         )}
       </p>
     </div>
@@ -954,6 +953,7 @@ function RecommendedTabContent({
         body: JSON.stringify({
           agent: agentId,
           provider: {
+            id: provider.id,
             name: provider.name,
             type: provider.type,
             services: provider.services,

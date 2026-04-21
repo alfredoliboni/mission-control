@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Switch } from "@/components/ui/switch";
 import { Lock, LockOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useParsedJourneyPartners } from "@/hooks/useWorkspace";
 
-// ── Types ──────────────────────────────────────────────────────────────
 interface StakeholderPermission {
   stakeholder_id: string;
   stakeholder_name: string;
@@ -15,7 +13,6 @@ interface StakeholderPermission {
   can_view: boolean;
 }
 
-// ── Role emoji map ─────────────────────────────────────────────────────
 const ROLE_EMOJI: Record<string, string> = {
   doctor: "\uD83D\uDC68\u200D\u2695\uFE0F",
   therapist: "\uD83E\uDDD1\u200D\u2695\uFE0F",
@@ -28,67 +25,31 @@ function getEmoji(role: string): string {
   return ROLE_EMOJI[role.toLowerCase()] ?? "\uD83D\uDC64";
 }
 
-// ── Component ──────────────────────────────────────────────────────────
 interface DocumentSharingPopoverProps {
   docId: string;
   docTitle: string;
+  childAgentId?: string;
 }
 
-export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopoverProps) {
+export function DocumentSharingPopover({
+  docId,
+  docTitle,
+  childAgentId,
+}: DocumentSharingPopoverProps) {
   const [permissions, setPermissions] = useState<StakeholderPermission[]>([]);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
-  // Read team members from workspace journey-partners.md
-  const { data: journeyPartners } = useParsedJourneyPartners();
-  const teamMembers = useMemo(
-    () => journeyPartners?.activeTeam ?? [],
-    [journeyPartners]
-  );
-
-  // Fetch existing permissions from Supabase when popover opens,
-  // then merge with workspace team members for the display list
   const fetchPermissions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/documents/permissions?document_id=${encodeURIComponent(docId)}`);
+      const params = new URLSearchParams({ document_id: docId });
+      if (childAgentId) params.set("agent_id", childAgentId);
+      const res = await fetch(`/api/documents/permissions?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        const supabasePerms: StakeholderPermission[] = data.permissions ?? [];
-
-        if (teamMembers.length > 0) {
-          // Build permissions list from workspace team members,
-          // merging can_view status from Supabase document_permissions
-          const supabaseByName = new Map(
-            supabasePerms.map((p) => [p.stakeholder_name.toLowerCase(), p])
-          );
-
-          const merged: StakeholderPermission[] = teamMembers.map((member) => {
-            const existing = supabaseByName.get(member.name.toLowerCase());
-            return {
-              stakeholder_id: existing?.stakeholder_id ?? member.name,
-              stakeholder_name: member.name,
-              role: member.role || existing?.role || "",
-              can_view: existing?.can_view ?? false,
-            };
-          });
-
-          // Also include any Supabase permissions for members not in workspace
-          for (const perm of supabasePerms) {
-            const inWorkspace = teamMembers.some(
-              (m) => m.name.toLowerCase() === perm.stakeholder_name.toLowerCase()
-            );
-            if (!inWorkspace) {
-              merged.push(perm);
-            }
-          }
-
-          setPermissions(merged);
-        } else {
-          // Fallback: use Supabase permissions directly
-          setPermissions(supabasePerms);
-        }
+        setPermissions((data.permissions ?? []) as StakeholderPermission[]);
       } else {
         console.error("Failed to fetch permissions:", res.status);
       }
@@ -97,9 +58,8 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
     } finally {
       setLoading(false);
     }
-  }, [docId, teamMembers]);
+  }, [docId, childAgentId]);
 
-  // Reload permissions when popover opens or docId changes
   useEffect(() => {
     if (open) {
       fetchPermissions();
@@ -110,7 +70,6 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
 
   const handleToggle = useCallback(
     async (stakeholder: StakeholderPermission, checked: boolean) => {
-      // Optimistic update
       setPermissions((prev) =>
         prev.map((p) =>
           p.stakeholder_id === stakeholder.stakeholder_id
@@ -135,7 +94,6 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
         });
 
         if (!res.ok) {
-          // Revert optimistic update
           setPermissions((prev) =>
             prev.map((p) =>
               p.stakeholder_id === stakeholder.stakeholder_id
@@ -154,7 +112,6 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
           { duration: 2500 }
         );
       } catch {
-        // Revert optimistic update
         setPermissions((prev) =>
           prev.map((p) =>
             p.stakeholder_id === stakeholder.stakeholder_id
@@ -203,7 +160,7 @@ export function DocumentSharingPopover({ docId, docTitle }: DocumentSharingPopov
               </div>
             ) : permissions.length === 0 ? (
               <p className="py-3 text-[12px] text-muted-foreground text-center">
-                No care team members yet. Invite someone in Settings.
+                No active care-team members for this child. Invite someone in Settings.
               </p>
             ) : (
               <div className="space-y-2.5">

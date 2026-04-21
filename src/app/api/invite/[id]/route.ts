@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/invite/[id]
- * Returns invite details (public — no auth required).
+ * Returns invite details by family_team_members.id (public — no auth required).
  */
 export async function GET(
   _request: NextRequest,
@@ -17,21 +17,20 @@ export async function GET(
 
   const admin = createAdminClient();
 
-  const { data: link, error } = await admin
-    .from("stakeholder_links")
-    .select("id, family_id, stakeholder_id, role, name, status, child_name")
+  const { data: member, error } = await admin
+    .from("family_team_members")
+    .select("id, family_id, stakeholder_user_id, role, name, status, child_name")
     .eq("id", id)
     .single();
 
-  if (error || !link) {
+  if (error || !member) {
     return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
   }
 
-  // Fetch family user to get family name
   let familyName = "The Family";
-  const childName = link.child_name || "their child";
+  const childName = member.child_name || "their child";
 
-  const { data: familyUser } = await admin.auth.admin.getUserById(link.family_id);
+  const { data: familyUser } = await admin.auth.admin.getUserById(member.family_id);
   if (familyUser?.user) {
     familyName =
       familyUser.user.user_metadata?.full_name ||
@@ -39,22 +38,27 @@ export async function GET(
       "The Family";
   }
 
-  // Does this invitee still need to set a password?
   let needsPassword = false;
   let email: string | null = null;
-  if (link.stakeholder_id) {
-    const { data: stakeholder } = await admin.auth.admin.getUserById(link.stakeholder_id);
+  if (member.stakeholder_user_id) {
+    const { data: stakeholder } = await admin.auth.admin.getUserById(member.stakeholder_user_id);
     needsPassword = !!stakeholder?.user?.user_metadata?.needs_password_setup;
     email = stakeholder?.user?.email ?? null;
   }
 
   return NextResponse.json({
-    id: link.id,
-    role: link.role,
-    stakeholderName: link.name,
+    id: member.id,
+    role: member.role,
+    stakeholderName: member.name,
     familyName,
     childName,
-    status: link.status || "pending",
+    // Normalize status for frontend: pending → pending, active → accepted, declined → declined
+    status:
+      member.status === "active"
+        ? "accepted"
+        : member.status === "declined"
+          ? "declined"
+          : "pending",
     needsPassword,
     email,
   });
@@ -62,7 +66,7 @@ export async function GET(
 
 /**
  * PATCH /api/invite/[id]
- * Updates invite status to "accepted" or "declined".
+ * Accepts or declines an invite. Resolves by family_team_members.id.
  */
 export async function PATCH(
   request: NextRequest,
@@ -86,10 +90,9 @@ export async function PATCH(
 
   const admin = createAdminClient();
 
-  // Verify the invite exists
   const { data: existing, error: fetchError } = await admin
-    .from("stakeholder_links")
-    .select("id, stakeholder_id, role, status")
+    .from("family_team_members")
+    .select("id, family_id, stakeholder_user_id, role, status, agent_id, name, organization, email, child_name")
     .eq("id", id)
     .single();
 
@@ -97,17 +100,17 @@ export async function PATCH(
     return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
   }
 
-  // Prevent re-changing after accepted/declined
-  if (existing.status === "accepted" || existing.status === "declined") {
+  if (existing.status === "active" || existing.status === "declined") {
+    const label = existing.status === "active" ? "accepted" : "declined";
     return NextResponse.json(
-      { error: `Invitation has already been ${existing.status}` },
+      { error: `Invitation has already been ${label}` },
       { status: 400 }
     );
   }
 
-  // If accepting and the invitee still needs a password, validate + set it now
-  if (status === "accepted" && existing.stakeholder_id) {
-    const { data: stakeholderUser } = await admin.auth.admin.getUserById(existing.stakeholder_id);
+  // Password setup for first-time invitees
+  if (status === "accepted" && existing.stakeholder_user_id) {
+    const { data: stakeholderUser } = await admin.auth.admin.getUserById(existing.stakeholder_user_id);
     const needsPassword = !!stakeholderUser?.user?.user_metadata?.needs_password_setup;
 
     if (needsPassword) {
@@ -119,7 +122,7 @@ export async function PATCH(
       }
       const existingMeta = stakeholderUser?.user?.user_metadata || {};
       const { needs_password_setup: _drop, ...cleanMeta } = existingMeta;
-      const { error: pwErr } = await admin.auth.admin.updateUserById(existing.stakeholder_id, {
+      const { error: pwErr } = await admin.auth.admin.updateUserById(existing.stakeholder_user_id, {
         password,
         user_metadata: cleanMeta,
       });
@@ -129,10 +132,15 @@ export async function PATCH(
     }
   }
 
-  // Update the status
+  const newStatus = status === "accepted" ? "active" : "declined";
+  const timestamp = new Date().toISOString();
+
   const { data: updated, error: updateError } = await admin
-    .from("stakeholder_links")
-    .update({ status })
+    .from("family_team_members")
+    .update({
+      status: newStatus,
+      accepted_at: status === "accepted" ? timestamp : null,
+    })
     .eq("id", id)
     .select()
     .single();
@@ -141,11 +149,10 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // When accepted, ensure user_metadata has is_stakeholder flag
-  if (status === "accepted" && existing.stakeholder_id) {
-    const { data: userData } = await admin.auth.admin.getUserById(existing.stakeholder_id);
+  if (status === "accepted" && existing.stakeholder_user_id) {
+    const { data: userData } = await admin.auth.admin.getUserById(existing.stakeholder_user_id);
     const existingMeta = userData?.user?.user_metadata || {};
-    await admin.auth.admin.updateUserById(existing.stakeholder_id, {
+    await admin.auth.admin.updateUserById(existing.stakeholder_user_id, {
       user_metadata: {
         ...existingMeta,
         is_stakeholder: true,
@@ -153,34 +160,34 @@ export async function PATCH(
       },
     });
 
-    // Consolidate accepted invite into workspace journey-partners.md
-    const { data: linkData } = await admin
-      .from("stakeholder_links")
-      .select("*")
-      .eq("id", id)
-      .single();
+    let providerData: {
+      services?: string[];
+      phone?: string | null;
+      email?: string | null;
+    } | null = null;
 
-    if (linkData) {
-      // Look up provider data from Supabase if it's a provider
-      let providerData = null;
+    if (existing.email) {
       const { data: provider } = await admin
         .from("providers")
-        .select("*")
-        .eq("email", linkData.email || "")
+        .select("services, phone, email")
+        .ilike("email", existing.email)
         .limit(1)
-        .single();
+        .maybeSingle();
+      if (provider) providerData = provider;
+    }
 
-      if (provider) {
-        providerData = provider;
-      }
+    // Resolve agentId for consolidation. Prefer the row's agent_id; fall back to
+    // the family's first child from user_metadata so legacy rows still consolidate.
+    let agentId = existing.agent_id as string | null;
+    if (!agentId) {
+      const { data: familyUser } = await admin.auth.admin.getUserById(existing.family_id);
+      const children = Array.isArray(familyUser?.user?.user_metadata?.children)
+        ? (familyUser!.user!.user_metadata!.children as { agentId?: string }[])
+        : [];
+      agentId = children[0]?.agentId || null;
+    }
 
-      // Resolve agentId from family
-      const { data: familyUser } = await admin.auth.admin.getUserById(linkData.family_id);
-      const { getFamilyAgent } = await import("@/lib/family-agents");
-      const family = getFamilyAgent(familyUser?.user?.email);
-      const agentId = linkData.child_agent_id || family.children[0].agentId;
-
-      // Consolidate into workspace
+    if (agentId) {
       try {
         const consolidateUrl = new URL("/api/consolidate", request.url);
         await fetch(consolidateUrl, {
@@ -190,18 +197,17 @@ export async function PATCH(
             action: providerData ? "provider_accepted" : "doctor_accepted",
             agentId,
             data: {
-              name: linkData.name,
-              role: linkData.role,
-              organization: linkData.organization || linkData.name,
+              name: existing.name,
+              role: existing.role,
+              organization: existing.organization || existing.name,
               services: providerData?.services?.join(", ") || "",
               contact: providerData?.phone || "",
-              email: providerData?.email || linkData.email || "",
+              email: providerData?.email || existing.email || "",
             },
           }),
         });
       } catch (err) {
         console.error("Consolidation error:", err);
-        // Don't fail the invite accept if consolidation fails
       }
     }
   }

@@ -3,150 +3,43 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFamilyAgentFlat } from "@/lib/family-agents";
 
-const ORGO_COMPUTER_ID = process.env.ORGO_COMPUTER_ID || "";
-const ORGO_API_KEY = process.env.ORGO_API_KEY || "";
+const COMPANION_API_DIRECT = process.env.COMPANION_API_DIRECT || "";
 const COMPANION_API_TOKEN = process.env.COMPANION_API_TOKEN || "";
 
-// ── Extract text from document via Orgo VM ───────────────────────────
-async function extractTextViaVM(signedUrl: string, contentType: string): Promise<string> {
-  const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
-
-  const b64Url = Buffer.from(signedUrl).toString("base64");
-  const isPdf = contentType.includes("pdf");
-
-  // Python code to download file and extract text
-  // For PDFs: tries PyPDF2 first, falls back to raw text extraction
-  // For text files: reads directly
-  const pythonCode = isPdf
-    ? [
-        "import json, urllib.request, base64, re, os",
-        `url = base64.b64decode("${b64Url}").decode()`,
-        'urllib.request.urlretrieve(url, "/tmp/doc.pdf")',
-        "text = ''",
-        "try:",
-        "    import PyPDF2",
-        '    reader = PyPDF2.PdfReader("/tmp/doc.pdf")',
-        '    text = "\\n".join(page.extract_text() or "" for page in reader.pages)',
-        "except ImportError:",
-        "    try:",
-        "        import subprocess",
-        '        result = subprocess.run(["pdftotext", "/tmp/doc.pdf", "-"], capture_output=True, text=True, timeout=30)',
-        "        text = result.stdout",
-        "    except Exception:",
-        '        with open("/tmp/doc.pdf", "rb") as f:',
-        "            raw = f.read()",
-        '        decoded = raw.decode("latin-1", errors="ignore")',
-        "        parts = re.findall(r'[\\x20-\\x7E]{4,}', decoded)",
-        '        text = " ".join(parts)',
-        "except Exception as e:",
-        '    text = f"[PDF extraction error: {e}]"',
-        'text = text.strip()[:8000]',
-        'print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
-      ].join("\n")
-    : [
-        "import json, urllib.request, base64",
-        `url = base64.b64decode("${b64Url}").decode()`,
-        "try:",
-        '    resp = urllib.request.urlopen(url, timeout=30)',
-        '    raw = resp.read()',
-        '    text = raw.decode("utf-8", errors="replace")',
-        '    text = text.strip()[:8000]',
-        '    print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
-        "except Exception as e:",
-        '    print(json.dumps({"ok": False, "error": str(e)}))',
-      ].join("\n");
-
-  const response = await fetch(ORGO_EXEC_BASE, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${ORGO_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ code: pythonCode }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Orgo VM exec failed: ${response.status}`);
-  }
-
-  const result = await response.json();
-  const output = (result.output || "").trim();
-
-  try {
-    const parsed = JSON.parse(output);
-    if (parsed.ok && parsed.text) {
-      return parsed.text;
-    }
-    if (parsed.error) {
-      throw new Error(parsed.error);
-    }
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      // Output wasn't JSON — return raw output as fallback
-      if (output.length > 10) return output.slice(0, 8000);
-    }
-    throw e;
-  }
-
-  return "";
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const mod = await import("pdf-parse");
+  const pdfParse = (mod.default ?? mod) as (b: Buffer) => Promise<{ text: string }>;
+  const result = await pdfParse(buffer);
+  return (result.text || "").trim().slice(0, 8000);
 }
 
-// ── Send extracted text to Navigator agent ───────────────────────────
+function extractPlainText(buffer: Buffer): string {
+  return buffer.toString("utf8").trim().slice(0, 8000);
+}
+
 async function sendToNavigator(prompt: string, agentId: string): Promise<string> {
-  const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
-
-  const b64Message = Buffer.from(prompt).toString("base64");
-  const b64Token = Buffer.from(COMPANION_API_TOKEN).toString("base64");
-  const b64AgentId = Buffer.from(agentId).toString("base64");
-
-  const pythonCode = [
-    "import json, urllib.request, base64",
-    `msg = base64.b64decode("${b64Message}").decode()`,
-    `token = base64.b64decode("${b64Token}").decode().strip()`,
-    `agent = base64.b64decode("${b64AgentId}").decode().strip()`,
-    'payload = json.dumps({"model": "openclaw/" + agent, "messages": [{"role": "user", "content": msg}], "user": agent}).encode()',
-    'headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}',
-    'req = urllib.request.Request("http://127.0.0.1:18789/v1/chat/completions", data=payload, headers=headers)',
-    "try:",
-    "    resp = urllib.request.urlopen(req, timeout=120)",
-    "    result = json.loads(resp.read().decode())",
-    '    content = result["choices"][0]["message"]["content"]',
-    '    print(json.dumps({"ok": True, "content": content}))',
-    "except Exception as e:",
-    '    print(json.dumps({"ok": False, "error": str(e)}))',
-  ].join("\n");
-
-  const response = await fetch(ORGO_EXEC_BASE, {
+  const response = await fetch(`${COMPANION_API_DIRECT}/v1/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(55000),
     headers: {
-      Authorization: `Bearer ${ORGO_API_KEY}`,
+      Authorization: `Bearer ${COMPANION_API_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ code: pythonCode }),
+    body: JSON.stringify({
+      model: `openclaw/${agentId}`,
+      messages: [{ role: "user", content: prompt }],
+      user: agentId,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Orgo VM exec failed: ${response.status}`);
+    throw new Error(`Gateway error: ${response.status}`);
   }
 
   const result = await response.json();
-  const output = (result.output || "").trim();
-
-  try {
-    const parsed = JSON.parse(output);
-    if (parsed.ok && parsed.content) {
-      return parsed.content;
-    }
-    if (parsed.error) {
-      throw new Error(`Navigator error: ${parsed.error}`);
-    }
-  } catch (e) {
-    if (e instanceof SyntaxError && output.length > 10) {
-      return output;
-    }
-    throw e;
-  }
-
+  const content = result?.choices?.[0]?.message?.content;
+  if (content) return content;
+  if (result?.error?.message) throw new Error(result.error.message);
   return "The Navigator could not process this document. Please try again.";
 }
 
@@ -155,13 +48,10 @@ async function sendToNavigator(prompt: string, agentId: string): Promise<string>
  *
  * Analyzes a document from the Document Vault:
  * 1. Gets document metadata from Supabase
- * 2. Downloads file from Supabase Storage (signed URL)
- * 3. Extracts text via Orgo.ai VM (Python: PyPDF2 / pdftotext / raw)
- * 4. Sends extracted text to the family's Navigator agent
+ * 2. Downloads file from Supabase Storage
+ * 3. Extracts text locally (pdf-parse for PDFs, utf8 decode otherwise)
+ * 4. Sends extracted text to the family's Navigator agent via the Mac mini Gateway
  * 5. Returns agent analysis
- *
- * Request body:
- *   { documentId: string, action: "summary" | "insights" }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -185,7 +75,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Authenticate user
     const supabase = await createClient();
     const {
       data: { user },
@@ -196,7 +85,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Get document metadata
     const admin = createAdminClient();
     const { data: doc, error: docError } = await admin
       .from("documents")
@@ -211,7 +99,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Verify the user belongs to this document's family
     const { data: familyMember } = await supabase
       .from("family_members")
       .select("family_id")
@@ -220,31 +107,25 @@ export async function POST(request: NextRequest) {
 
     const userFamilyId = familyMember?.family_id ?? user.id;
     if (doc.family_id !== userFamilyId) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 },
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // 4. Get the family's Navigator agent
     const family = getFamilyAgentFlat(user.email ?? undefined);
 
-    // Check if Orgo VM is configured
-    if (!ORGO_COMPUTER_ID || !ORGO_API_KEY) {
+    if (!COMPANION_API_DIRECT) {
       return NextResponse.json({
-        analysis: "Navigator agent is not connected. Document analysis is unavailable. Please try again later.",
+        analysis:
+          "Navigator agent is not connected. Document analysis is unavailable. Please try again later.",
         source: "fallback",
       });
     }
 
-    // 5. Download document directly with service key
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const downloadUrl = `${SUPABASE_URL}/storage/v1/object/documents/${doc.file_path}`;
-    const contentType = doc.metadata?.content_type || "application/pdf";
+    const contentType: string = doc.metadata?.content_type || "application/pdf";
     let extractedText = "";
 
     try {
-      // Download the file
       const fileRes = await fetch(downloadUrl, {
         headers: {
           apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -257,60 +138,15 @@ export async function POST(request: NextRequest) {
       }
 
       const fileBuffer = Buffer.from(await fileRes.arrayBuffer());
-      const b64File = fileBuffer.toString("base64");
-
-      // Send to VM for text extraction
-      const ORGO_EXEC_BASE = `https://www.orgo.ai/api/computers/${ORGO_COMPUTER_ID}/exec`;
-      const isPdf = contentType.includes("pdf");
-
-      const pythonCode = isPdf
-        ? [
-            "import json, base64, os",
-            `data = base64.b64decode("${b64File}")`,
-            'with open("/tmp/doc.pdf", "wb") as f: f.write(data)',
-            "text = ''",
-            "try:",
-            "    import PyPDF2",
-            '    reader = PyPDF2.PdfReader("/tmp/doc.pdf")',
-            '    text = "\\n".join(page.extract_text() or "" for page in reader.pages)',
-            "except Exception as e:",
-            '    text = f"[PDF extraction error: {e}]"',
-            'text = text.strip()[:8000]',
-            'print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
-          ].join("\n")
-        : [
-            "import json, base64",
-            `data = base64.b64decode("${b64File}")`,
-            'text = data.decode("utf-8", errors="replace").strip()[:8000]',
-            'print(json.dumps({"ok": True, "text": text, "length": len(text)}))',
-          ].join("\n");
-
-      const vmRes = await fetch(ORGO_EXEC_BASE, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ORGO_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code: pythonCode }),
-      });
-
-      if (vmRes.ok) {
-        const vmResult = await vmRes.json();
-        const output = (vmResult.output || "").trim();
-        try {
-          const parsed = JSON.parse(output);
-          if (parsed.ok && parsed.text) {
-            extractedText = parsed.text;
-          }
-        } catch {
-          if (output.length > 10) extractedText = output.slice(0, 8000);
-        }
+      if (contentType.includes("pdf")) {
+        extractedText = await extractPdfText(fileBuffer);
+      } else {
+        extractedText = extractPlainText(fileBuffer);
       }
     } catch (err) {
       console.error("Text extraction failed:", err);
     }
 
-    // 7. Build the prompt for the Navigator agent
     const docMeta = [
       `Title: ${doc.title}`,
       `Type: ${doc.doc_type}`,
@@ -327,7 +163,6 @@ export async function POST(request: NextRequest) {
     let prompt: string;
 
     if (extractedText && extractedText.length > 50) {
-      // We have document content — send it for real analysis
       if (action === "summary") {
         prompt = `I need you to analyze a document from our family's Document Vault. Here are the details:
 
@@ -365,7 +200,6 @@ Please provide:
 Format your response in clear markdown with headers.`;
       }
     } else {
-      // No document content extracted — ask agent to help based on metadata
       if (action === "summary") {
         prompt = `A document was uploaded to our family's Document Vault, but I couldn't extract the text content. Here are the details I have:
 
@@ -393,7 +227,6 @@ Format your response in clear markdown with headers.`;
       }
     }
 
-    // 8. Send to Navigator agent
     const analysis = await sendToNavigator(prompt, family.agentId);
 
     return NextResponse.json({

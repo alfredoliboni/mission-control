@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const documentId = request.nextUrl.searchParams.get("document_id");
+    const agentId = request.nextUrl.searchParams.get("agent_id");
     if (!documentId) {
       return NextResponse.json(
         { error: "document_id query parameter is required" },
@@ -28,27 +29,34 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Get care team members for this family (only accepted invites)
-    const { data: stakeholders, error: stakeholderError } = await admin
-      .from("stakeholder_links")
-      .select("stakeholder_id, name, role")
+    // Active care-team members for this family with a backing auth user
+    let membersQuery = admin
+      .from("family_team_members")
+      .select("id, stakeholder_user_id, name, role, agent_id")
       .eq("family_id", user.id)
-      .or("status.eq.accepted,status.is.null");
+      .eq("status", "active")
+      .not("stakeholder_user_id", "is", null);
 
-    if (stakeholderError) {
-      console.error("Stakeholder links query error:", stakeholderError);
+    if (agentId) {
+      // Include per-child members AND family-wide members (agent_id IS NULL)
+      membersQuery = membersQuery.or(`agent_id.eq.${agentId},agent_id.is.null`);
+    }
+
+    const { data: members, error: membersError } = await membersQuery;
+
+    if (membersError) {
+      console.error("Team members query error:", membersError);
       return NextResponse.json(
         { error: "Failed to fetch care team" },
         { status: 500 }
       );
     }
 
-    if (!stakeholders || stakeholders.length === 0) {
+    if (!members || members.length === 0) {
       return NextResponse.json({ permissions: [] });
     }
 
-    // Get existing permissions for this document
-    const stakeholderIds = stakeholders.map((s) => s.stakeholder_id);
+    const stakeholderIds = members.map((m) => m.stakeholder_user_id as string);
     const { data: existingPerms, error: permsError } = await admin
       .from("document_permissions")
       .select("stakeholder_id, can_view")
@@ -63,17 +71,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build a lookup map for existing permissions
     const permsMap = new Map(
       (existingPerms ?? []).map((p) => [p.stakeholder_id, p.can_view])
     );
 
-    // Merge: every stakeholder gets an entry, defaulting to can_view=false
-    const permissions = stakeholders.map((s) => ({
-      stakeholder_id: s.stakeholder_id,
-      stakeholder_name: s.name,
-      role: s.role,
-      can_view: permsMap.get(s.stakeholder_id) ?? false,
+    const permissions = members.map((m) => ({
+      stakeholder_id: m.stakeholder_user_id as string,
+      stakeholder_name: m.name,
+      role: m.role,
+      can_view: permsMap.get(m.stakeholder_user_id as string) ?? false,
     }));
 
     return NextResponse.json({ permissions });
@@ -119,15 +125,16 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Verify this stakeholder is linked to the user's family
-    const { data: link } = await admin
-      .from("stakeholder_links")
+    // Verify this stakeholder is an active team member of the user's family
+    const { data: member } = await admin
+      .from("family_team_members")
       .select("id")
       .eq("family_id", user.id)
-      .eq("stakeholder_id", stakeholder_id)
+      .eq("stakeholder_user_id", stakeholder_id)
+      .eq("status", "active")
       .limit(1);
 
-    if (!link || link.length === 0) {
+    if (!member || member.length === 0) {
       return NextResponse.json(
         { error: "Stakeholder is not on your care team" },
         { status: 403 }

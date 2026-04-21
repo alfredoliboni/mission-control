@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
   if (trashMode) {
     messagesQuery = messagesQuery.not("deleted_at", "is", null);
   } else {
-    messagesQuery = messagesQuery.is("deleted_at", null);
+    messagesQuery = messagesQuery
+      .is("deleted_at", null)
+      .eq("hidden_for_family", false);
   }
 
   // Per-child filtering: match rows tagged for this child OR untagged (NULL).

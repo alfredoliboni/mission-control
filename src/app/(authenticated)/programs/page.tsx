@@ -761,8 +761,6 @@ function PriorityBanner({
     programs.educational.length;
   const gapFillerCount = programs.gapFillers.length;
 
-  if (totalCount === 0) return null;
-
   const needs = (priorities ?? []).map((p) => ({
     label: p.label,
     detail: p.detail,
@@ -772,42 +770,27 @@ function PriorityBanner({
   return (
     <div className="bg-[#fdf3ee] border border-[#e8a882]/30 rounded-xl px-4 py-3 mb-2">
       <p className="text-[13px] text-foreground leading-relaxed">
-        <span className="font-semibold text-primary">Priority Now</span>
-        {" \u2014 "}
-        {needs.length > 0 ? (
+        <span className="font-semibold text-primary">Priority Now for {childName}</span>
+        {needs.length > 0 && (
           <>
-            Based on {childName}&apos;s needs:{" "}
+            {" \u2014 "}
             <span className="font-semibold">
               {needs.map((n) => `${n.label}${n.detail ? ` (${n.detail})` : ""}`).join(", ")}
             </span>
-            .{recommendation && (
-              <> Assessment recommends {recommendation}.</>
-            )}{" "}
-            Your Navigator found {totalCount} matching program
-            {totalCount !== 1 ? "s" : ""}
-            {gapFillerCount > 0 && (
+            {recommendation && <>. Assessment recommends {recommendation}</>}
+            {totalCount > 0 && (
               <>
-                {" \u2014 "}
-                {gapFillerCount} gap filler{gapFillerCount !== 1 ? "s" : ""} to
-                use while waiting for funded services
+                . {totalCount} matching program{totalCount !== 1 ? "s" : ""}
+                {gapFillerCount > 0 && (
+                  <>
+                    {" ("}
+                    {gapFillerCount} gap filler{gapFillerCount !== 1 ? "s" : ""}
+                    {")"}
+                  </>
+                )}
               </>
             )}
             .
-          </>
-        ) : (
-          <>
-            Your Navigator found {totalCount} program
-            {totalCount !== 1 ? "s" : ""} that match {childName}&apos;s needs
-            {gapFillerCount > 0 && (
-              <>
-                {" \u2014 "}
-                <span className="font-medium">
-                  {gapFillerCount} {gapFillerCount === 1 ? "is a" : "are"} gap
-                  filler{gapFillerCount !== 1 ? "s" : ""} to use while waiting for
-                  funded services
-                </span>
-              </>
-            )}
           </>
         )}
       </p>

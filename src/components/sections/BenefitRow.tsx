@@ -42,6 +42,11 @@ const statusConfig: Record<BenefitStatus, { icon: typeof CheckCircle; color: str
     color: "text-status-renewed",
     label: "Renewed",
   },
+  denied: {
+    icon: HelpCircle,
+    color: "text-status-blocked",
+    label: "Denied",
+  },
   unknown: {
     icon: HelpCircle,
     color: "text-warm-400",

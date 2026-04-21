@@ -24,7 +24,10 @@ export async function DELETE(
 
   let query = admin
     .from("messages")
-    .update({ deleted_at: new Date().toISOString() });
+    .update({
+      hidden_for_family: true,
+      deleted_at: new Date().toISOString(),
+    });
 
   if (scope === "thread") {
     // Delete all messages in the thread
@@ -73,7 +76,7 @@ export async function PATCH(
 
   const { error } = await admin
     .from("messages")
-    .update({ deleted_at: null })
+    .update({ deleted_at: null, hidden_for_family: false })
     .eq("id", id)
     .eq("family_id", user.id);
 
